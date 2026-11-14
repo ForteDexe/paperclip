@@ -1574,13 +1574,13 @@ describeEmbeddedPostgres("routine service live-execution coalescing", () => {
     });
   });
 
-  it("blocks routine reassignment to agents under terminated managers", async () => {
+  it("blocks routine reassignment to agents under terminated lead agents", async () => {
     const { agentId, spaceId, routine, svc } = await seedFixture();
-    const terminatedManagerId = randomUUID();
+    const terminatedLeadId = randomUUID();
     const blockedAgentId = randomUUID();
     await db.insert(agents).values([
       {
-        id: terminatedManagerId,
+        id: terminatedLeadId,
         spaceId,
         name: "TerminatedManager",
         role: "manager",
@@ -1596,7 +1596,7 @@ describeEmbeddedPostgres("routine service live-execution coalescing", () => {
         name: "BlockedRoutineCoder",
         role: "engineer",
         status: "active",
-        reportsTo: terminatedManagerId,
+        leadAgentId: terminatedLeadId,
         adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: {},
@@ -1612,7 +1612,7 @@ describeEmbeddedPostgres("routine service live-execution coalescing", () => {
         code: "agent_not_assignable",
         reason: "ancestor_terminated",
         assigneeAgentId: blockedAgentId,
-        invalidAncestorAgentId: terminatedManagerId,
+        invalidAncestorAgentId: terminatedLeadId,
       },
     });
 

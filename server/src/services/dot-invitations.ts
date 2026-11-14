@@ -28,9 +28,9 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
           and ${activityLog.action} = 'agent.create_created' and ${activityLog.details}->>'source' = ${source}))`)).orderBy(desc(agents.createdAt));
     return rows.find(row => row.binding?.status !== "ready" || row.agent.lifecycleState !== "ready")?.agent ?? null;
   }
-  async function describe(agent: Pick<typeof agents.$inferSelect, "id" | "name" | "spaceId" | "status" | "role" | "reportsTo" | "metadata">, database: Db = db) {
+  async function describe(agent: Pick<typeof agents.$inferSelect, "id" | "name" | "spaceId" | "status" | "role" | "leadAgentId" | "metadata">, database: Db = db) {
     const approval = await approvalService(database).findOpenCreationApprovalForAgent(agent.spaceId, agent.id);
-    return { agent: { id: agent.id, name: agent.name, status: agent.status, ...(provider === "grok_bot" ? { role: agent.role, reportsTo: agent.reportsTo, botName: (agent.metadata?.[invitationKey] as { botName?: string } | undefined)?.botName ?? agent.name } : {}) }, approvalId: approval?.id ?? null,
+    return { agent: { id: agent.id, name: agent.name, status: agent.status, ...(provider === "grok_bot" ? { role: agent.role, leadAgentId: agent.leadAgentId, botName: (agent.metadata?.[invitationKey] as { botName?: string } | undefined)?.botName ?? agent.name } : {}) }, approvalId: approval?.id ?? null,
       binding: await dotRunnerBroker(database).bindingForAgent(agent.spaceId, agent.id) };
   }
   return {
@@ -38,7 +38,7 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
       const agent = await pending(db, spaceId, operatorId);
       return agent ? describe(agent) : null;
     },
-    async create(spaceId: string, operatorId: string, details?: { name?: string; botName?: string; role?: typeof agents.$inferSelect.role; reportsTo?: string | null }) {
+    async create(spaceId: string, operatorId: string, details?: { name?: string; botName?: string; role?: typeof agents.$inferSelect.role; leadAgentId?: string | null }) {
       if (!await dotRunnerBroker(db).enabled(provider)) throw unprocessable(`Enable ${providerName} and Assistant connections (MCP) in experimental settings.`);
       const database = db;
       const lockKey = `outpost:${source}:${spaceId}:${operatorId}`;
@@ -58,7 +58,7 @@ export function dotInvitationService(db: Db, provider: "openai_dot" | "grok_bot"
         }
         const svc = agentService(database);
         let created = existing ?? await createAgentLifecycle(database).requestCreation(spaceId, {
-          name: details?.name?.trim() || providerName, role: details?.role ?? "general", reportsTo: details?.reportsTo, adapterType: "outpost_runner",
+          name: details?.name?.trim() || providerName, role: details?.role ?? "general", leadAgentId: details?.leadAgentId, adapterType: "outpost_runner",
           adapterConfig: { provider, lifecycleMode: "per_turn", allowUnmeteredProvider: true,
             dotWorkspaceAccess: false, dotAttachmentAccess: false },
           runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },

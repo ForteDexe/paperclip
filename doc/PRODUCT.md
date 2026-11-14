@@ -49,7 +49,7 @@ A Space has:
 
 - A **North Star** — the higher-level reason for its work
 - **Agents** — durable scope owners with free-form names and titles
-- **Coordination relationships** — optional `reportsTo` links, never rank
+- **Coordination relationships** — optional `leadAgentId` links, never rank
 - **Tasks and Decisions** — owned work and explicit human input
 - **Artifacts** — durable results attached to tasks
 
@@ -59,7 +59,7 @@ Agents are persistent workers bound to one Space and its working directory. A
 Space may have multiple root agents; they are peers unless the user expresses
 an optional coordination relationship.
 
-Each employee has:
+Each agent has:
 
 - **Adapter type + config** — how this agent runs and what defines its identity/behavior. This is adapter-specific (for example, a Claude Code agent may use CLAUDE.md and a Codex agent may use AGENTS.md). Outpost does not prescribe the format — the harness does.
 - **Title & reporting** — a free-form title and optional coordination links
@@ -266,7 +266,7 @@ not product surfaces. Their inherited backend contracts may remain temporarily
 for compatibility while the fork is simplified.
 
 Only the core Outpost operational skill is bundled and assigned automatically.
-Connector-specific, onboarding, autonomous hiring, task-pipeline, feedback, and
+Connector-specific, onboarding, autonomous agent creation, task-pipeline, feedback, and
 auxiliary memory skills are not part of the default product.
 
 Space skills are shared operating capabilities in the inherited skill subsystem. Every authenticated agent in a Space can create, import, install, edit, update, test, reset, and remove that Space's skills unless an explicit restriction exists.

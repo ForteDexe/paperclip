@@ -714,13 +714,13 @@ it.each((["task", "legacy"] as const).flatMap(surface =>
 });
 
 it.each((["task", "legacy"] as const).flatMap(surface => [
-  ...(["paused", "pending_approval", "terminated"] as const).map(status => ({ surface, reason: status, status, orgChainHealth: undefined })),
-  ...(["missing_manager", "terminated_ancestor", "cycle"] as const).map(reason => ({ surface, reason, status: "idle" as const,
-    orgChainHealth: { status: "invalid_org_chain", reason } as Agent["orgChainHealth"] })),
-]))("does not show startup work with $reason in $surface chat", async ({ surface, status, orgChainHealth }) => {
+  ...(["paused", "pending_approval", "terminated"] as const).map(status => ({ surface, reason: status, status, coordinationHealth: undefined })),
+  ...(["missing_lead_agent", "terminated_ancestor", "cycle"] as const).map(reason => ({ surface, reason, status: "idle" as const,
+    coordinationHealth: { status: "invalid_coordination_chain", reason } as Agent["coordinationHealth"] })),
+]))("does not show startup work with $reason in $surface chat", async ({ surface, status, coordinationHealth }) => {
   const Component = surface === "task" ? TaskChatThread : IssueChatThread;
   const onAdd = vi.fn<ComponentProps<typeof TaskChatThread>["onAdd"]>().mockResolvedValue(undefined);
-  const agentMap = new Map([["agent", { id: "agent", name: "Worker", status, orgChainHealth, adapterType: "outpost_runner" } as Agent]]);
+  const agentMap = new Map([["agent", { id: "agent", name: "Worker", status, coordinationHealth, adapterType: "outpost_runner" } as Agent]]);
   const props = { issueId: "issue", comments: [], issueStatus: "todo", issueAssigneeAgentId: "agent", agentMap, onAdd };
   render(<Component {...props} />);
   await act(async () => { editorCallbacks.change("Save a note for later."); });
@@ -1966,7 +1966,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       }],
       linkedRuns: [{
         runId: "missing-ai-run", runtimeMode: "legacy", status: "failed", errorCode: "configuration_incomplete",
-        agentId: "agent-1", agentName: "Chief of Staff", adapterType: "claude_local",
+        agentId: "agent-1", agentName: "Default agent", adapterType: "claude_local",
         createdAt: "2026-08-25T18:00:00.000Z", startedAt: null, finishedAt: "2026-08-25T18:00:02.000Z",
       }],
     });

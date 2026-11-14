@@ -86,7 +86,7 @@ export type ScheduledRetryFacts = {
 
   agentInvokable: boolean;
   agentInvokabilityDetails: Record<string, unknown>;
-  agentInvokabilityInvalidOrgChain: boolean;
+  agentInvokabilityInvalidCoordinationChain: boolean;
 
   heartbeatWakeOnDemandEnabled: boolean;
 
@@ -290,7 +290,7 @@ export function decideScheduledRetryGate(
       issueId: facts.issueId,
       details: {
         ...facts.agentInvokabilityDetails,
-        invalidOrgChain: facts.agentInvokabilityInvalidOrgChain,
+        invalidCoordinationChain: facts.agentInvokabilityInvalidCoordinationChain,
       },
     };
   }

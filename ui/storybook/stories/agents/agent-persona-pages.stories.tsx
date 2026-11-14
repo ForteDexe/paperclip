@@ -110,10 +110,10 @@ function PersonaPage({ path, meet = false }: { path: string; meet?: boolean }) {
   </PluginLauncherProvider>;
 }
 const meta = { id: "agents-personas-full-pages",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Personas/Full pages", parameters: { layout: "fullscreen", a11y: { test: "off" },
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Personas/Full pages", parameters: { layout: "fullscreen", a11y: { test: "off" },
     outpost: {
       "capabilities": [
-        "agents/organization",
+        "agents/coordination",
         "navigation-preferences/profile"
       ],
       "implementation": "production",

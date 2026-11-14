@@ -369,7 +369,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
   it.each(["agent", "done"] as const)("fences a concurrent %s handoff before waiting for Stop execution", async destination => {
     const { space, agent } = await fixture();
     await db.update(agents).set({ role: "lead" }).where(eq(agents.id, agent.id));
-    const [recipient] = await db.insert(agents).values({ spaceId: space.id, name: "Recipient", role: "engineer", reportsTo: agent.id }).returning();
+    const [recipient] = await db.insert(agents).values({ spaceId: space.id, name: "Recipient", role: "engineer", leadAgentId: agent.id }).returning();
     const run = await liveRun(space.id, agent.id);
     const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Concurrent handoff", status: "in_progress",
       assigneeAgentId: agent.id, executionRunId: run.id, checkoutRunId: run.id }).returning();

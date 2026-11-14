@@ -837,7 +837,7 @@ describeEmbeddedPostgres("built-in agents", () => {
         spaceId,
         name: "Reflection Coach",
         status: "pending_approval",
-        reportsTo: root.id,
+        leadAgentId: root.id,
         budgetMonthlyCents: 0,
         permissions: {
           builtInMutationPolicy: mutationPolicy,
@@ -857,7 +857,7 @@ describeEmbeddedPostgres("built-in agents", () => {
         agentId: state.agentId,
         sourceBuiltInAgentKey: "reflection-coach",
         featureKeys: ["reflection-coach"],
-        reportsTo: root.id,
+        leadAgentId: root.id,
         permissions: expect.objectContaining({
           builtInMutationPolicy: mutationPolicy,
         }),
@@ -871,7 +871,7 @@ describeEmbeddedPostgres("built-in agents", () => {
       status: "pending_approval",
       agent: {
         adapterConfig: {},
-        reportsTo: root.id,
+        leadAgentId: root.id,
         status: "pending_approval",
       },
     });
@@ -885,7 +885,7 @@ describeEmbeddedPostgres("built-in agents", () => {
     const approvedState = await builtInAgentService(db).get(spaceId, "reflection-coach");
     expect(approvedState).toMatchObject({
       agent: {
-        reportsTo: root.id,
+        leadAgentId: root.id,
         permissions: {
           builtInMutationPolicy: mutationPolicy,
         },
@@ -1334,7 +1334,7 @@ describeEmbeddedPostgres("built-in agents", () => {
       name: "Reflection Coach",
       title: "Reflection Coach",
       icon: "eye",
-      reportsTo: root.id,
+      leadAgentId: root.id,
       adapterType: "outpost_runner",
       budgetMonthlyCents: 0,
     });
@@ -1410,7 +1410,7 @@ describeEmbeddedPostgres("built-in agents", () => {
       title: "Summarizer",
       icon: "sparkles",
       role: "general",
-      reportsTo: root.id,
+      leadAgentId: root.id,
       adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-haiku-4-5" },
       budgetMonthlyCents: 0,

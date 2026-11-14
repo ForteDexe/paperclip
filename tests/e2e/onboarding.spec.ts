@@ -8,14 +8,14 @@ import { mockOnboardingLocalAiConnection } from "./helpers/onboarding-ai-connect
  * space" path runs:
  *   Step 0  — Front door (Create a new space / Level up existing)
  *   Step 1a — Name your organization (creates the space)
- *   Step 2  — Hire your team lead (adapter picker)
- *   Step 3+ — Launch celebration → CEO chat → hiring plan → orientation
+ *   Step 2  — Create your team lead (adapter picker)
+ *   Step 3+ — Launch celebration → CEO chat → creation plan → orientation
  *
  * This test covers the deterministic, LLM-free core: it drives the front door
  * through space naming (which creates the space) and verifies the wizard
  * advances to the team-lead step without asking for a mission.
  *
- * The tail (CEO chat at step 4, hiring-plan generation at step 5, final
+ * The tail (CEO chat at step 4, creation-plan generation at step 5, final
  * landing) depends on a live LLM and is verified separately during manual /
  * LLM-backed QA — see PAP-50. Surface-level rendering of every step is
  * snapshotted by nux-phase4-screenshots.spec.ts.
@@ -150,7 +150,7 @@ test.describe("Onboarding wizard", () => {
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
-  test("connect step starts the sign-in when the source is chosen, rather than hiring, when the signal reports no credential", async ({
+  test("connect step starts the sign-in when the source is chosen, rather than creation, when the signal reports no credential", async ({
     page,
   }) => {
     const pageErrors: string[] = [];
@@ -274,8 +274,8 @@ test.describe("Onboarding wizard", () => {
       }),
     );
 
-    // Fail the adapter test the "Connect" button runs, so the hire gate
-    // blocks the create and this test can prove no agent is hired.
+    // Fail the adapter test the "Connect" button runs, so the create gate
+    // blocks the create and this test can prove no agent is created.
     await page.route("**/test-environment", (route) =>
       route.fulfill({
         contentType: "application/json",
@@ -335,7 +335,7 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
 
     // Answering the row is what starts the sign-in — this is the ordering the
-    // step exists to enforce, since a hire here would file an agent with no
+    // step exists to enforce, since a create here would file an agent with no
     // credential to run on. It is also the whole of the interaction: there is
     // no second press between choosing a source and being signed in.
     await source.click();
@@ -353,7 +353,7 @@ test.describe("Onboarding wizard", () => {
     await expect(
       page.getByRole("button", { name: /^Sign in to / }),
     ).toBeEnabled({ timeout: 15_000 });
-    // No "Use saved login" here: the hire step applies a stored login itself.
+    // No "Use saved login" here: the create step applies a stored login itself.
     await expect(page.getByRole("button", { name: "Use saved login" })).toHaveCount(0);
     expect(hireCalled).toBe(false);
 
@@ -409,7 +409,7 @@ test.describe("Onboarding wizard", () => {
     let hireCalls = 0;
     await page.route("**/agent-hires", (route) => {
       hireCalls += 1;
-      return route.fulfill({ status: 400, json: { error: "Unexpected hire while login is pending." } });
+      return route.fulfill({ status: 400, json: { error: "Unexpected create while login is pending." } });
     });
 
     const FAKE_SANDBOX_ENVIRONMENT_ID = "a6d2e530-1e8b-4f0b-9c94-42f1d23e8750";
@@ -637,7 +637,7 @@ test.describe("Onboarding wizard", () => {
       await expect(authorizationLink).toHaveAttribute("href", AUTHORIZATION_URL);
       await expect.poll(readDraft).toMatchObject(resumedSelection);
       expect(startCalls, "reopening must resume the session without a second source choice").toBe(1);
-      expect(hireCalls, "a pending login must not hire an agent").toBe(0);
+      expect(hireCalls, "a pending login must not create an agent").toBe(0);
       expect(loginSessionReads.length).toBeGreaterThan(0);
       expect(new Set(loginSessionReads)).toEqual(new Set([SESSION_ID]));
       expect(new Set(resumedSpaceIds)).toEqual(new Set([space.id]));
@@ -656,11 +656,11 @@ test.describe("Onboarding wizard", () => {
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
-  test("connect step blocks the hire when the environment probe fails after account connection", async ({
+  test("connect step blocks the create when the environment probe fails after account connection", async ({
     page,
   }) => {
     // A successful local account connection still requires a passing
-    // environment probe before the wizard may hire the agent.
+    // environment probe before the wizard may create the agent.
     await mockOnboardingLocalAiConnection(page);
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
@@ -720,7 +720,7 @@ test.describe("Onboarding wizard", () => {
     await expect(connect).toBeEnabled({ timeout: 30_000 });
     await connect.click();
 
-    // The failed probe blocks the hire and shows its own checks.
+    // The failed probe blocks the create and shows its own checks.
     await expect(page.getByText("The claude CLI was not found on this host.")).toBeVisible({
       timeout: 15_000,
     });

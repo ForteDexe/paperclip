@@ -9,7 +9,7 @@ const ADMIN_PASSWORD =
   process.env.SMOKE_ADMIN_PASSWORD ??
   "outpost-smoke-password";
 
-// A hire needs a live-verified credential since #13344 — the subscription
+// A create needs a live-verified credential since #13344 — the subscription
 // path now dead-ends on a `claude auth login` no CI machine can finish — so
 // the wizard is driven through "Use API key instead". The server verifies the
 // key against api.anthropic.com, which the docker-onboard-smoke harness
@@ -34,7 +34,7 @@ const ANTHROPIC_API_KEY =
 
 const SPACE_NAME = `Release-Smoke-${Date.now()}`;
 const AGENT_NAME = "Release Smoke Lead";
-// The arc asks for a name, not a role, so every onboarding hire is filed under
+// The arc asks for a name, not a role, so every onboarding create is filed under
 // the neutral role (DEFAULT_AGENT_ROLE in ui/src/lib/onboarding-agent-role.ts).
 const AGENT_ROLE = "general";
 // Seeded by the wizard's launch step (DEFAULT_TASK_TITLE in
@@ -74,7 +74,7 @@ const ONBOARDING_DRAFT_STORAGE_KEY = "outpost-onboarding-state";
  * The saved draft is dropped first. Sign-in on an instance that already holds
  * an agentless space redirects into *that* space's onboarding, which
  * persists its id into the draft; the restored draft then makes step 1 skip
- * creating a space and hire into the old one instead. That is an artifact of
+ * creating a space and create into the old one instead. That is an artifact of
  * re-running against a re-used instance, not behaviour this spec is asserting,
  * and a fresh release-smoke container never has it.
  *
@@ -130,7 +130,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
     await page.getByRole("button", { name: "Continue", exact: true }).click();
 
     // Step 3: name the team lead. The name is the step's only question and it
-    // gates the CTA; the role picker is gone, so the hire is filed as `general`.
+    // gates the CTA; the role picker is gone, so the create is filed as `general`.
     const agentNameField = page.locator("#onboarding-agent-name");
     await expect(agentNameField).toBeVisible({ timeout: 20_000 });
     await agentNameField.fill(AGENT_NAME);
@@ -139,20 +139,20 @@ test.describe("Docker authenticated onboarding smoke", () => {
     await expect(nextButton).toBeEnabled({ timeout: 10_000 });
     await nextButton.click();
 
-    // Step 4: answer the model-source question, then connect (hire) the lead.
+    // Step 4: answer the model-source question, then connect (create) the lead.
     // The step now opens as a row of source tiles and the footer button has
     // nothing to do until one is picked (#12796/#12801 rebuilt the step around
     // that question); picking Claude collapses the row.
     //
-    // Since #13344, a hire requires a verified credential: the subscription
+    // Since #13344, a create requires a verified credential: the subscription
     // path opens an isolated `claude auth login` attempt that only a human at
     // a terminal on the server can finish, and Connect refuses to proceed
     // until it has. The clean-machine path this suite guards is therefore the
     // API key: switch modes, pick Claude, paste a key, Connect — the server
     // verifies it against the provider endpoint (the harness's mock, here)
     // and then hires. A genuine failure here means the published artifact
-    // cannot hire on a clean machine even when the provider accepts the
-    // credential. Allow generous time for the validation + hire +
+    // cannot create on a clean machine even when the provider accepts the
+    // credential. Allow generous time for the validation + create +
     // auto-approval.
     //
     // The mode switch comes before the tile: picking a tile starts the step's

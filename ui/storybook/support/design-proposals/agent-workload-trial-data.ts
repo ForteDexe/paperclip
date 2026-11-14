@@ -17,7 +17,7 @@ const ago = (minutes: number) => new Date(now - minutes * 60_000);
 function agent(id: string, name: string, title: string, status: Agent["status"], role: Agent["role"] = "engineer"): Agent {
   return {
     ...storybookAgents[0]!, id, spaceId, name, title, role,
-    urlKey: id, status, reportsTo: null,
+    urlKey: id, status, leadAgentId: null,
     capabilities: title, adapterConfig: {}, runtimeConfig: {},
     budgetMonthlyCents: 50_000, spentMonthlyCents: 0,
     lastHeartbeatAt: status === "paused" ? ago(180) : ago(3),

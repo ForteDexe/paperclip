@@ -46,7 +46,7 @@ export function agentJoinGrantsFromDefaults(
   scope: Record<string, unknown> | null;
 }> {
   const grants = grantsFromDefaults(defaultsPayload, "agent");
-  // Invitation approval replaces the whole grant set after agent creation.
+  // Invitation approval replaces the whole grant set after creation.
   // Retain new-agent defaults, but never widen an explicitly scoped grant.
   for (const permissionKey of NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS) {
     if (!grants.some((grant) => grant.permissionKey === permissionKey)) {

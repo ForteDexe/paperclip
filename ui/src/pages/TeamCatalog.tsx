@@ -488,14 +488,14 @@ function TeamFileTree({
 
 // ---------------------------------------------------------------------------
 // Agent hierarchy preview (manifest exposes agentSlugs + rootAgentSlugs only;
-// per-agent reportsTo is not in the list manifest, so we render roots distinctly
+// per-agent leadAgentId is not in the list manifest, so we render roots distinctly
 // and group the remaining members — graceful degradation per design §7).
 // ---------------------------------------------------------------------------
 
 export function TeamHierarchyPreview({ team }: { team: CatalogTeam }) {
   const roots = new Set(team.rootAgentSlugs);
   const members = team.agentSlugs.filter((slug) => !roots.has(slug));
-  const requiresManager = team.rootAgentSlugs.length > 0;
+  const requiresLead = team.rootAgentSlugs.length > 0;
   return (
     <div className="max-h-72 overflow-auto rounded-md border border-border">
       <ul className="divide-y divide-border/60">
@@ -504,7 +504,7 @@ export function TeamHierarchyPreview({ team }: { team: CatalogTeam }) {
             key={slug}
             className={cn(
               "flex items-center gap-2 px-3 py-2 text-sm",
-              requiresManager && "border-l-2 border-amber-500/50",
+              requiresLead && "border-l-2 border-amber-500/50",
             )}
           >
             <Crown className="h-3.5 w-3.5 text-amber-500" />
@@ -868,24 +868,24 @@ export function TeamDetailPane({
 // Install wizard
 // ---------------------------------------------------------------------------
 
-type WizardStep = "target_manager" | "source_policy" | "skill_plan" | "preview";
+type WizardStep = "target_lead" | "source_policy" | "skill_plan" | "preview";
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  target_manager: "Target manager",
+  target_lead: "Coordination lead",
   source_policy: "Source policy",
   skill_plan: "Prerequisite skills",
   preview: "Preview",
 };
 
 // `simplified` is the onboarding seam (design §6): the newly created space is
-// treated as a full-space-equivalent target, so the target-manager step is
+// treated as a full-space-equivalent target, so the target-lead step is
 // dropped and source policy is never surfaced (onboarding only offers
 // markdown_only/assets teams). The skill plan collapses to a count and the
 // preview is minimal, but the skill step still renders when required skills
 // exist so resolution stays honest.
 function computeSteps(team: CatalogTeam, simplified = false): WizardStep[] {
   const steps: WizardStep[] = [];
-  if (!simplified && team.rootAgentSlugs.length > 0) steps.push("target_manager");
+  if (!simplified && team.rootAgentSlugs.length > 0) steps.push("target_lead");
   if (!simplified && team.sourceRefs.some((s) => sourceWarningCode(s) !== "ok")) {
     steps.push("source_policy");
   }
@@ -903,11 +903,11 @@ type ApplyPhase = "form" | "applying" | "done" | "error";
 // the two API mutations, and the resolved result/phase state. The installer
 // dialog drives it with operator-entered form state; a future onboarding step
 // can drive the same hook with `{ simplified: true }` and default form state to
-// run the collapsed, no-target-manager flow without any UI rework.
+// run the collapsed, no-target-lead flow without any UI rework.
 // ---------------------------------------------------------------------------
 
 export interface TeamInstallFormState {
-  targetManagerAgentId: string | null;
+  targetLeadAgentId: string | null;
   fullSpace: boolean;
   allowExternalSources: boolean;
   allowUnpinnedOptionalSources: boolean;
@@ -922,7 +922,7 @@ export interface TeamInstallFormState {
 }
 
 export const EMPTY_INSTALL_FORM: TeamInstallFormState = {
-  targetManagerAgentId: null,
+  targetLeadAgentId: null,
   fullSpace: false,
   allowExternalSources: false,
   allowUnpinnedOptionalSources: false,
@@ -937,9 +937,9 @@ export interface UseInstallTeamCatalogEntryOptions {
   spaceId: string;
   team: CatalogTeam;
   /**
-   * Run the simplified onboarding flow: no target-manager step, source policy
+   * Run the simplified onboarding flow: no target-lead step, source policy
    * never surfaced, collapsed preview. The space is treated as a
-   * full-space-equivalent target (`targetManagerAgentId: null`).
+   * full-space-equivalent target (`targetLeadAgentId: null`).
    */
   simplified?: boolean;
   onInstalled?: (result: CatalogTeamInstallResult) => void;
@@ -979,7 +979,7 @@ export function useInstallTeamCatalogEntry({
   // Preview body — the preview schema is strict and does NOT accept adapterOverrides.
   const buildPreviewOptions = useCallback(
     (form: TeamInstallFormState): CatalogTeamImportOptions => ({
-      targetManagerAgentId: simplified || form.fullSpace ? null : form.targetManagerAgentId,
+      targetLeadAgentId: simplified || form.fullSpace ? null : form.targetLeadAgentId,
       collisionStrategy: form.collisionStrategy,
       nameOverrides:
         Object.keys(form.nameOverrides).length > 0 ? form.nameOverrides : undefined,
@@ -1093,10 +1093,10 @@ export function TeamInstallerDialog({
     [adapterRegistryLoaded, disabledAdapterTypes],
   );
 
-  // Step 1 — target manager
-  const [targetManagerAgentId, setTargetManagerAgentId] = useState<string | null>(null);
+  // Step 1 — coordination lead
+  const [targetLeadAgentId, setTargetLeadAgentId] = useState<string | null>(null);
   const [fullSpace, setFullSpace] = useState(false);
-  const canBypassManager = team.recommendedForSpaceTypes.includes("outpost-root");
+  const canBypassLead = team.recommendedForSpaceTypes.includes("outpost-root");
 
   // Step 2 — source policy (the strict API exposes 3 booleans)
   const [allowExternalSources, setAllowExternalSources] = useState(false);
@@ -1122,7 +1122,7 @@ export function TeamInstallerDialog({
     if (open) {
       setStepIndex(0);
       setPhase("form");
-      setTargetManagerAgentId(null);
+      setTargetLeadAgentId(null);
       setFullSpace(false);
       setAllowExternalSources(false);
       setAllowUnpinnedOptionalSources(false);
@@ -1144,7 +1144,7 @@ export function TeamInstallerDialog({
 
   // Preview body — the preview schema is strict and does NOT accept adapterOverrides.
   const buildPreviewOptions = () => ({
-    targetManagerAgentId: fullSpace ? null : targetManagerAgentId,
+    targetLeadAgentId: fullSpace ? null : targetLeadAgentId,
     collisionStrategy,
     nameOverrides: Object.keys(nameOverrides).length > 0 ? nameOverrides : undefined,
     sourcePolicy: {
@@ -1233,10 +1233,10 @@ export function TeamInstallerDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
-  const targetManagerResolved = fullSpace || Boolean(targetManagerAgentId);
+  const targetLeadResolved = fullSpace || Boolean(targetLeadAgentId);
 
   function canContinue(step: WizardStep): boolean {
-    if (step === "target_manager") return targetManagerResolved;
+    if (step === "target_lead") return targetLeadResolved;
     if (step === "source_policy") {
       // Block forward when an unsupported source is present and not (cannot be) allowed.
       const hasUnsupported = team.sourceRefs.some((s) => sourceWarningCode(s) === "unsupported_in_ui");
@@ -1311,15 +1311,15 @@ export function TeamInstallerDialog({
     <>
         {phase === "form" && (
           <div className="space-y-4 overflow-auto pr-1 md:max-h-(--sz-60vh)">
-            {currentStep === "target_manager" && (
-              <StepTargetManager
+            {currentStep === "target_lead" && (
+              <StepTargetLead
                 team={team}
                 agents={agents}
-                targetManagerAgentId={targetManagerAgentId}
-                onPickManager={(id) => { setTargetManagerAgentId(id); setFullSpace(false); }}
+                targetLeadAgentId={targetLeadAgentId}
+                onPickLead={(id) => { setTargetLeadAgentId(id); setFullSpace(false); }}
                 fullSpace={fullSpace}
-                onToggleFullSpace={(v) => { setFullSpace(v); if (v) setTargetManagerAgentId(null); }}
-                canBypassManager={canBypassManager}
+                onToggleFullSpace={(v) => { setFullSpace(v); if (v) setTargetLeadAgentId(null); }}
+                canBypassLead={canBypassLead}
               />
             )}
 
@@ -1464,31 +1464,31 @@ export function TeamInstallerDialog({
   );
 }
 
-export function StepTargetManager({
+export function StepTargetLead({
   team,
   agents,
-  targetManagerAgentId,
-  onPickManager,
+  targetLeadAgentId,
+  onPickLead,
   fullSpace,
   onToggleFullSpace,
-  canBypassManager,
+  canBypassLead,
 }: {
   team: CatalogTeam;
   agents: Agent[];
-  targetManagerAgentId: string | null;
-  onPickManager: (id: string) => void;
+  targetLeadAgentId: string | null;
+  onPickLead: (id: string) => void;
   fullSpace: boolean;
   onToggleFullSpace: (v: boolean) => void;
-  canBypassManager: boolean;
+  canBypassLead: boolean;
 }) {
   return (
     <div className="space-y-4">
       <div
         className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-300"
-        id="target-manager-help"
+        id="target-lead-help"
       >
-        This team&apos;s root agents need a manager in your outpost. Pick the agent who will become
-        their parent. Internal team hierarchy is preserved.
+        This team&apos;s root agents need a coordination lead in your outpost. Pick the agent that
+        will coordinate them. The team&apos;s internal hierarchy is preserved.
       </div>
 
       <div className="space-y-1.5">
@@ -1507,9 +1507,9 @@ export function StepTargetManager({
       </div>
 
       {!fullSpace && (
-        <div className="space-y-1.5" aria-describedby="target-manager-help">
-          <SectionHeader>Target manager</SectionHeader>
-          {agents.length === 0 ? <p role="status" className="rounded-md border border-border p-3 text-sm text-muted-foreground">No agents are available to manage this team. Create an agent in your outpost, then try again.</p> : <Command className="rounded-md border border-border">
+        <div className="space-y-1.5" aria-describedby="target-lead-help">
+          <SectionHeader>Coordination lead</SectionHeader>
+          {agents.length === 0 ? <p role="status" className="rounded-md border border-border p-3 text-sm text-muted-foreground">No agents are available to coordinate this team. Create an agent in your outpost, then try again.</p> : <Command className="rounded-md border border-border">
             <CommandInput placeholder="Search agents…" />
             <CommandList>
               <CommandEmpty>No agents found.</CommandEmpty>
@@ -1518,13 +1518,13 @@ export function StepTargetManager({
                   <CommandItem
                     key={agent.id}
                     value={`${agent.name} ${agent.role} ${agent.title ?? ""}`}
-                    onSelect={() => onPickManager(agent.id)}
+                    onSelect={() => onPickLead(agent.id)}
                   >
                     <div className="flex w-full items-center gap-2">
                       <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="font-medium">{agent.name}</span>
                       <span className="text-xs capitalize">{agent.role}</span>
-                      {targetManagerAgentId === agent.id && <Check className="ml-auto h-4 w-4 text-emerald-500" />}
+                      {targetLeadAgentId === agent.id && <Check className="ml-auto h-4 w-4 text-emerald-500" />}
                     </div>
                   </CommandItem>
                 ))}
@@ -1534,14 +1534,14 @@ export function StepTargetManager({
         </div>
       )}
 
-      {canBypassManager && (
+      {canBypassLead && (
         <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
           <input
             type="radio"
             checked={fullSpace}
             onChange={(e) => onToggleFullSpace(e.target.checked)}
           />
-          Use this team as a full-outpost package (no target manager)
+          Use this team as a full-outpost package (no coordination lead)
         </label>
       )}
     </div>
@@ -2293,7 +2293,7 @@ export function TeamCatalog() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: "CREW MAP", href: "/org" },
+      { label: "CREW MAP", href: "/agent-hierarchy" },
       { label: "Teams", href: TEAM_CATALOG_ROUTE_ROOT },
     ]);
   }, [setBreadcrumbs]);

@@ -199,7 +199,7 @@ export function Sidebar() {
         <SidebarAgents streamlined={streamlined} />
 
         <SidebarSection label={sidebarVocabulary.space} collapsible={{ open: spaceOpen, onOpenChange: setSpaceOpen }}>
-          <SidebarNavItem to="/org" label="Crew map" icon={Network} />
+          <SidebarNavItem to="/agent-hierarchy" label="Crew map" icon={Network} />
           <SidebarNavItem to="/space/settings" label="Settings" icon={Settings} />
         </SidebarSection>
 

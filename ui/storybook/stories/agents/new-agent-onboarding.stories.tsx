@@ -4,14 +4,14 @@ import { NewAgentWizard } from "../../prototypes/NewAgentWizard";
 
 const meta = {
   id: "onboarding-new-agent",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Onboarding/New agent",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Onboarding/New agent",
   component: NewAgentWizard,
   parameters: {
     layout: "fullscreen",
-    docs: { description: { component: "Interactive design prototype: name → adapter → simulated creation → connection → configuration → confirmation. Each screen is directly inspectable below. All state is local to the story; subscription and API-key connections are simulated, and actual hiring is deferred. Use Start over to replay. The adapter and runner are fixed after creation." } },
+    docs: { description: { component: "Interactive design prototype: name → adapter → simulated creation → connection → configuration → confirmation. Each screen is directly inspectable below. All state is local to the story; subscription and API-key connections are simulated, and actual creation is deferred. Use Start over to replay. The adapter and runner are fixed after creation." } },
     outpost: {
       "capabilities": [
-        "agents/hire"
+        "agents/create"
       ],
       "status": "historical",
       "implementation": "prototype",

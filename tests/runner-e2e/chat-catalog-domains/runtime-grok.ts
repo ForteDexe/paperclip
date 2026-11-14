@@ -39,7 +39,7 @@ export function gradeExistingGrok(value: unknown) {
     "The exact chosen space/Bot is bound through genuine external Bot authorization; only its actual authenticated verify acknowledgement makes setup complete.");
   c.add("honest-phase-bound-ready-result-and-capability-limits", s.confirmationBound === true && /ready|connected|verified|round.?trip/i.test(String(s.resultReply)) && truthfulGrokCapabilities(String(s.resultReply))
     && o.runs.length === 2 && o.runs.every(row => row.agentId === o.leadId && row.status === "succeeded") && o.tasks.length === 0 && o.humanQueries.length === 2 && o.humanQueries[1] === confirmation,
-    "The explicit factual follow-up's own native reply reports the verified state and unsupported workspace/usage/termination capabilities, without employee work or invented parity.");
+    "The explicit factual follow-up's own native reply reports the verified state and unsupported workspace/usage/termination capabilities, without agent work or invented parity.");
   return c.result();
 }
 export const runtimeGrokCases = [runtimeDefinition("agents.existing-grok-bot", async ctx => {

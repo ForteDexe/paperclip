@@ -153,13 +153,13 @@ describe("MarkdownBody", () => {
       <QueryClientProvider client={new QueryClient()}>
         <ThemeProvider>
           <MarkdownBody resolveImageSrc={(src) => `/resolved/${src}`}>
-            {"![Org chart](images/org-chart.png)"}
+            {"![Org chart](images/agent-hierarchy.png)"}
           </MarkdownBody>
         </ThemeProvider>
       </QueryClientProvider>,
     );
 
-    expect(html).toContain('src="/resolved/images/org-chart.png"');
+    expect(html).toContain('src="/resolved/images/agent-hierarchy.png"');
     expect(html).toContain('alt="Org chart"');
   });
 

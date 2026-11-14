@@ -4,7 +4,7 @@ import { agents } from "@outpost/db";
 import {
   getAgentWorkEligibility,
   type AgentEligibilityAgent,
-  type AgentOrgChainHealth,
+  type AgentCoordinationHealth,
 } from "@outpost/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 
@@ -39,8 +39,8 @@ function assignmentMessage(kind: AgentAssignmentKind, reason: AgentAssignmentCon
       : "Cannot assign work to agents with an unsupported lifecycle status";
   }
   return kind === "routine"
-    ? "Cannot assign routines to agents with an invalid org chain"
-    : "Cannot assign work to agents with an invalid org chain";
+    ? "Cannot assign routines to agents with an invalid coordination chain"
+    : "Cannot assign work to agents with an invalid coordination chain";
 }
 
 function conflictDetails(input: {
@@ -62,7 +62,7 @@ function conflictDetails(input: {
       id: agent.id,
       spaceId: agent.spaceId,
       status: agent.status,
-      reportsTo: agent.reportsTo,
+      leadAgentId: agent.leadAgentId,
     })),
   };
 }
@@ -74,7 +74,7 @@ async function getAgent(db: Db, agentId: string): Promise<AssignabilityAgent | n
       spaceId: agents.spaceId,
       name: agents.name,
       status: agents.status,
-      reportsTo: agents.reportsTo,
+      leadAgentId: agents.leadAgentId,
     })
     .from(agents)
     .where(eq(agents.id, agentId))
@@ -88,15 +88,15 @@ async function listSpaceAgents(db: Db, spaceId: string): Promise<AssignabilityAg
       spaceId: agents.spaceId,
       name: agents.name,
       status: agents.status,
-      reportsTo: agents.reportsTo,
+      leadAgentId: agents.leadAgentId,
     })
     .from(agents)
     .where(eq(agents.spaceId, spaceId));
 }
 
-function assignmentReasonFromHealth(health: AgentOrgChainHealth): AgentAssignmentConflictReason {
+function assignmentReasonFromHealth(health: AgentCoordinationHealth): AgentAssignmentConflictReason {
   if (health.reason === "terminated_ancestor") return "ancestor_terminated";
-  if (health.reason === "missing_manager") return "ancestor_missing";
+  if (health.reason === "missing_lead_agent") return "ancestor_missing";
   if (health.reason === "cycle") return "ancestor_cycle";
   return "ancestor_missing";
 }
@@ -117,12 +117,12 @@ export async function assertAssignableAgent(
 
   const spaceAgents = await listSpaceAgents(db, spaceId);
   const eligibility = getAgentWorkEligibility({ agent: assignee, agents: spaceAgents });
-  const chain = eligibility.orgChainHealth.fullChain.map((entry) => ({
+  const chain = eligibility.coordinationHealth.fullChain.map((entry) => ({
     id: entry.id,
     spaceId: entry.spaceId,
     name: entry.name,
     status: entry.status,
-    reportsTo: entry.reportsTo,
+    leadAgentId: entry.leadAgentId,
   }));
 
   if (eligibility.assignable) return;
@@ -152,8 +152,8 @@ export async function assertAssignableAgent(
     }));
   }
 
-  const reason = assignmentReasonFromHealth(eligibility.orgChainHealth);
-  const firstInvalidAncestor = eligibility.orgChainHealth.firstInvalidAncestor;
+  const reason = assignmentReasonFromHealth(eligibility.coordinationHealth);
+  const firstInvalidAncestor = eligibility.coordinationHealth.firstInvalidAncestor;
   throw conflict(assignmentMessage(kind, reason), conflictDetails({
     spaceId,
     assigneeAgentId: agentId,

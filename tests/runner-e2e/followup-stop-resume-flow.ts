@@ -74,7 +74,7 @@ export async function runFollowupStopResumeFlow(input: {
     await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: 1000 });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: 1000 });
     const stock = await captureStockHarness({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
-    if (gradeStockHire(stock).some(check => !check.passed)) throw new Error("Stop/resume requires production hire instructions and both hard stops");
+    if (gradeStockHire(stock).some(check => !check.passed)) throw new Error("Stop/resume requires production create instructions and both hard stops");
     const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       projectName: fixtures.project.name, title: execution.task.buildTitle(input.nonce), prompt: execution.task.buildPrompt(input.nonce),
       workMode: "standard", requireExplicitTitle: true });

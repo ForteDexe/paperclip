@@ -1,16 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 import { sendChatMessage } from "./chat-flow.js";
-import { hireHandoffMentions } from "./product-journeys/hire-delegate-flow.js";
-import { sendHireHandoffMessage } from "./product-journeys/hire-delegate-composer.js";
-import { composerResources as r, startHireComposerFixture } from "./hire-delegate-composer.fixture.js";
+import { hireHandoffMentions } from "./product-journeys/create-delegate-flow.js";
+import { sendHireHandoffMessage } from "./product-journeys/create-delegate-composer.js";
+import { composerResources as r, startHireComposerFixture } from "./create-delegate-composer.fixture.js";
 
 test.setTimeout(45_000);
 let fixture: Awaited<ReturnType<typeof startHireComposerFixture>>;
 test.beforeAll(async () => { fixture = await startHireComposerFixture(); });
 test.afterAll(async () => { await fixture?.close(); });
 const references = hireHandoffMentions({ spaceId: r.spaceId, leadId: r.leadId, projectId: r.projectId, campaignId: r.campaignId }, r.agentId,
-  { id: r.agentId, spaceId: r.spaceId, reportsTo: r.leadId, name: `Morgan Reviewer ${r.campaignId}`, icon: "code" },
-  { id: r.projectId, spaceId: r.spaceId, name: `Journey QA hire-delegate-reuse ${r.campaignId}`, color: "#336699" });
+  { id: r.agentId, spaceId: r.spaceId, leadAgentId: r.leadId, name: `Morgan Reviewer ${r.campaignId}`, icon: "code" },
+  { id: r.projectId, spaceId: r.spaceId, name: `Journey QA create-delegate-reuse ${r.campaignId}`, color: "#336699" });
 const message = (review = false) => `Have the existing ${references.teammate} ${review ? "review the checklist on QA-1 and write a separate saved review" : "write a concise launch checklist as a saved Outpost document"}. Create exactly one task in ${references.project}, already assigned to that teammate when it is created. Link the result here.`;
 async function open(page: Page, key: string, variant = "valid", mode = "production") {
   const url = new URL("/__hire.html", fixture.url); url.searchParams.set("case", key); url.searchParams.set("variant", variant); url.searchParams.set("mode", mode);

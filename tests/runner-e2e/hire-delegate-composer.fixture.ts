@@ -16,7 +16,7 @@ export async function startHireComposerFixture() {
   const require = createRequire(path.join(ui, "package.json"));
   const { createServer } = await import(require.resolve("vite"));
   const { default: react } = await import(require.resolve("@vitejs/plugin-react"));
-  const cacheDir = await mkdtemp(path.join(tmpdir(), "hire-composer-vite-"));
+  const cacheDir = await mkdtemp(path.join(tmpdir(), "create-composer-vite-"));
   const saved = new Map<string, Array<{ id: string; body: string }>>();
   const entry = `import React from "react";
 import {createRoot} from "react-dom/client";
@@ -26,13 +26,13 @@ import {buildMarkdownMentionOptions} from "/src/lib/space-members.ts";
 const r=${JSON.stringify(composerResources)}, q=new URLSearchParams(location.search);
 const agents=[{id:q.get("variant")==="wrong-agent"?"44444444-4444-4444-8444-444444444444":r.agentId,name:"Morgan Reviewer "+r.campaignId,status:"idle",icon:"code"}];
 if(q.get("variant")==="duplicate")agents.push({...agents[0],id:"55555555-5555-4555-8555-555555555555"});
-const projects=q.get("variant")==="missing-project"?[]:[{id:r.projectId,name:"Journey QA hire-delegate-reuse "+r.campaignId,color:"#336699"}];
+const projects=q.get("variant")==="missing-project"?[]:[{id:r.projectId,name:"Journey QA create-delegate-reuse "+r.campaignId,color:"#336699"}];
 const mentions=buildMarkdownMentionOptions({agents,projects});
 createRoot(document.getElementById("root")).render(React.createElement(TaskChatPresentationProvider,{mode:q.get("mode")||"production"},React.createElement(TaskChatComposer,{workMode:"standard",conversationMode:true,mentions,onAdd:async body=>{const response=await fetch("/__saved/"+encodeURIComponent(q.get("case")),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({body})});if(!response.ok)throw Error("fixture_save_failed");}})));`;
   const server = await createServer({
     configFile: false, root: ui, cacheDir, logLevel: "error",
     plugins: [react(), {
-      name: "hire-production-composer-fixture",
+      name: "create-production-composer-fixture",
       resolveId(id: string) { if (id === "/__hire-entry.tsx") return "\0hire-entry.tsx"; },
       load(id: string) { if (id === "\0hire-entry.tsx") return entry; },
       configureServer(instance: any) {

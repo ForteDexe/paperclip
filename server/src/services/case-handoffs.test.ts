@@ -52,8 +52,8 @@ describe("durable same-task case handoffs", () => {
     await db.insert(spaces).values({ id: spaceId, name: "Factory", issuePrefix: `F${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
       { id: triage, spaceId, name: "Triage", role: "lead", status: "active", adapterType: "process" },
-      { id: engineer, spaceId, name: "Engineer", role: "engineer", status: "active", adapterType: "process", reportsTo: triage },
-      { id: verifier, spaceId, name: "Verifier", role: "engineer", status: "active", adapterType: "process", reportsTo: triage },
+      { id: engineer, spaceId, name: "Engineer", role: "engineer", status: "active", adapterType: "process", leadAgentId: triage },
+      { id: verifier, spaceId, name: "Verifier", role: "engineer", status: "active", adapterType: "process", leadAgentId: triage },
     ]);
     const service = caseHandoffService(db);
     const input = { idempotencyKey: randomUUID(), case: { create: { caseType: "work", title: "Implement the feature", summary: "Overall objective", fields: { acceptance: "Verified" } } },

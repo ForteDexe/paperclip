@@ -1782,7 +1782,7 @@ function invalidateActivityQueries(
     queryClient.invalidateQueries({
       queryKey: queryKeys.agents.list(spaceId),
     });
-    queryClient.invalidateQueries({ queryKey: queryKeys.org(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agentHierarchy(spaceId) });
     if (entityId) {
       queryClient.invalidateQueries({
         queryKey: queryKeys.agents.detail(entityId),
@@ -2129,7 +2129,7 @@ function handleLiveEvent(
       queryKey: queryKeys.dashboard(expectedSpaceId),
     });
     queryClient.invalidateQueries({
-      queryKey: queryKeys.org(expectedSpaceId),
+      queryKey: queryKeys.agentHierarchy(expectedSpaceId),
     });
     const agentId = readString(payload.agentId);
     if (agentId)

@@ -45,8 +45,8 @@ const {
   teamsCatalogService,
 } = await import("../services/teams-catalog.js");
 
-const CORE_EXEC_TEAM_ID = "outpost:bundled:space-defaults:core-exec-team";
-const CORE_EXEC_TEAM_HASH = (await listCatalogTeams()).find((team) => team.id === CORE_EXEC_TEAM_ID)!.contentHash;
+const CORE_CREW_ID = "outpost:bundled:space-defaults:core-crew";
+const CORE_CREW_HASH = (await listCatalogTeams()).find((team) => team.id === CORE_CREW_ID)!.contentHash;
 
 function agentWithCatalogTeam(originHash: string | null, extra: Record<string, unknown> = {}) {
   return {
@@ -55,8 +55,8 @@ function agentWithCatalogTeam(originHash: string | null, extra: Record<string, u
     metadata: {
       outpost: {
         catalogTeam: {
-          catalogId: CORE_EXEC_TEAM_ID,
-          catalogKey: "outpost/bundled/space-defaults/core-exec-team",
+          catalogId: CORE_CREW_ID,
+          catalogKey: "outpost/bundled/space-defaults/core-crew",
           ...(originHash ? { originHash } : {}),
         },
       },
@@ -79,7 +79,7 @@ describe("teamsCatalogService", () => {
       targetSpaceId: "space-1",
       targetSpaceName: "Outpost",
       collisionStrategy: "rename",
-      selectedAgentSlugs: ["lead", "engineering_lead"],
+      selectedAgentSlugs: ["lead", "engineering-lead"],
       plan: { spaceAction: "none", agentPlans: [], projectPlans: [], issuePlans: [] },
       manifest: { agents: [], skills: [], projects: [], issues: [], envInputs: [], includes: { space: false, agents: true, projects: true, issues: true, skills: true }, space: null, schemaVersion: 1, generatedAt: new Date().toISOString(), source: null, sidebar: null },
       files: {},
@@ -106,22 +106,22 @@ describe("teamsCatalogService", () => {
     });
   });
 
-  it("builds an inline portability source with catalog skill keys and target-manager reparenting", async () => {
+  it("builds an inline portability source with catalog skill keys and target-lead reparenting", async () => {
     const svc = teamsCatalogService(testDb as any);
 
-    const prepared = await svc.prepareCatalogTeamSource("space-1", "core-exec-team", {
-      targetManagerAgentId: "manager-1",
+    const prepared = await svc.prepareCatalogTeamSource("space-1", "core-crew", {
+      targetLeadAgentId: "manager-1",
     });
 
     expect(prepared.errors).toEqual([]);
-    expect(prepared.source.files["COMPANY.md"]).toEqual(expect.stringContaining("Core Exec Team"));
+    expect(prepared.source.files["COMPANY.md"]).toEqual(expect.stringContaining("Core Crew"));
     expect(prepared.source.files["agents/lead/AGENTS.md"]).toEqual(expect.stringContaining("outpost/bundled/outpost-operations/task-planning"));
-    expect(prepared.source.files["agents/engineering_lead/AGENTS.md"]).toEqual(expect.stringContaining("outpost/bundled/software-development/github-pr-workflow"));
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
+    expect(prepared.source.files["agents/engineering-lead/AGENTS.md"]).toEqual(expect.stringContaining("outpost/bundled/software-development/github-pr-workflow"));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentSlug: \"engineering-manager\""));
   });
 
-  it.each(["core-exec-team", "product-engineering", "product-design", "content-machine"])(
+  it.each(["core-crew", "product-engineering", "product-design", "content-machine"])(
     "preserves %s role files and canonical skill references through catalog import",
     async (teamRef) => {
       const svc = teamsCatalogService(testDb as any);
@@ -154,19 +154,19 @@ describe("teamsCatalogService", () => {
     },
   );
 
-  it("resolves target-manager slug against same-space agents before rendering reparent metadata", async () => {
+  it("resolves target-lead slug against same-space agents before rendering reparent metadata", async () => {
     mockAgentService.list.mockResolvedValue([
       { id: "manager-1", spaceId: "space-1", name: "Default agent" },
     ]);
     const svc = teamsCatalogService(testDb as any);
 
-    const prepared = await svc.prepareCatalogTeamSource("space-1", "core-exec-team", {
-      targetManagerSlug: "lead",
+    const prepared = await svc.prepareCatalogTeamSource("space-1", "core-crew", {
+      targetLeadSlug: "default-agent",
     });
 
     expect(mockAgentService.list).toHaveBeenCalledWith("space-1");
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"lead\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentSlug: \"default-agent\""));
   });
 
   it("preserves package-declared Outpost sidecar permissions while adding generated catalog provenance", async () => {
@@ -180,27 +180,27 @@ describe("teamsCatalogService", () => {
     expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
   });
 
-  it("preserves package sidecar permissions when generated target-manager metadata is merged onto the same root agent", async () => {
+  it("preserves package sidecar permissions when generated target-lead metadata is merged onto the same root agent", async () => {
     const svc = teamsCatalogService(testDb as any);
 
     const prepared = await svc.prepareCatalogTeamSource("space-1", "product-engineering", {
-      targetManagerAgentId: "manager-1",
+      targetLeadAgentId: "manager-1",
     });
 
     expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("permissions:"));
     expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
-    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentId: \"manager-1\""));
+    expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("existingLeadAgentSlug: \"engineering-manager\""));
     expect(prepared.source.files[".outpost.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
   });
 
-  it("rejects missing target-manager slugs instead of emitting unresolved reparent metadata", async () => {
+  it("rejects missing target-lead slugs instead of emitting unresolved reparent metadata", async () => {
     mockAgentService.list.mockResolvedValue([]);
     const svc = teamsCatalogService(testDb as any);
 
     await expect(
-      svc.prepareCatalogTeamSource("space-1", "core-exec-team", {
-        targetManagerSlug: "missing-manager",
+      svc.prepareCatalogTeamSource("space-1", "core-crew", {
+        targetLeadSlug: "missing-manager",
       }),
     ).rejects.toMatchObject({ status: 404 });
   });
@@ -261,7 +261,7 @@ describe("teamsCatalogService", () => {
     });
     const svc = teamsCatalogService(testDb as any);
 
-    await expect(svc.installCatalogTeam("space-1", "core-exec-team")).rejects.toMatchObject({ status: 422 });
+    await expect(svc.installCatalogTeam("space-1", "core-crew")).rejects.toMatchObject({ status: 422 });
 
     expect(mockSpaceSkillService.installFromCatalog).not.toHaveBeenCalled();
     expect(mockSpacePortabilityService.importBundle).not.toHaveBeenCalled();
@@ -271,7 +271,7 @@ describe("teamsCatalogService", () => {
     mockSpacePortabilityService.importBundle.mockRejectedValueOnce(new Error("import failed"));
     const svc = teamsCatalogService(testDb as any);
 
-    await expect(svc.installCatalogTeam("space-1", "core-exec-team")).rejects.toThrow("import failed");
+    await expect(svc.installCatalogTeam("space-1", "core-crew")).rejects.toThrow("import failed");
 
     expect(mockSpaceSkillService.installFromCatalog).not.toHaveBeenCalled();
     expect(mockSpaceSkillService.importFromSource).not.toHaveBeenCalled();
@@ -279,26 +279,26 @@ describe("teamsCatalogService", () => {
 
   it("rejects a missing space before importing resources", async () => {
     spacePrefix.mockResolvedValueOnce([]);
-    await expect(teamsCatalogService(testDb as any).installCatalogTeam("space-1", "core-exec-team")).rejects.toMatchObject({ status: 404 });
+    await expect(teamsCatalogService(testDb as any).installCatalogTeam("space-1", "core-crew")).rejects.toMatchObject({ status: 404 });
     expect(mockSpacePortabilityService.importBundle).not.toHaveBeenCalled();
   });
 
   it("returns scoped saved-resource links while preserving warnings and skipped-resource semantics", async () => {
     mockSpacePortabilityService.importBundle.mockResolvedValueOnce({
       space: { id: "space-1", name: "Outpost", action: "unchanged" },
-      agents: [{ id: "saved-agent", name: "Engineering Lead 2", slug: "engineering_lead", action: "created" }, { id: null, name: "Skipped", slug: "skipped", action: "skipped" }],
+      agents: [{ id: "saved-agent", name: "Engineering Lead 2", slug: "engineering-lead", action: "created" }, { id: null, name: "Skipped", slug: "skipped", action: "skipped" }],
       projects: [{ id: "saved-project", name: "Engineering", slug: "engineering", action: "updated" }],
       routines: [{ id: "saved-routine", title: "Weekly sync", slug: "weekly", action: "created" }],
       envInputs: [], warnings: ["required skill unavailable"],
     });
-    const result = await teamsCatalogService(testDb as any).installCatalogTeam("space-1", "core-exec-team");
+    const result = await teamsCatalogService(testDb as any).installCatalogTeam("space-1", "core-crew");
     expect(result.resourceLinks).toEqual([
       { kind: "agent", id: "saved-agent", name: "Engineering Lead 2", href: "/ACME/agents/saved-agent" },
       { kind: "project", id: "saved-project", name: "Engineering", href: "/ACME/projects/saved-project" },
       { kind: "routine", id: "saved-routine", name: "Weekly sync", href: "/ACME/routines/saved-routine" },
     ]);
     const wire = await executeRunnerApi({ operationId: "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install",
-      pathParams: { catalogId: "core-exec-team" }, body: {} },
+      pathParams: { catalogId: "core-crew" }, body: {} },
     { spaceId: "space-1", issueId: "issue-1", issueIdentifier: "ACME-1", runId: "run-1", workMode: "standard" },
     { apiUrl: "http://fixture.invalid", token: "private-test-token", fetch: async () => Response.json(result, { status: 201 }),
       readFile: async () => { throw new Error("not used"); }, saveResponse: async () => { throw new Error("unexpected artifact"); } });
@@ -311,7 +311,7 @@ describe("teamsCatalogService", () => {
     mockSpaceSkillService.installFromCatalog.mockRejectedValueOnce(new Error("catalog unavailable"));
     const svc = teamsCatalogService(testDb as any);
 
-    const result = await svc.installCatalogTeam("space-1", "core-exec-team");
+    const result = await svc.installCatalogTeam("space-1", "core-crew");
 
     expect(mockSpacePortabilityService.importBundle).toHaveBeenCalled();
     expect(result.warnings).toEqual(
@@ -324,12 +324,12 @@ describe("teamsCatalogService", () => {
   it("injects safe claude_local adapter defaults for every bundled agent when no overrides are supplied", async () => {
     const svc = teamsCatalogService(testDb as any);
 
-    await svc.installCatalogTeam("space-1", "core-exec-team");
+    await svc.installCatalogTeam("space-1", "core-crew");
 
     const [importInput] = mockSpacePortabilityService.importBundle.mock.calls.at(-1)!;
     expect(importInput.adapterOverrides).toEqual({
       lead: { adapterType: "claude_local" },
-      engineering_lead: { adapterType: "claude_local" },
+      "engineering-lead": { adapterType: "claude_local" },
       qa: { adapterType: "claude_local" },
     });
   });
@@ -340,12 +340,12 @@ describe("teamsCatalogService", () => {
     try {
       const svc = teamsCatalogService(testDb as any);
 
-      await svc.installCatalogTeam("space-1", "core-exec-team");
+      await svc.installCatalogTeam("space-1", "core-crew");
 
       const [importInput] = mockSpacePortabilityService.importBundle.mock.calls.at(-1)!;
       expect(importInput.adapterOverrides).toEqual({
         lead: { adapterType: "opencode_local" },
-        engineering_lead: { adapterType: "opencode_local" },
+        "engineering-lead": { adapterType: "opencode_local" },
         qa: { adapterType: "opencode_local" },
       });
     } finally {
@@ -369,7 +369,7 @@ describe("teamsCatalogService", () => {
     await svc.installCatalogTeam("space-1", "product-engineering");
     const [engineeringInput] = mockSpacePortabilityService.importBundle.mock.calls.at(-1)!;
     expect(engineeringInput.adapterOverrides).toEqual({
-      engineering_lead: { adapterType: "claude_local" },
+      "engineering-lead": { adapterType: "claude_local" },
       qa: { adapterType: "claude_local" },
       "senior-coder": { adapterType: "claude_local" },
     });
@@ -378,7 +378,7 @@ describe("teamsCatalogService", () => {
   it("never sends a forbidden process adapter type from the default catalog path", async () => {
     const svc = teamsCatalogService(testDb as any);
 
-    await svc.installCatalogTeam("space-1", "core-exec-team");
+    await svc.installCatalogTeam("space-1", "core-crew");
 
     const [importInput] = mockSpacePortabilityService.importBundle.mock.calls.at(-1)!;
     const adapterTypes = Object.values(importInput.adapterOverrides as Record<string, { adapterType: string }>)
@@ -391,31 +391,31 @@ describe("teamsCatalogService", () => {
     const svc = teamsCatalogService(testDb as any);
 
     const callerOverrides = {
-      engineering_lead: { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
+      "engineering-lead": { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
     };
-    await svc.installCatalogTeam("space-1", "core-exec-team", {
+    await svc.installCatalogTeam("space-1", "core-crew", {
       adapterOverrides: callerOverrides,
     });
 
     const [importInput] = mockSpacePortabilityService.importBundle.mock.calls.at(-1)!;
     expect(importInput.adapterOverrides).toEqual({
       lead: { adapterType: "claude_local" },
-      engineering_lead: { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
+      "engineering-lead": { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
       qa: { adapterType: "claude_local" },
     });
     // Caller-supplied object must not be mutated in place.
     expect(callerOverrides).toEqual({
-      engineering_lead: { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
+      "engineering-lead": { adapterType: "opencode_local", adapterConfig: { model: "anthropic/claude-opus-4" } },
     });
   });
 
   it("omits the default-adapter warning when every agent has an explicit override", async () => {
     const svc = teamsCatalogService(testDb as any);
 
-    const result = await svc.installCatalogTeam("space-1", "core-exec-team", {
+    const result = await svc.installCatalogTeam("space-1", "core-crew", {
       adapterOverrides: {
         lead: { adapterType: "opencode_local" },
-        engineering_lead: { adapterType: "opencode_local" },
+        "engineering-lead": { adapterType: "opencode_local" },
         qa: { adapterType: "opencode_local" },
       },
     });
@@ -428,7 +428,7 @@ describe("teamsCatalogService", () => {
   it("passes install secretValues through to space portability import", async () => {
     const svc = teamsCatalogService(testDb as any);
 
-    await svc.installCatalogTeam("space-1", "core-exec-team", {
+    await svc.installCatalogTeam("space-1", "core-crew", {
       secretValues: { "agent:lead:OPENAI_API_KEY": "sk-imported" },
     });
 
@@ -472,9 +472,9 @@ describe("teamsCatalogService", () => {
       expect(mockAgentService.list).toHaveBeenCalledWith("space-1");
       expect(installed).toEqual([
         expect.objectContaining({
-          catalogId: CORE_EXEC_TEAM_ID,
+          catalogId: CORE_CREW_ID,
           present: true,
-          currentContentHash: CORE_EXEC_TEAM_HASH,
+          currentContentHash: CORE_CREW_HASH,
           installedOriginHashes: ["sha256:stale-hash"],
           agentCount: 2,
           outOfDate: true,
@@ -483,7 +483,7 @@ describe("teamsCatalogService", () => {
     });
 
     it("marks a team up to date when the installed originHash matches the catalog hash", async () => {
-      mockAgentService.list.mockResolvedValue([agentWithCatalogTeam(CORE_EXEC_TEAM_HASH)]);
+      mockAgentService.list.mockResolvedValue([agentWithCatalogTeam(CORE_CREW_HASH)]);
       const svc = teamsCatalogService(testDb as any);
 
       const installed = await svc.listInstalledCatalogTeams("space-1");

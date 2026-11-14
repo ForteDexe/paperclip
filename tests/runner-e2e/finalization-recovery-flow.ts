@@ -64,7 +64,7 @@ export async function runFinalizationRecoveryFlow(input: {
     const [space, agent] = await Promise.all([api.get<Row>(`/api/spaces/${fixtures.space.id}`), api.get<Row>(`/api/agents/${fixtures.agent.id}`)]);
     if (space.budgetMonthlyCents !== 1000 || agent.budgetMonthlyCents !== 1000) throw new Error("Finalization recovery budgets were not retained");
     const instructions = await captureStockHarness({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
-    if (gradeStockHire(instructions).some(check => !check.passed)) throw new Error("Finalization recovery requires the production default hire instructions");
+    if (gradeStockHire(instructions).some(check => !check.passed)) throw new Error("Finalization recovery requires the production default create instructions");
     const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       projectName: fixtures.project.name, title: execution.task.buildTitle(input.nonce), prompt: execution.task.buildPrompt(input.nonce),
       workMode: "standard", requireExplicitTitle: true });

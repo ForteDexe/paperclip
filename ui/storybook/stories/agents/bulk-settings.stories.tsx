@@ -68,10 +68,10 @@ function BulkSettingsPage({ failOne = false, localHermes = false }: { failOne?: 
 }
 
 const meta = {
-  id: "agents-bulk-settings", title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Bulk settings",
+  id: "agents-bulk-settings", title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Bulk settings",
   component: BulkSettingsPage,
   parameters: { layout: "fullscreen", initialEntries: ["/PAP/agents/all"], outpost: {
-    capabilities: ["agents/organization", "agents/instructions"], implementation: "production", boundary: "fixtures",
+    capabilities: ["agents/coordination", "agents/instructions"], implementation: "production", boundary: "fixtures",
     notes: "Actual Agents page, filter icon/popover with preserved selection, bulk roster, sheet, account picker, model intersection and narrow PATCH client. Includes paused agents at normal contrast. The filter popover has model, status, harness and connection selectors. The roster has no persistent selection hint. HTTP accounts/catalogs/writes are synthetic, including one transient failure and an empty local Hermes catalog. Does not establish live provider credential validity or database persistence. The original approved proposal remains in Design proposals.",
   } },
 } satisfies Meta<typeof BulkSettingsPage>;

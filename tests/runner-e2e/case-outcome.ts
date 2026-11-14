@@ -21,7 +21,7 @@ function renderOnboardingConnect(result: RunnerE2EResult): string {
   }
   return `<details class="case-context"><summary>Onboarding Connect diagnostics</summary>
     <p>Last checkpoint: <code>${html(receipt.checkpoint)}</code></p>
-    ${([["validation", "Native validation"], ["hire", "Agent hire"]] as const).map(([key, label]) => {
+    ${([["validation", "Native validation"], ["create", "Agent create"]] as const).map(([key, label]) => {
       const response = receipt[key];
       return `<h4>${label}</h4><dl>${[
         ["Response state", response.state], ["HTTP status", response.httpStatus],

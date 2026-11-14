@@ -143,8 +143,8 @@ const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string 
   cancelled: { icon: Slash, color: "text-neutral-500 dark:text-neutral-400" },
 };
 
-function formatOrgChainHealthPath(agent: AgentDetailRecord) {
-  return agent.orgChainHealth?.fullChain
+function formatCoordinationHealthPath(agent: AgentDetailRecord) {
+  return agent.coordinationHealth?.fullChain
     .map((entry) => `${entry.name}${entry.status !== "active" && entry.status !== "idle" ? ` (${entry.status})` : ""}`)
     .join(" -> ") ?? agent.name;
 }
@@ -446,8 +446,7 @@ export function AgentDetail() {
 
   const assignedIssues = (allIssues ?? [])
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  const reportsToAgent = (allAgents ?? []).find((a) => a.id === agent?.reportsTo);
-  const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
+  const coordinatedAgents = (allAgents ?? []).filter((a) => a.leadAgentId === agent?.id && a.status !== "terminated");
   const agentBudgetSummary = useMemo(() => {
     const matched = budgetOverview?.policies.find(
       (policy) => policy.scopeType === "agent" && policy.scopeId === (agent?.id ?? routeAgentRef),
@@ -724,8 +723,8 @@ export function AgentDetail() {
     return <Navigate to={`/agents/${canonicalAgentRef}/dashboard`} replace />;
   }
   const isPendingApproval = agent.status === "pending_approval";
-  const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
-  const pausedEscalationWarning = !hasInvalidOrgChain ? agent.orgChainHealth?.escalationWarning ?? null : null;
+  const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
+  const pausedEscalationWarning = !hasInvalidCoordination ? agent.coordinationHealth?.escalationWarning ?? null : null;
   const showConfigActionBar = (
     activeView === "configuration" || activeView === "instructions"
   ) && (configDirty || configSaving);
@@ -788,22 +787,22 @@ export function AgentDetail() {
           </div>
         </div>
       ) : null}
-      {hasInvalidOrgChain ? (
+      {hasInvalidCoordination ? (
         <div className="flex items-start gap-3 border border-amber-300/35 bg-amber-300/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 space-y-1">
-            <p className="font-medium">Invalid reporting chain</p>
+            <p className="font-medium">Invalid coordination chain</p>
             <p className="text-amber-900/90 dark:text-amber-100/90">
-              {agent.name} cannot accept tasks or start runs until its reporting chain is repaired.
+              {agent.name} cannot accept tasks or start runs until its coordination chain is repaired.
             </p>
             <p className="break-words font-mono text-xs text-amber-900/80 dark:text-amber-100/80">
-              {formatOrgChainHealthPath(agent)}
+              {formatCoordinationHealthPath(agent)}
             </p>
-            {agent.orgChainHealth?.repairGuidance ? (
-              <p className="text-amber-900/85 dark:text-amber-100/85">{agent.orgChainHealth.repairGuidance}</p>
+            {agent.coordinationHealth?.repairGuidance ? (
+              <p className="text-amber-900/85 dark:text-amber-100/85">{agent.coordinationHealth.repairGuidance}</p>
             ) : (
               <p className="text-amber-900/85 dark:text-amber-100/85">
-                Assign this agent to an active manager/root, or explicitly pause or terminate the affected agent/subtree.
+                Assign this agent to an active coordination lead or make it a root agent, or explicitly pause or terminate the affected subtree.
               </p>
             )}
           </div>
@@ -839,8 +838,8 @@ export function AgentDetail() {
             assignLabel={`Assign ${taskLabel}`}
             runLabel="Run Heartbeat"
             actionsDisabled={agentAction.isPending}
-            workActionsDisabled={hasInvalidOrgChain}
-            workActionsDisabledReason="Repair this agent's reporting chain before assigning tasks or starting runs"
+            workActionsDisabled={hasInvalidCoordination}
+            workActionsDisabledReason="Repair this agent's coordination chain before assigning tasks or starting runs"
             hasPendingNavigationChanges={configDirty}
             onBeforeNavigate={prepareAgentNavigation}
             onActionError={setActionError}

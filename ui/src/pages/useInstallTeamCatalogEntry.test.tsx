@@ -83,17 +83,17 @@ describe("useInstallTeamCatalogEntry", () => {
     document.body.innerHTML = "";
   });
 
-  it("standard flow surfaces the target-manager and source-policy steps", async () => {
+  it("standard flow surfaces the target-lead and source-policy steps", async () => {
     // sampleTeam has root agents + an unpinned external source.
     const cleanup = await renderHook(false);
-    expect(captured!.steps).toContain("target_manager");
+    expect(captured!.steps).toContain("target_lead");
     expect(captured!.steps).toContain("source_policy");
     cleanup();
   });
 
-  it("simplified flow drops target-manager and source-policy steps", async () => {
+  it("simplified flow drops target-lead and source-policy steps", async () => {
     const cleanup = await renderHook(true);
-    expect(captured!.steps).not.toContain("target_manager");
+    expect(captured!.steps).not.toContain("target_lead");
     expect(captured!.steps).not.toContain("source_policy");
     // Required skills still resolve, preview is always last.
     expect(captured!.steps[captured!.steps.length - 1]).toBe("preview");
@@ -104,10 +104,10 @@ describe("useInstallTeamCatalogEntry", () => {
     const cleanup = await renderHook(true);
     const form: TeamInstallFormState = {
       ...EMPTY_INSTALL_FORM,
-      targetManagerAgentId: "agent-should-be-ignored",
+      targetLeadAgentId: "agent-should-be-ignored",
     };
-    expect(captured!.buildPreviewOptions(form).targetManagerAgentId).toBeNull();
-    expect(captured!.buildInstallOptions(form).targetManagerAgentId).toBeNull();
+    expect(captured!.buildPreviewOptions(form).targetLeadAgentId).toBeNull();
+    expect(captured!.buildInstallOptions(form).targetLeadAgentId).toBeNull();
     cleanup();
   });
 
@@ -115,11 +115,11 @@ describe("useInstallTeamCatalogEntry", () => {
     const cleanup = await renderHook(false);
     const form: TeamInstallFormState = {
       ...EMPTY_INSTALL_FORM,
-      targetManagerAgentId: "agent-7",
+      targetLeadAgentId: "agent-7",
       adapterOverrides: { lead: "codex_local" },
     };
     const preview = captured!.buildPreviewOptions(form);
-    expect(preview.targetManagerAgentId).toBe("agent-7");
+    expect(preview.targetLeadAgentId).toBe("agent-7");
     const install = captured!.buildInstallOptions(form);
     expect(install.adapterOverrides).toEqual({ lead: { adapterType: "codex_local" } });
     cleanup();
@@ -135,7 +135,7 @@ describe("useInstallTeamCatalogEntry", () => {
     expect(mockTeamCatalogApi.install).toHaveBeenCalledWith(
       "space-1",
       sampleTeam.id,
-      expect.objectContaining({ targetManagerAgentId: null }),
+      expect.objectContaining({ targetLeadAgentId: null }),
     );
     expect(captured!.phase).toBe("done");
     cleanup();

@@ -1,46 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { resolveJoinRequestAgentManagerId } from "../routes/access.js";
+import { resolveJoinRequestLeadAgentId } from "../routes/access.js";
 
-describe("resolveJoinRequestAgentManagerId", () => {
+describe("resolveJoinRequestLeadAgentId", () => {
   it("selects a root peer when no default agent is set", () => {
-    const managerId = resolveJoinRequestAgentManagerId([
-      { id: "a1", role: "engineering_lead", reportsTo: null },
-      { id: "a2", role: "engineer", reportsTo: "a1" },
+    const leadAgentId = resolveJoinRequestLeadAgentId([
+      { id: "a1", role: "engineering_lead", leadAgentId: null },
+      { id: "a2", role: "engineer", leadAgentId: "a1" },
     ]);
 
-    expect(managerId).toBe("a1");
+    expect(leadAgentId).toBe("a1");
   });
 
   it("prefers the explicit default agent", () => {
-    const managerId = resolveJoinRequestAgentManagerId([
-      { id: "root", role: "general", reportsTo: null },
-      { id: "primary", role: "general", reportsTo: "root" },
+    const leadAgentId = resolveJoinRequestLeadAgentId([
+      { id: "root", role: "general", leadAgentId: null },
+      { id: "primary", role: "general", leadAgentId: "root" },
     ], "primary");
 
-    expect(managerId).toBe("primary");
+    expect(leadAgentId).toBe("primary");
   });
 
   it("does not prioritize a Default agent title over the first root peer", () => {
-    const managerId = resolveJoinRequestAgentManagerId([
-      { id: "lead-child", role: "lead", reportsTo: "manager-1" },
-      { id: "manager-1", role: "engineering_lead", reportsTo: null },
-      { id: "lead-root", role: "lead", reportsTo: null },
+    const leadAgentId = resolveJoinRequestLeadAgentId([
+      { id: "lead-child", role: "lead", leadAgentId: "manager-1" },
+      { id: "manager-1", role: "engineering_lead", leadAgentId: null },
+      { id: "lead-root", role: "lead", leadAgentId: null },
     ]);
 
-    expect(managerId).toBe("manager-1");
+    expect(leadAgentId).toBe("manager-1");
   });
 
   it("prefers an available root peer over nested agents", () => {
-    const managerId = resolveJoinRequestAgentManagerId([
-      { id: "lead-1", role: "lead", reportsTo: "mgr" },
-      { id: "lead-2", role: "lead", reportsTo: "mgr" },
-      { id: "mgr", role: "engineering_lead", reportsTo: null },
+    const leadAgentId = resolveJoinRequestLeadAgentId([
+      { id: "lead-1", role: "lead", leadAgentId: "mgr" },
+      { id: "lead-2", role: "lead", leadAgentId: "mgr" },
+      { id: "mgr", role: "engineering_lead", leadAgentId: null },
     ]);
 
-    expect(managerId).toBe("mgr");
+    expect(leadAgentId).toBe("mgr");
   });
 
   it("returns null for an empty Space", () => {
-    expect(resolveJoinRequestAgentManagerId([])).toBeNull();
+    expect(resolveJoinRequestLeadAgentId([])).toBeNull();
   });
 });

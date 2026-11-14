@@ -5,7 +5,7 @@ import { agents, spaces, environments, heartbeatRuns, plugins, pluginSpaceSettin
 import { instanceSettingsService } from "./instance-settings.js";
 import { pluginHasAgentEnvironments, pluginServesAgentEnvironment } from "./plugin-environment-driver.js";
 import { heartbeatService } from "./heartbeat.js";
-import { listInvalidOrgChainDescendantIds } from "./agent-invokability.js";
+import { listInvalidCoordinationDescendantIds } from "./agent-invokability.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import type { LifecycleDriver } from "../modules/agent-lifecycle/index.js";
 import { agentHarnessVerificationService } from "./agent-harness-verification.js";
@@ -59,7 +59,7 @@ export function createLifecycleDriver(db: Db, manager: PluginWorkerManager): Lif
       if (agent.lifecycleState === "verifying") return verify(agent);
       if (["pausing", "terminating", "cleaning_up"].includes(agent.lifecycleState)) {
         const ids = agent.lifecycleState === "pausing" ? [agent.id]
-          : [agent.id, ...listInvalidOrgChainDescendantIds(agent.id,
+          : [agent.id, ...listInvalidCoordinationDescendantIds(agent.id,
             await db.select().from(agents).where(eq(agents.spaceId, agent.spaceId)))];
         const reason = agent.lifecycleHolds?.includes("space_archived")
           ? "Cancelled because the space was archived" : "Agent lifecycle stop requested";

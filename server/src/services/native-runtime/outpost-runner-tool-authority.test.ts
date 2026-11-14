@@ -737,7 +737,7 @@ describe("OutpostRunnerToolAuthority", () => {
         capabilities: "Test native workflows",
         adapterType: "outpost_runner",
         inheritRuntimeFrom: "caller",
-        reportsTo: agentId,
+        leadAgentId: agentId,
         sourceIssueId: issueId,
         instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": "Use the assigned workspace and report findings." } },
       });

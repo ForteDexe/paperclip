@@ -272,7 +272,7 @@ successor is instructed to stop on a missing file and never recreate it. Both ad
 must retain one workspace and commit their native results. The successor must
 have its own dispatch receipt and saved native intent. It starts after the
 predecessor finishes; dispatch must not retag the predecessor. The fixture uses
-production hire instructions and records the selected catalog model. These four
+production create instructions and records the selected catalog model. These four
 development cells do not qualify Slack, staging configurations, migration,
 finalization restart, or the complete dependable-work milestone.
 
@@ -296,7 +296,7 @@ checks never execute checkout build helpers.
 
 The explicit-only `configured-repository` and `legacy-conversion` suites each
 have four development cells: Codex `gpt-6.1-sol` and Claude `claude-opus-5-5`,
-on local and Daytona environments. Each uses production hire instructions,
+on local and Daytona environments. Each uses production create instructions,
 one attempt, one expected provider admission, and 1,000-cent space and agent
 hard stops. The conversion journey creates a real legacy agent and selects
 Outpost Runner through the public agent update API. It checks retained
@@ -336,7 +336,7 @@ pnpm test:e2e:runner -- --id automatic-repository-configured-models.runner-codex
 ## Stop and task resumption
 
 The explicit-only `followup-stop-resume` suite has two local development cells
-using the configured Codex and Claude models and production hire instructions.
+using the configured Codex and Claude models and production create instructions.
 It independently seeds a context file, verifies the first active checkpoint,
 sends one ordinary follow-up, presses Stop in the composer, and records an
 acknowledged cancelled run with no automatic path for at least five seconds.
@@ -368,7 +368,7 @@ They do not put prompt, provider text, configuration, or logs into api-state.jso
 
 The explicit-only `finalization-recovery` suite has two development cells on
 Daytona: Codex `gpt-6.1-sol` and Claude `claude-opus-5-5`. It uses the production
-hire instructions and one provider admission. A 64 MiB random data file makes
+create instructions and one provider admission. A 64 MiB random data file makes
 real workspace export observable; a small registered JSON proof records its
 original size, hash and reference before the interruption.
 
@@ -409,7 +409,7 @@ A title, success claim, replacement card, duplicate wake, or uncommitted result
 cannot establish a pass.
 
 This extends the existing continuation flow and keeps the older question suites
-unchanged. It uses production hire instructions, one attempt, one or two provider
+unchanged. It uses production create instructions, one attempt, one or two provider
 admissions, and 1,000-cent space and agent budgets. API-key authentication and
 per-turn lifecycle remain explicit development differences. It does not qualify
 Slack, staging subscription credentials, warm reuse, or the complete checkpoint.
@@ -465,7 +465,7 @@ browser actions across managed self-hosted and Cloud targets. They include a
 model-free task-properties and document-persistence stories, fresh Cloud onboarding, credential-free
 previews, private evidence, and prerequisite reuse; `--all` is unchanged.
 Cloud onboarding may retain a versioned `onboardingConnect` receipt for the
-Connect action: its last checkpoint, validation/hire response state and HTTP
+Connect action: its last checkpoint, validation/create response state and HTTP
 status, known adapters, and allowlisted outcome/check/server codes. The case
 report renders these fields explicitly; older results without the receipt remain
 valid. This diagnostic does not change the journey grade or qualify a live run.
@@ -563,7 +563,7 @@ controls before using it to qualify a production instruction change. See
 
 ## Native procedure guidance comparison (explicit only)
 
-Select `--suite everyday-workflows --environment local --case hire-reuse --case delegate-feedback
+Select `--suite everyday-workflows --environment local --case create-reuse --case delegate-feedback
 --profile runner-codex --profile runner-acpx-claude --profile runner-opencode` for the six comparison
 cells on native Codex, ACPX Claude, and OpenCode.
 Both variants use the same Studio Lead persona, original user requests,
@@ -574,7 +574,7 @@ runs count toward the space budget. The suite is excluded from `--all`.
 
 Compare frozen branches on the same master with identical fixture sources.
 Retain each original grade, source SHA, harness digest, actual run inventory,
-downloaded artifacts and partial cost evidence. Check hiring identity/reuse,
+downloaded artifacts and partial cost evidence. Check creation identity/reuse,
 worker ownership, delivered revisions, dependency release and parent completion
 ordering independently of aggregate grades. These bounded stories do not
 qualify every existing-blocker combination or arbitrary provider resume.
@@ -1044,15 +1044,15 @@ document, no backlog execution, and a usable source conversation after reload.
 
 `agent-chat-hardening` is an explicit-only native Codex/Claude suite with
 **18 cells: 12 local and six warm Daytona**. It adds startup Stop/reset,
-hire/delegate/reuse, grounded blocker reporting with source-document review,
+create/delegate/reuse, grounded blocker reporting with source-document review,
 and committed-send retry. It also runs active Stop/reset and restart continuity.
 Daytona selects active Stop/reset, restart continuity, and committed-send retry.
 The 56 expected run attempts include cancelled attempts; synthetic resets are
 recorded separately. The suite uses production permission defaults and prompts.
-Only hiring and cross-task status/review enable the opt-in native API tools.
-Hiring uses a personal managed AI connection and verifies the hired worker's
+Only creation and cross-task status/review enable the opt-in native API tools.
+Creation uses a personal managed AI connection and verifies the created worker's
 actual execution account. This is not an onboarding-default qualification.
-The hiring checklist and review request a `Reference: ...` line. This gives the
+The creation checklist and review request a `Reference: ...` line. This gives the
 fixture marker a neutral label instead of leaving the agent to choose credential
 syntax such as `Tracking token: ...`. Exact marker, authorship, worker reuse,
 and saved-output checks remain required. This case tests coordination, not
@@ -1141,13 +1141,13 @@ pnpm test:e2e:runner -- --id context-integrity.runner-codex.local.ordered-commen
 restart journeys with production-default hires instead of the custom QA manual.
 Its 24 explicit local cells cover eight legacy/native profiles and are excluded
 from `--all`. Run `pnpm test:e2e:runner:stock-harness` for the credential-free
-instruction-layering, hire, and shared-prompt prerequisites. The
+instruction-layering, create, and shared-prompt prerequisites. The
 [suite contract](STOCK-HARNESS.md) maps each change to its graders, budgets,
 evidence, and remaining qualification limits.
 
 Each hardening oracle has positive and plausible-negative calibration tests.
 The review grader parses the worker's saved JSON and compares both source values
-and the consistency verdict. Hiring requires one identity, correct reporting
+and the consistency verdict. Creation requires one identity, correct reporting
 line, managed credentials, and real task execution; chat claims cannot pass it.
 
 ```bash
@@ -1817,12 +1817,12 @@ against missing, fabricated, late, misattributed, and overwritten-title outcomes
 
 See [EVERYDAY-WORKFLOWS.md](EVERYDAY-WORKFLOWS.md) for the explicit-only native-runner stories and their canonical Evalbook importer. These cells do not expand scheduled `--all` runs.
 
-### Everyday hiring prerequisites and timeout evidence
+### Everyday creation prerequisites and timeout evidence
 
-The manual `everyday-workflows` / `hire-reuse` story enables native API tools in
+The manual `everyday-workflows` / `create-reuse` story enables native API tools in
 its isolated harness and creates a personal managed AI account through the public
 API. The lead uses the responsible user's default account, without adapter env
-credential overrides. The hire must inherit that binding and finish a real run
+credential overrides. The create must inherit that binding and finish a real run
 attributed to the same account. The evidence records this fixture configuration.
 Other suites retain their existing API-tool defaults.
 
@@ -1838,7 +1838,7 @@ stay unchanged, so live retests measure the product guidance itself.
 
 Delegated ZIP delivery can appear on the user-facing parent or its child task.
 The grader selects the newest ZIP only within that task family; a reuse request
-requires a new attachment after the request. The hired-agent execution/account
+requires a new attachment after the request. The created-agent execution/account
 checks and independent downloaded-code checks remain mandatory.
 
 Revision delivery checks exclude preserved originals by their content hash, even when the agent republishes an original after the revised ZIP. The browser downloads the exact selected attachment ID; its bytes still pass through the independent artifact checker.
@@ -1847,8 +1847,8 @@ Revision delivery checks exclude preserved originals by their content hash, even
 
 The explicit-only `onboarding-approval-history` suite extends the interview path
 through three separate human decisions: a saved plan checkbox selection, a
-writer hiring checkbox, and an untargeted Start drafting confirmation. The user
-selects drafting and clears publishing. The model must hire the approved writer,
+writer creation checkbox, and an untargeted Start drafting confirmation. The user
+selects drafting and clears publishing. The model must create the approved writer,
 assign one child, and produce the saved welcome document through that child's
 own execution. Persisted decisions, the unchanged plan revision and selection,
 creation timestamps, one child work run, and readback after browser reload own
@@ -1868,7 +1868,7 @@ qualifying changes to onboarding or approval semantics:
 
 ```sh
 pnpm test:e2e:runner -- --list --suite onboarding-approval-history
-pnpm test:e2e:runner -- --id onboarding-approval-history.runner-codex.local.interview-hire-execute
+pnpm test:e2e:runner -- --id onboarding-approval-history.runner-codex.local.interview-create-execute
 ```
 
 The deterministic PostgreSQL contract in
@@ -2144,7 +2144,7 @@ attempt, one to three actual runs, a ten-minute cell deadline and verified
 1,000-cent space/agent hard stops. The historical failure where the optional
 Other field stopped the driver before any answer remains a FAIL. A new behavior
 pass does not establish semantic-tool selection, documentation placement, default
-hiring behavior or general reliability.
+creation behavior or general reliability.
 
 The original scheduled attempt that stopped at a closed reference card remains a
 FAIL, including its separate cleanup failure. Supporting a server-bound written
@@ -2819,14 +2819,14 @@ connection-authorization qualification.
 | Case | User outcome |
 | --- | --- |
 | `human-authority` | A tenant administrator action waits for human direction without assigning work to a manager who lacks access. |
-| `hiring-permission` | A worker without hiring permission asks for authorized direction; no agent or hire approval is created. |
+| `creation-permission` | A worker without creation permission asks for authorized direction; no agent or create approval is created. |
 | `requester-scope` | A confidentiality conflict produces a human-input question the requesting user can answer while the worker retains the task. |
 
 Each cell creates an ordinary worker and a manager with assignment permission
-but no hiring permission or external administrator capability. Both receive the
+but no creation permission or external administrator capability. Both receive the
 normal bundled coordination skill through the production skill-sync API. The
 browser creates the task. The prompts describe business facts and never name
-interaction APIs, expected task statuses, or grading rules. The hiring case
+interaction APIs, expected task statuses, or grading rules. The creation case
 measures behavior with a persisted missing permission; it does not require the
 model to attempt an HTTP request that it already knows will be denied.
 The space policy requires the requester's decision before drafting a public
@@ -2837,8 +2837,8 @@ is a plausible alternative and does not exercise the intended requester-routing 
 
 The independent grader requires one saved human-only question set or confirmation and `in_review`,
 preserved ownership including activity history, no extra tasks or manager runs,
-and no hire. After reload, the browser supplies a scenario-specific decision:
-defer the SSO rollout, defer the hire, or write the public note without salaries.
+and no create. After reload, the browser supplies a scenario-specific decision:
+defer the SSO rollout, defer the create, or write the public note without salaries.
 Each answer includes a unique reference that must appear in the worker's reply.
 The same worker must consume the saved answer, acknowledge it, and finish the
 same task. Question sets may contain multiple questions. For a confirmation,
@@ -2849,7 +2849,7 @@ the helper reports that limitation before clicking, without timing out or waking
 the worker with incomplete instructions. Legacy question cards retain their
 production form's implicit Other answer. The grader requires
 human resolution of the original card and the saved user direction. It never
-approves an administrator or hiring action to get a passing result.
+approves an administrator or creation action to get a passing result.
 The requester-scope answer supplies an approved salary-free welcome note and asks
 for its exact publication as a task comment. The grader requires a new worker
 comment whose entire body matches that note; an acknowledgement or a note with
@@ -3005,9 +3005,9 @@ establish live qualification or funding within the remaining paid reserve.
 This OCI-image Core case does not prove Cloud signup, warm/cold provisioning or
 name-only snapshot qualification. Those remain separate acceptance gates.
 
-### Hiring completion accounting evidence
+### Creation completion accounting evidence
 
-The v3 hiring grader uses turn-accounting v2 in both executable guards. It requires complete per-run public event streams, exact native tool-use/result pairing and canonical execution IDs for completion actions. Only successful known GET issue/document/comment operations, verified reads/discovery, and attributed native chat finish are admitted. Writes, failed mutation attempts, incomplete streams and unknown actions cannot pass. Separate ACPX host request IDs and provider execution IDs are not joined by name/order/count; missing mapping is uncomparable action coverage, not a measured task failure. The original source-read and exact template checks remain unchanged.
+The v3 creation grader uses turn-accounting v2 in both executable guards. It requires complete per-run public event streams, exact native tool-use/result pairing and canonical execution IDs for completion actions. Only successful known GET issue/document/comment operations, verified reads/discovery, and attributed native chat finish are admitted. Writes, failed mutation attempts, incomplete streams and unknown actions cannot pass. Separate ACPX host request IDs and provider execution IDs are not joined by name/order/count; missing mapping is uncomparable action coverage, not a measured task failure. The original source-read and exact template checks remain unchanged.
 
 The live fixture retries entire bracketed observations, waits for both known task callbacks and attributed replies (including batching), checks untruncated pending-wake diagnostics, and requires two equal settled observations. Silence before outbox enqueue is not delivery. Five-turn generic accounting remains calibrated for no owed notifications; this delegated fixture owes two completions. All actual runs remain counted for usage and cost. Retained original, limited sidecar-v1, initial executable, and stricter v3 assessments remain separately versioned; no models are rerun by the repair.
 
@@ -3199,7 +3199,7 @@ absolute inference cap. The work-run usage report excludes setup probes; their
 detailed tokens and cost are unavailable. Unknown usage does not mean free usage.
 
 `case-handoffs.runner-codex-subscription.local.same-task-roundtrip` uses three
-native Codex agents with the production hire instructions. Public REST kickoff
+native Codex agents with the production create instructions. Public REST kickoff
 creates one case and its task; the agents use the real `handoff_case` tool to
 route that task through triage, implementation, verification and revision.
 The independent oracle requires result `5` for inputs `2` and `3`, saved phase

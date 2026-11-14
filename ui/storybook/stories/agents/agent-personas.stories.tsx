@@ -9,16 +9,16 @@ import { AgentIdentity } from "../../../src/components/AgentIdentity";
 import { Button } from "../../../src/components/ui/button";
 
 const appearance = appearanceForPalette("bubblegum-sky");
-const agent = { id: "storybook-agent", name: "Chief of Staff", appearance };
+const agent = { id: "storybook-agent", name: "Default agent", appearance };
 const meta = {
   id: "agents-personas",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Personas",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Personas",
   component: AgentCharacter,
-  args: { appearance, size: 256, state: "listening", label: "Chief of Staff" },
+  args: { appearance, size: 256, state: "listening", label: "Default agent" },
   parameters: { docs: { description: { component: "Persistent cap-v1 identities. The hero alone loads ClipLab. Development Storybook renders capsule PNGs locally on demand; published Storybook packages the same PNGs during its build, including every preset and both densities. Neither needs a running API." } },
     outpost: {
       "capabilities": [
-        "agents/organization",
+        "agents/coordination",
         "navigation-preferences/profile"
       ],
       "implementation": "production",
@@ -73,11 +73,11 @@ export const OnboardingTransition: Story = { render: () => <Onboarding /> };
 export const AppPlacements: Story = {
   render: () => <div className="grid max-w-3xl gap-6">
     <section className="space-y-3"><h2 className="text-lg font-semibold">Agents</h2>{AGENT_PALETTE_IDS.slice(0, 4).map((palette, i) => <div className="flex items-center justify-between gap-4" key={palette}>
-      <AgentIdentity agent={{ id: palette, name: ["Chief of Staff", "Researcher", "Designer", "Engineer"][i], appearance: appearanceForPalette(palette) }} /><span className="text-xs text-muted-foreground">Idle</span>
+      <AgentIdentity agent={{ id: palette, name: ["Default agent", "Researcher", "Designer", "Engineer"][i], appearance: appearanceForPalette(palette) }} /><span className="text-xs text-muted-foreground">Idle</span>
     </div>)}</section>
     <section className="space-y-2"><h2 className="text-lg font-semibold">Task conversation</h2><AgentIdentity agent={agent} size="sm" /><p className="text-sm">The launch brief is ready for review.</p></section>
-    <section className="flex items-center justify-between gap-4"><span className="text-sm">Prepare the launch brief</span><AgentAvatar agent={agent} size={20} label="Assigned to Chief of Staff" /></section>
-    <section className="flex items-center gap-6"><AgentCharacter agent={agent} size={128} /><div><h2 className="text-lg font-semibold">Agent configuration</h2><p className="text-sm text-muted-foreground">Chief of Staff · Connected</p></div></section>
+    <section className="flex items-center justify-between gap-4"><span className="text-sm">Prepare the launch brief</span><AgentAvatar agent={agent} size={20} label="Assigned to Default agent" /></section>
+    <section className="flex items-center gap-6"><AgentCharacter agent={agent} size={128} /><div><h2 className="text-lg font-semibold">Agent configuration</h2><p className="text-sm text-muted-foreground">Default agent · Connected</p></div></section>
   </div>,
 };
 export const FiveHundredStaticAvatars: Story = {
@@ -91,7 +91,7 @@ function Lifecycle() {
 export const MountAndUnmount: Story = { render: () => <Lifecycle /> };
 export const OneLiveRenderer: Story = { render: () => <div className="flex gap-6"><AgentCharacter agent={agent} /><AgentCharacter appearance={appearanceForPalette("arctic-blue")} /></div> };
 export const ImageFailure: Story = {
-  render: () => <AgentAvatar appearance={appearance} name="Chief of Staff" size={64} />,
+  render: () => <AgentAvatar appearance={appearance} name="Default agent" size={64} />,
   play: async ({ canvasElement }) => {
     // Exercise the actual image error handler without a custom product URL API.
     canvasElement.querySelector("img")?.dispatchEvent(new Event("error"));

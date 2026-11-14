@@ -5,7 +5,7 @@
 //
 // The wording lives in server/src/onboarding-assets/first-task/greeting.md so the
 // operator can edit it without touching TypeScript; this module only fills the
-// {{agentName}} / {{organizationName}} placeholders (see
+// {{agentName}} / {{spaceName}} placeholders (see
 // onboarding-first-task-assets.ts).
 
 import { renderOnboardingFirstTaskGreeting } from "./onboarding-first-task-assets.js";
@@ -14,10 +14,10 @@ export const ONBOARDING_GREETING_AUTHORIZATION_REASON = "onboarding first-task g
 
 export async function renderOnboardingGreeting(input: {
   agentName?: string | null;
-  organizationName?: string | null;
+  spaceName?: string | null;
 }): Promise<string> {
   return renderOnboardingFirstTaskGreeting({
     agentName: input.agentName,
-    organizationName: input.organizationName,
+    spaceName: input.spaceName,
   });
 }

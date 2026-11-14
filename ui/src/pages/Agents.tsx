@@ -7,7 +7,7 @@ import { useAgentChatEnabled } from "../hooks/useAgentChatEnabled";
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { agentsApi, type OrgNode } from "../api/agents";
+import { agentsApi, type AgentHierarchyNode } from "../api/agents";
 import { builtInAgentsApi, type BuiltInAgentState } from "../api/builtInAgents";
 import { environmentsApi } from "../api/environments";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -25,7 +25,7 @@ import { BuiltInLifecycleChip } from "../components/BuiltInAgentBadges";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
-import { OrgChart } from "./OrgChart";
+import { AgentHierarchy } from "./AgentHierarchy";
 import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { AgentsToolbar } from "../components/AgentsToolbar";
 import { Button } from "@/components/ui/button";
@@ -167,28 +167,28 @@ function resolveAgentEnvironment(
     : describeMissingEnvironment(environmentId);
 }
 
-export function filterOrgTree(nodes: OrgNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): OrgNode[] {
+export function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): AgentHierarchyNode[] {
   return nodes
-    .reduce<OrgNode[]>((acc, node) => {
-      const filteredReports = filterOrgTree(node.reports, tab, builtInAgentIds, matchingIds);
+    .reduce<AgentHierarchyNode[]>((acc, node) => {
+      const filteredChildren = filterAgentHierarchy(node.children, tab, builtInAgentIds, matchingIds);
       // Hidden agents (terminated / pending_approval) never render as a row, but
       // any visible reports are promoted so the tree doesn't lose live agents.
       if (HIDDEN_AGENT_STATUSES.has(node.status)) {
-        acc.push(...filteredReports);
+        acc.push(...filteredChildren);
         return acc;
       }
       const nodeMatches = tab === "builtin"
         ? builtInAgentIds.has(node.id)
         : matchesFilter(node.status, tab);
-      if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredReports.length > 0) {
-        acc.push({ ...node, reports: filteredReports });
+      if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredChildren.length > 0) {
+        acc.push({ ...node, children: filteredChildren });
       }
       return acc;
     }, [])
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export type AgentsView = "list" | "org";
+export type AgentsView = "list" | "agent-hierarchy";
 
 export function Agents({ initialView = "list" }: { initialView?: AgentsView } = {}) {
   const agentChatPins = useAgentChatPins();
@@ -203,12 +203,12 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const pathSegment = location.pathname.split("/").pop() ?? "all";
   const requestedTab: FilterTab = isFilterTab(pathSegment) ? pathSegment : "all";
-  const [view, setView] = useState<AgentsView>(() => streamlinedUiEnabled ? initialView : "org");
+  const [view, setView] = useState<AgentsView>(() => streamlinedUiEnabled ? initialView : "agent-hierarchy");
   const forceListView = !streamlinedUiEnabled && isMobile;
   const effectiveView: AgentsView = forceListView ? "list" : view;
 
   useEffect(() => {
-    setView(streamlinedUiEnabled ? initialView : "org");
+    setView(streamlinedUiEnabled ? initialView : "agent-hierarchy");
   }, [initialView, streamlinedUiEnabled]);
 
   const { data: instanceSettings } = useQuery({
@@ -243,10 +243,10 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   const rosterFilters = useAgentRosterFilters(selectedSpaceId, agents);
   const agentsView = useQueryView(agentsQuery);
 
-  const { data: orgTree } = useQuery({
-    queryKey: queryKeys.org(selectedSpaceId!),
-    queryFn: () => agentsApi.org(selectedSpaceId!),
-    enabled: !!selectedSpaceId && effectiveView === "org",
+  const { data: agentHierarchy } = useQuery({
+    queryKey: queryKeys.agentHierarchy(selectedSpaceId!),
+    queryFn: () => agentsApi.hierarchy(selectedSpaceId!),
+    enabled: !!selectedSpaceId && effectiveView === "agent-hierarchy",
   });
 
   const environmentsEnabled = instanceSettings?.experimental.enableEnvironments === true;
@@ -349,7 +349,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   }
 
   const filtered = filterAgents(agents ?? [], tab, builtInAgentIds, query).filter(rosterFilters.matches);
-  const filteredOrg = filterOrgTree(orgTree ?? [], tab, builtInAgentIds, query.trim() || rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
+  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, builtInAgentIds, query.trim() || rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
   const environmentDataLoading = environmentsEnabled && environments === undefined;
   const showEnvironmentColumn = environmentsEnabled && (environments === undefined || environments.length > 1);
   const resolveRenderedEnvironment = (agentId: string) => (
@@ -360,9 +360,9 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
 
   const renderAgentRow = (agent: Agent) => {
     const directReportCount = (agents ?? []).filter(
-      (candidate) => candidate.reportsTo === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
+      (candidate) => candidate.leadAgentId === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
     ).length;
-    const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
+    const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
     const builtInState = builtInByAgentId.get(agent.id);
     const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
     // Keep lifecycle controls with the metadata only when the content area
@@ -399,8 +399,8 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
         subtitle={agent.title || "Scope owner"}
         to={agentUrl(agent)}
         className="agent-roster-identity group py-3 group-hover/agent-pin:bg-accent/50 group-focus-within/agent-pin:bg-accent/50"
-        leading={hasInvalidOrgChain ? (
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid reporting chain" />
+        leading={hasInvalidCoordination ? (
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid coordination chain" />
         ) : (
           <AgentAvatar agent={agent} size={32} />
         )}
@@ -436,14 +436,14 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   return (
     <div className={cn(
       "flex flex-col gap-4 @container",
-      effectiveView === "org" && "h-full min-h-0",
+      effectiveView === "agent-hierarchy" && "h-full min-h-0",
     )}>
       <AgentsToolbar query={query} onQueryChange={setQuery} view={effectiveView} onViewChange={setView}
         hideViewToggle={forceListView} onNewAgent={openNewAgent} />
 
       <AgentRosterFilters {...rosterFilters} count={filtered.length} />
 
-      <div className={cn("min-h-0 space-y-4", effectiveView === "org" && "flex flex-1 flex-col")}>
+      <div className={cn("min-h-0 space-y-4", effectiveView === "agent-hierarchy" && "flex flex-1 flex-col")}>
 
       {agents && agents.length === 0 && (
         <EmptyState
@@ -482,20 +482,20 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
 
 
 
-      {/* Org chart view */}
-      {effectiveView === "org" && filteredOrg.length > 0 && (
-        <OrgChart embedded orgTree={filteredOrg} agents={agents ?? []} />
+      {/* Agent hierarchy view */}
+      {effectiveView === "agent-hierarchy" && filteredHierarchy.length > 0 && (
+        <AgentHierarchy embedded agentHierarchy={filteredHierarchy} agents={agents ?? []} />
       )}
 
-      {effectiveView === "org" && orgTree && orgTree.length > 0 && filteredOrg.length === 0 && (
+      {effectiveView === "agent-hierarchy" && agentHierarchy && agentHierarchy.length > 0 && filteredHierarchy.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No agents match your search and filters.
         </p>
       )}
 
-      {effectiveView === "org" && orgTree && orgTree.length === 0 && (
+      {effectiveView === "agent-hierarchy" && agentHierarchy && agentHierarchy.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
-          No organizational hierarchy defined.
+          No agent hierarchy defined.
         </p>
       )}
       {configureState && selectedSpaceId && (
@@ -515,7 +515,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   );
 }
 
-function OrgTreeNode({
+function HierarchyNode({
   node,
   depth,
   agentMap,
@@ -526,7 +526,7 @@ function OrgTreeNode({
   builtInByAgentId,
   onConfigureBuiltIn,
 }: {
-  node: OrgNode;
+  node: AgentHierarchyNode;
   depth: number;
   agentMap: Map<string, Agent>;
   liveRunByAgent: Map<string, { runId: string; liveCount: number }>;
@@ -539,7 +539,7 @@ function OrgTreeNode({
   const agent = agentMap.get(node.id);
   const builtInState = builtInByAgentId.get(node.id);
   const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
-  const hasInvalidOrgChain = Boolean(agent && agent.orgChainHealth?.status === "invalid_org_chain");
+  const hasInvalidCoordination = Boolean(agent && agent.coordinationHealth?.status === "invalid_coordination_chain");
 
   return (
     <div style={{ paddingLeft: depth * 24 }}>
@@ -547,8 +547,8 @@ function OrgTreeNode({
         to={agent ? agentUrl(agent) : `/agents/${node.id}`}
         className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors w-full text-left no-underline text-inherit"
       >
-        {hasInvalidOrgChain ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid reporting chain" />
+        {hasInvalidCoordination ? (
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid coordination chain" />
         ) : (
           <AgentAvatar agent={agent ?? node} size={24} />
         )}
@@ -619,10 +619,10 @@ function OrgTreeNode({
           </div>
         </div>
       </Link>
-      {node.reports && node.reports.length > 0 && (
+      {node.children && node.children.length > 0 && (
         <div className="border-l border-border ml-4">
-          {node.reports.map((child) => (
-            <OrgTreeNode
+          {node.children.map((child) => (
+            <HierarchyNode
               key={child.id}
               node={child}
               depth={depth + 1}

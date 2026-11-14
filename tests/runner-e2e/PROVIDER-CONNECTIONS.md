@@ -343,7 +343,7 @@ local qualification date.
 
 After the catalog selector repair, runner E2E typecheck and all 13 connection
 support tests passed. The final cleanup audit found no usable QA connections,
-active QA agents, or active QA runs; the original onboarding space and test
+active QAn agents, or active QA runs; the original onboarding space and test
 server remain available. The private report includes `credential-refresh.json`,
 `key-retest-diagnostics.json`, `gemini-generation-probe.json`, and
 `cleanup-audit.json`. None contain credential values or authorization codes.

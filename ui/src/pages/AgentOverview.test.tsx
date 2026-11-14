@@ -32,7 +32,7 @@ describe("AgentOverview", () => {
       role: "engineer",
       title: "Product engineer",
       status: "active",
-      reportsTo: null,
+      leadAgentId: null,
       capabilities: "Builds and verifies product changes.",
       adapterType: "codex_local",
       adapterConfig: { model: "gpt-5.6-sol" },
@@ -61,7 +61,7 @@ describe("AgentOverview", () => {
           runs={[] as HeartbeatRun[]}
           assignedIssues={[issue]}
           runtimeState={runtime}
-          directReportCount={2}
+          coordinatedAgents={[]}
           agentRouteId="codexcoder"
         />
         </TooltipProvider>
@@ -94,7 +94,7 @@ describe("AgentOverview", () => {
       role: "engineer",
       title: null,
       status: "idle",
-      reportsTo: null,
+      leadAgentId: null,
       capabilities: null,
       adapterType: "codex_local",
       adapterConfig: {},
@@ -109,7 +109,7 @@ describe("AgentOverview", () => {
           agent={agent}
           runs={[] as HeartbeatRun[]}
           assignedIssues={[]}
-          directReportCount={0}
+          coordinatedAgents={[]}
           agentRouteId="sharedagent"
         />
       </QueryClientProvider>,

@@ -3,7 +3,7 @@ import { userEvent, within } from "storybook/test";
 import { PrimaryPage, mobile, primaryDecorator, primaryParameters } from "../../../support/default-agent/DefaultAgentStory";
 
 export default { id: "default-agent-02-sidebar",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/02 Sidebar", decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/02 Sidebar", decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
       "capabilities": [
         "agents/default-agent",
         "tasks/create",

@@ -107,7 +107,7 @@ const IMPORT_INCLUDE_OPTIONS: Array<{
   { value: "space", label: "Outpost", hint: "name, branding, and space settings" },
   { value: "projects", label: "Projects", hint: "projects and workspace metadata" },
   { value: "issues", label: "Tasks", hint: "tasks and recurring routines" },
-  { value: "agents", label: "Agents", hint: "agent records and org structure" },
+  { value: "agents", label: "Agents", hint: "agent records and agent hierarchy" },
   { value: "skills", label: "Skills", hint: "space skill packages and references" },
 ];
 

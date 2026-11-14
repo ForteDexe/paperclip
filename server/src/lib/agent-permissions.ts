@@ -60,7 +60,7 @@ export function permissionsImplyLowTrust(permissions: unknown): boolean {
 
 /**
  * "create" is the context for permissions arriving on a new-agent write: the
- * create/create default applies and the resolved value is persisted. "stored"
+ * create/add default applies and the resolved value is persisted. "stored"
  * is the context for rows read back from the database: a row without an
  * explicit value stays fail-closed, so the default is never granted
  * retroactively to legacy or malformed records at read or enforcement time.

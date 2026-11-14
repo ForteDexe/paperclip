@@ -1084,7 +1084,7 @@ for (const execution of executions) {
         const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, spaceId: fixtures.space.id });
         const grade = gradeNativeDefault(receipt, execution.suite.id === NATIVE_INSTRUCTION_SUITE ? NATIVE_INSTRUCTION_DEFAULT_SHA256 : undefined);
         await writeSanitizedJson(snapshotsDir, "native-default-before-execution.json", { receipt, grade }, secrets);
-        if (!grade.passed) throw new Error("Native production-default hire admission failed before execution");
+        if (!grade.passed) throw new Error("Native production-default create admission failed before execution");
         const [issues, agents, workspaceDigest] = await Promise.all([
           api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/issues?limit=100`),
           api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/agents`), nativeWorkspaceDigest(),
@@ -1105,14 +1105,14 @@ for (const execution of executions) {
         }) : undefined;
 
       if (execution.suite.id === "stock-harness") {
-        const hire = await captureStockHarness({ api, spaceId: fixtures.space.id,
+        const create = await captureStockHarness({ api, spaceId: fixtures.space.id,
           agentId: fixtures.agent.id, generation: execution.profile.generation, runIds: [] });
-        const checks = gradeStockHire(hire);
-        await writeSanitizedJson(snapshotsDir, "stock-harness-hire.json", {
-          capturePhase: "before-provider", ...hire, checks,
+        const checks = gradeStockHire(create);
+        await writeSanitizedJson(snapshotsDir, "stock-harness-create.json", {
+          capturePhase: "before-provider", ...create, checks,
         }, secrets);
         const failed = checks.filter(check => !check.passed);
-        if (failed.length) throw new Error(`Stock hire matcher failures: ${failed.map(check => check.id).join(", ")}`);
+        if (failed.length) throw new Error(`Stock create matcher failures: ${failed.map(check => check.id).join(", ")}`);
 
       }
 

@@ -50,7 +50,7 @@ scenarios:
   - id: execution-environments.assign-computer
     capabilities:
       - execution-environments/assignment
-      - agents/hire
+      - agents/create
     context: >-
       Morgan and a qualified cloud computer belong to the same space; the CEO may save this
       configuration and no protected change remains.

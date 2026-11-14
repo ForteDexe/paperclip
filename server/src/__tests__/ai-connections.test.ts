@@ -1797,9 +1797,9 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       type: "user_secret_ref", key: definition.key, version: "latest", required: true,
     } } };
     await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    const [agent] = await db.insert(agents).values({ id, spaceId, name: "Chief of Staff", adapterType: "claude_local", adapterConfig }).returning();
+    const [agent] = await db.insert(agents).values({ id, spaceId, name: "Default agent", adapterType: "claude_local", adapterConfig }).returning();
     await vault.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: id }, adapterConfig.env);
-    await db.insert(issues).values({ id: issueId, spaceId, title: "Chat with Chief of Staff", status: "blocked", assigneeAgentId: id, responsibleUserId: userId });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Chat with Default agent", status: "blocked", assigneeAgentId: id, responsibleUserId: userId });
     const failure = await resolveExecutionRunAdapterConfig({
       spaceId, agentId: id, adapterType: "claude_local", issueId,
       responsibleUserId: userId, executionRunConfig: adapterConfig, projectEnv: null, secretsSvc: vault,

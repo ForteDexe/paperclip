@@ -185,8 +185,8 @@ describe("external object routes", () => {
       explanation: "Denied by test mock",
     }));
     mockAgentService.list.mockResolvedValue([
-      { id: ownerAgentId, spaceId, reportsTo: null, permissions: { canCreateAgents: false } },
-      { id: peerAgentId, spaceId, reportsTo: null, permissions: { canCreateAgents: false } },
+      { id: ownerAgentId, spaceId, leadAgentId: null, permissions: { canCreateAgents: false } },
+      { id: peerAgentId, spaceId, leadAgentId: null, permissions: { canCreateAgents: false } },
     ]);
     mockExternalObjectsService.getIssueSummary.mockResolvedValue({ total: 1, objects: [] });
     mockExternalObjectsService.getIssueSummaries.mockImplementation(async (_spaceId: string, issueIds: string[]) =>

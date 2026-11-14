@@ -400,7 +400,7 @@ describe("TeamCatalog install preview path", () => {
         title: null,
         icon: null,
         status: "active",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: null,
         adapterType: "claude_local",
         adapterConfig: {},

@@ -54,18 +54,18 @@ function installCodexCreationFixture({ setupFailure = false, nativeRunnerEnabled
 
 const meta = {
   id: "agents-codex-runner-creation",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Codex runner/Creation",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Codex runner/Creation",
   component: NewAgent,
   parameters: {
     layout: "fullscreen",
     initialEntries: ["/PAP/agents/new?name=Nova&adapterType=codex_local"],
     docs: { description: { component: "Production NewAgent page and shared pickers. Accounts and API replies use isolated Storybook fixtures; these stories establish UI behavior, not live execution qualification. The native default works with the old experimental gate off." } },
     outpost: {
-      capabilities: ["agents/hire", "runs-adapters/validation"],
+      capabilities: ["agents/create", "runs-adapters/validation"],
       status: "current",
       implementation: "production",
       boundary: "fixtures",
-      notes: "Production NewAgent and AgentBasicsDialog with simulated accounts, target qualification, setup and hire replies. Covers automatic selection, saved Legacy choices, old native links and setup failures; no live credentials, cleanup, persistence or provider execution.",
+      notes: "Production NewAgent and AgentBasicsDialog with simulated accounts, target qualification, setup and create replies. Covers automatic selection, saved Legacy choices, old native links and setup failures; no live credentials, cleanup, persistence or provider execution.",
     },
   },
   beforeEach: ({ parameters }) => installCodexCreationFixture(parameters.codexCreationFixture),

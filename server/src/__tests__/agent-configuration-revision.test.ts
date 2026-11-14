@@ -9,7 +9,7 @@ import { resolveDefaultSecretsKeyFilePath } from "../home-paths.js";
 
 const agent = {
   id: "11111111-1111-4111-8111-111111111111", name: "Codie", role: "engineer" as const, title: null,
-  icon: null, appearance: null, reportsTo: null, capabilities: null, adapterType: "codex_local" as const,
+  icon: null, appearance: null, leadAgentId: null, capabilities: null, adapterType: "codex_local" as const,
   adapterConfig: { model: "example", env: { API_KEY: "fake-secret" }, apiKey: "fake-adapter-secret" },
   runtimeConfig: {}, defaultEnvironmentId: null, budgetMonthlyCents: 0, metadata: null, permissions: {},
 };

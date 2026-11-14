@@ -184,7 +184,7 @@ import { withAgentStartLock } from "../agent-start-lock.js";
 import {
   evaluateAgentInvokability,
   shouldCancelRunsForNonInvokableAgent,
-  type AgentOrgRow,
+  type AgentCoordinationRow,
 } from "../agent-invokability.js";
 import { supportsUnscopedTimerHeartbeat } from "../heartbeat-policy.js";
 import { isUuidLike } from "@outpost/shared";
@@ -212,7 +212,7 @@ type RunPreparation = ReturnType<typeof createHeartbeatRunPreparation>;
 export interface HeartbeatQueueDependencies extends Pick<HeartbeatRetryDependencies,
   "setWakeupStatus" | "appendRunEvent" | "finalizeAgentStatus" |
   "getAgentInvokability" | "getWorktreeExecutionCutoff" | "applyRunDispatchPostCommitEffects">,
-  Pick<RunPreparation, "toAgentOrgRow" | "listSpaceAgentOrgRows" |
+  Pick<RunPreparation, "toAgentCoordinationRow" | "listSpaceAgentCoordinationRows" |
     "resolveResponsibleUserIdForRun" | "getIssueExecutionContext" |
     "getRoutineEnvForExecutionIssue" | "resolveResponsibleUserIdForRunSeed">,
   Pick<HeartbeatRunState, "getAgent" | "getRun" | "resolveExplicitResumeSessionOverride" |
@@ -421,7 +421,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     finalizeAgentStatus,
     getAgent,
     cancelRunInternal,
-    toAgentOrgRow,
+    toAgentCoordinationRow,
     getAgentInvokability,
     budgets,
     activeRunExecutions,
@@ -439,7 +439,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     resumeQueuedCommentInterrupt,
     resumeSavedLegacyComments,
     cancelActiveForAgentInternal,
-    listSpaceAgentOrgRows,
+    listSpaceAgentCoordinationRows,
     executeRun,
     canStartNewExternalBotWork,
     activeRunExecutionPromises,
@@ -863,7 +863,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
   async function claimQueuedRun(
     run: typeof heartbeatRuns.$inferSelect,
-    spaceAgents?: AgentOrgRow[],
+    spaceAgents?: AgentCoordinationRow[],
     deferredPostCommitEffects?: WakeQueuePostCommitEffect[],
     deferredCancellations?: Array<() => Promise<void>>,
   ) {
@@ -960,7 +960,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // Keep accepted work in the durable queue until setup completes.
     if (isAgentAwaitingSetup(agent)) return null;
     const invokability = spaceAgents
-      ? evaluateAgentInvokability(toAgentOrgRow(agent), spaceAgents)
+      ? evaluateAgentInvokability(toAgentCoordinationRow(agent), spaceAgents)
       : await getAgentInvokability(agent);
     if (!invokability.invokable) {
       if (caseHandoffReceipt) return null;
@@ -2238,7 +2238,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             : sql`false`,
         );
       const issueById = new Map(issueRows.map((row) => [row.id, row]));
-      const spaceAgents = await listSpaceAgentOrgRows(agent.spaceId);
+      const spaceAgents = await listSpaceAgentCoordinationRows(agent.spaceId);
       const prioritizedRuns = [...queuedRuns].sort((left, right) => {
         const leftIssueId = readNonEmptyString(
           parseObject(left.contextSnapshot).issueId,
@@ -3016,7 +3016,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         waitSaved = wait.waitSaved === true;
       }
       const details = { status: agent.status, reason: invokability.reason,
-        invalidOrgChain: invokability.invalidOrgChain, ...invokability.details };
+        invalidCoordinationChain: invokability.invalidCoordinationChain, ...invokability.details };
       throw waitSaved ? new PersistedExecutionWaitRefusal(invokability.message, details)
         : conflict(invokability.message, details);
     }

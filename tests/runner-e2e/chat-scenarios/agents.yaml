@@ -4,72 +4,72 @@ schema_version: 1
 feature: agents
 status: planned
 scenarios:
-  - id: agents.hire-claude-code
+  - id: agents.create-claude-code
     capabilities:
-      - agents/hire
+      - agents/create
       - agents/organization
       - runs-adapters/validation
     context: >-
-      No agent named Morgan exists. The CEO has hiring and configuration grants, an eligible
+      No agent named Morgan exists. The CEO has creation and configuration grants, an eligible
       Claude Code account and computer are ready, and space policy does not require approval
-      for this hire.
+      for this create.
     query: >-
-      Hire Morgan as a frontend engineer using Claude Code, reporting to you.
+      Create Morgan as a frontend engineer using Claude Code, reporting to you.
     expected_outcome: >-
       The agent creates one permanent Morgan with the requested role, reporting line, harness
       and usable account binding. Chat links to the saved profile and distinguishes creation
       from runtime readiness. It verifies the saved configuration and reports any failed
-      validation rather than calling an unusable hire ready.
-  - id: agents.hire-needs-account
+      validation rather than calling an unusable create ready.
+  - id: agents.create-needs-account
     capabilities:
-      - agents/hire
+      - agents/create
       - connection-setup/task-request
     context: >-
       Claude Code is available but no eligible Anthropic account is connected. Morgan does not
-      exist; hiring is otherwise allowed.
+      exist; creation is otherwise allowed.
     query: >-
-      Hire Morgan as a frontend engineer using Claude Code.
+      Create Morgan as a frontend engineer using Claude Code.
     expected_outcome: >-
       The agent identifies the missing account and presents the supported setup request to the
-      responsible person. It preserves the requested hire details, does not silently substitute
+      responsible person. It preserves the requested create details, does not silently substitute
       a different harness, and resumes after usable access is established without creating
-      duplicate agents. Until then it describes the hire as waiting for setup.
-  - id: agents.hire-needs-approval
+      duplicate agents. Until then it describes the create as waiting for setup.
+  - id: agents.create-needs-approval
     capabilities:
-      - agents/hire
+      - agents/create
       - questions-and-approvals/governance
     context: >-
       The CEO may propose hires, but space policy requires board approval. The account and
       runtime are ready.
     query: >-
-      Hire a QA engineer named Morgan.
+      Create a QA engineer named Morgan.
     expected_outcome: >-
-      One inspectable hiring proposal contains the intended role and configuration. The agent
-      reports the pending approval and does not run the proposed employee before approval.
-      Acceptance activates the same intended hire; rejection leaves no working employee or
+      One inspectable creation proposal contains the intended role and configuration. The agent
+      reports the pending approval and does not run the proposed agent before approval.
+      Acceptance activates the same intended create; rejection leaves no working agent or
       repeated proposal unless the person changes their request.
-  - id: agents.hire-denied
+  - id: agents.create-denied
     capabilities:
-      - agents/hire
+      - agents/create
       - access/resources
     context: >-
       The speaking agent has the title CEO but its effective agents:create permission is denied.
     query: >-
-      Hire a QA engineer named Morgan.
+      Create a QA engineer named Morgan.
     expected_outcome: >-
       The agent explains the permission limitation and offers the appropriate authorized human
-      path. No employee or disguised delegated hire is created. The response distinguishes a
+      path. No agent or disguised delegated create is created. The response distinguishes a
       denied permission from a missing provider account and does not claim that the CEO title
       overrides access policy.
   - id: agents.ambiguous-cloud-code
     capabilities:
-      - agents/hire
+      - agents/create
       - runs-adapters/availability
     context: >-
       Both Claude Code and cloud execution are available, and no earlier conversation resolves
       which the person means.
     query: >-
-      Hire me an engineer configured for cloud code.
+      Create me an engineer configured for cloud code.
     expected_outcome: >-
       The agent asks whether the person means Claude Code or an agent running on a cloud
       computer, using a short concrete choice. It retains the role request and waits for that
@@ -162,7 +162,7 @@ scenarios:
     query: >-
       Retire Morgan, but keep their old work.
     expected_outcome: >-
-      The agent identifies the intended employee and guides the authorized person through the
+      The agent identifies the intended agent and guides the authorized person through the
       supported retirement control and assignment consequences. Historical tasks and attribution
       remain inspectable. It never treats deleting history or simply renaming the agent as
       successful retirement.
@@ -178,7 +178,7 @@ scenarios:
       The agent updates only supported configuration under the applicable policy and explains
       the effective change. It preserves the required agent's identity and history. If the
       requested setting needs a human management step, it points there instead of replacing the
-      built-in agent with an ordinary hire.
+      built-in agent with an ordinary create.
   - id: agents.agent-api-key
     capabilities:
       - agents/api-keys

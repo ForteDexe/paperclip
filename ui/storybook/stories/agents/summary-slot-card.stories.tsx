@@ -326,7 +326,7 @@ const MOBILE = 375;
 
 const meta: Meta<typeof CardHarness> = {
   id: "summaries-summaryslotcard",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Summaries/SummarySlotCard",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Summaries/SummarySlotCard",
   component: CardHarness,
   parameters: { layout: "padded",
     outpost: {

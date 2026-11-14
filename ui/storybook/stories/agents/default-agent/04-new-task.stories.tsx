@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PrimaryPage, mobile, primaryDecorator, primaryParameters } from "../../../support/default-agent/DefaultAgentStory";
 
 export default { id: "default-agent-04-new-task",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/04 New task", decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/04 New task", decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
       "capabilities": [
         "agents/default-agent",
         "tasks/create",

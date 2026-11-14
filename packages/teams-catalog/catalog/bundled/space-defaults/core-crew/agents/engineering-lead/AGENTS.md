@@ -3,7 +3,7 @@ name: Engineering Lead
 slug: engineering-lead
 title: Engineering Lead
 role: engineering-manager
-reportsTo: lead
+leadAgentId: lead
 skills:
   - github-pr-workflow
   - task-planning

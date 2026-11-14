@@ -116,7 +116,7 @@ export const teamConfigureExternalCases = [definition("teams.configure-team", as
   const override: SpacePortabilityAdapterOverride = { adapterType: built.adapterType, adapterConfig: configured.adapterConfig as Record<string, unknown> };
   const emptyHome = await mkdtemp(path.join(tmpdir(), "outpost-missing-team-login-")); fixtures.set(ctx, { emptyHome, override });
   try {
-    const install = await ctx.input.api.postSensitive<CatalogTeamInstallResult>(`${root(ctx)}/teams/catalog/${encodeURIComponent(team.id)}/install`, { targetManagerAgentId: ctx.input.fixtures.agent.id, adapterOverrides: Object.fromEntries(team.agentSlugs.map(slug => [slug, override])) });
+    const install = await ctx.input.api.postSensitive<CatalogTeamInstallResult>(`${root(ctx)}/teams/catalog/${encodeURIComponent(team.id)}/install`, { targetLeadAgentId: ctx.input.fixtures.agent.id, adapterOverrides: Object.fromEntries(team.agentSlugs.map(slug => [slug, override])) });
     const missingId = install.portabilityImport.agents.find(row => row.slug === "qa")?.id, workingId = install.portabilityImport.agents.find(row => row.slug === "senior-coder")?.id;
     if (!missingId || !workingId) throw new Error("Setup blocker: installer did not produce the exact QA and senior-coder members");
     await ctx.input.api.patchSensitive(`/api/agents/${missingId}`, { adapterConfig: { ...override.adapterConfig, env: { ...(override.adapterConfig?.env as Record<string, unknown> ?? {}), ...missingTeamAccountEnvironment(subscription, emptyHome) } } });

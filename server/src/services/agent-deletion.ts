@@ -63,7 +63,7 @@ export async function deleteAgentDependencies(tx: Db, spaceId: string, id: strin
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
   await notifyStatusCardIssueChange(tx, spaceId);
-  await tx.update(agents).set({ reportsTo: null }).where(eq(agents.reportsTo, id));
+  await tx.update(agents).set({ leadAgentId: null }).where(eq(agents.leadAgentId, id));
   await tx
     .update(issues)
     .set({ assigneeAgentId: null, createdByAgentId: null })

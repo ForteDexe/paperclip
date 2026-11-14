@@ -18,7 +18,7 @@
     "ai-connections-app/**/*.ts",
     "ai-connections-review/**/*.ts",
     "canary-onboarding/**/*.ts",
-    "hiring-ai-connections/**/*.ts",
+    "creation-ai-connections/**/*.ts",
     "html-preview/**/*.ts",
     "perf/**/*.ts",
     "release-smoke/**/*.ts",

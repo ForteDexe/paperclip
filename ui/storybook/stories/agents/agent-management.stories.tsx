@@ -93,7 +93,7 @@ const agentManagementAgents: Agent[] = [
     icon: "code",
     role: "engineer",
     title: "Senior Product Engineer",
-    reportsTo: "agent-cto",
+    leadAgentId: "agent-cto",
     capabilities: "Owns full-stack product changes, Storybook coverage, and local verification loops.",
     adapterType: "codex_local",
     adapterConfig: {
@@ -133,7 +133,7 @@ const agentManagementAgents: Agent[] = [
     icon: "shield",
     role: "qa",
     title: "QA Engineer",
-    reportsTo: "agent-cto",
+    leadAgentId: "agent-cto",
     capabilities: "Runs targeted browser checks, release smoke tests, and visual Storybook reviews.",
     adapterType: "claude_local",
     adapterConfig: {
@@ -167,7 +167,7 @@ const agentManagementAgents: Agent[] = [
     icon: "crown",
     role: "engineering_lead",
     title: "CTO",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: "Reviews engineering strategy, architecture risk, and high-impact implementation tradeoffs.",
     adapterType: "codex_local",
     pauseReason: "manual",
@@ -199,7 +199,7 @@ const agentManagementAgents: Agent[] = [
     icon: "radar",
     role: "devops",
     title: "Runtime Operations Engineer",
-    reportsTo: "agent-cto",
+    leadAgentId: "agent-cto",
     capabilities: "Monitors local runners, workspace services, and stuck-run recovery signals.",
     adapterType: "http",
     pauseReason: null,
@@ -820,7 +820,7 @@ function AgentManagementStories() {
 
 const meta = {
   id: "product-agent-management",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Product/Agent Management",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Product/Agent Management",
   component: AgentManagementStories,
   parameters: {
     docs: {

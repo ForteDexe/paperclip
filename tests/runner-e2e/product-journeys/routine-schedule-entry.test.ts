@@ -17,7 +17,7 @@ afterEach(async () => { await Promise.all(directories.splice(0).map(directory =>
 
 async function fixture(fault: "body" | "document-author" | "revision-run" | "creation-description" | "creation-project" | null = null, disableFailure = false) {
   const campaignId = "journey-1-campaign", expectedBody = `scheduled-${campaignId}\nSchedule check complete.`;
-  const agent = { id: "agent", name: "Owned QA agent", provider: "opencode", model: "configured-model", runtimeMode: "native" };
+  const agent = { id: "agent", name: "Owned QAn agent", provider: "opencode", model: "configured-model", runtimeMode: "native" };
   const project = { id: "project", spaceId: "space", name: `Journey QA routine project ${campaignId}` };
   const trigger = { id: "trigger", spaceId: "space", routineId: "routine", kind: "schedule", cronExpression: "* * * * *",
     timezone: "America/Chicago", enabled: false, updatedAt: new Date(60_000).toISOString() };

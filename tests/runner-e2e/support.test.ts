@@ -258,11 +258,11 @@ describe("runner E2E provider environment", () => {
   });
 });
 
-describe("hiring capability opt-in", () => {
-  it("enables API tools only when the manual hiring story is selected", () => {
-    const hire = runnerMatrix.find((e) => e.suite.id === "everyday-workflows" && e.task.id === "hire-reuse")!;
+describe("creation capability opt-in", () => {
+  it("enables API tools only when the manual creation story is selected", () => {
+    const create = runnerMatrix.find((e) => e.suite.id === "everyday-workflows" && e.task.id === "create-reuse")!;
     const delegate = runnerMatrix.find((e) => e.suite.id === "everyday-workflows" && e.task.id === "delegate-feedback")!;
-    expect(buildRunnerE2EProcessEnvironment({}, [hire]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBe("true");
+    expect(buildRunnerE2EProcessEnvironment({}, [create]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBe("true");
     expect(buildRunnerE2EProcessEnvironment({}, [delegate]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
     expect(buildRunnerE2EProcessEnvironment({}, []).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBeUndefined();
   });

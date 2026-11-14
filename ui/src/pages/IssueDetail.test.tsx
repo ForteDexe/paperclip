@@ -980,7 +980,7 @@ function createAgent(overrides: Partial<Agent> = {}): Agent {
     title: "Software Engineer",
     icon: "code",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

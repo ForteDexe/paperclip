@@ -93,15 +93,15 @@ describe("shipped teams catalog", () => {
 
   it("preserves shipped agent roles, reporting lines, and skill assignments", () => {
     const expected = {
-      "core-crew/lead": { role: "lead", reportsTo: null, skills: ["task-planning", "issue-triage"] },
-      "core-crew/engineering-lead": { role: "engineering-manager", reportsTo: "lead", skills: ["github-pr-workflow", "task-planning"] },
-      "core-crew/qa": { role: "qa", reportsTo: "engineering-lead", skills: ["qa-acceptance"] },
-      "product-engineering/engineering-lead": { role: "engineering-manager", reportsTo: null, skills: ["github-pr-workflow", "task-planning", "doc-maintenance"] },
-      "product-engineering/qa": { role: "qa", reportsTo: "engineering-lead", skills: ["qa-acceptance"] },
-      "product-engineering/senior-coder": { role: "engineer", reportsTo: "engineering-lead", skills: ["github-pr-workflow", "doc-maintenance"] },
-      "product-design/ux-designer": { role: "designer", reportsTo: null, skills: ["wireframe", "design-critique", "task-planning"] },
-      "speko-space-phone-agent/speko-space-phone-agent": { role: "general", reportsTo: null, skills: undefined },
-      "content-machine/content-lead": { role: "content-strategist", reportsTo: null, skills: ["content-calendar"] },
+      "core-crew/lead": { role: "lead", leadAgentId: null, skills: ["task-planning", "issue-triage"] },
+      "core-crew/engineering-lead": { role: "engineering-manager", leadAgentId: "lead", skills: ["github-pr-workflow", "task-planning"] },
+      "core-crew/qa": { role: "qa", leadAgentId: "engineering-lead", skills: ["qa-acceptance"] },
+      "product-engineering/engineering-lead": { role: "engineering-manager", leadAgentId: null, skills: ["github-pr-workflow", "task-planning", "doc-maintenance"] },
+      "product-engineering/qa": { role: "qa", leadAgentId: "engineering-lead", skills: ["qa-acceptance"] },
+      "product-engineering/senior-coder": { role: "engineer", leadAgentId: "engineering-lead", skills: ["github-pr-workflow", "doc-maintenance"] },
+      "product-design/ux-designer": { role: "designer", leadAgentId: null, skills: ["wireframe", "design-critique", "task-planning"] },
+      "speko-space-phone-agent/speko-space-phone-agent": { role: "general", leadAgentId: null, skills: undefined },
+      "content-machine/content-lead": { role: "content-strategist", leadAgentId: null, skills: ["content-calendar"] },
     };
     const observed: Record<string, unknown> = {};
     for (const team of catalogTeams) {
@@ -110,7 +110,7 @@ describe("shipped teams catalog", () => {
         const { frontmatter } = parseFrontmatterMarkdown(raw.toString("utf8"));
         observed[`${team.slug}/${frontmatter.slug}`] = {
           role: frontmatter.role,
-          reportsTo: frontmatter.reportsTo,
+          leadAgentId: frontmatter.leadAgentId,
           skills: frontmatter.skills,
         };
         // An edited role file must also regenerate its distributable manifest.

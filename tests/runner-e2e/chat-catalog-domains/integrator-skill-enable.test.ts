@@ -71,7 +71,7 @@ describe("existing standard CEO authority and actual target no-op", () => {
   for (const [field, value] of [["principalType", "user"], ["principalId", "other"], ["spaceId", "foreign"], ["status", "suspended"]] as const) it(`rejects mismatched membership ${field}`, () => {
     const o = valid(); Object.assign(o.state.configurationAuthority.membership, { [field]: value }); expect(gradeIntegratorSkillEnable(o).passed).toBe(false);
   });
-  it("does not infer configuration authority from hiring/job title or substitute setup assignment", () => {
+  it("does not infer configuration authority from creation/job title or substitute setup assignment", () => {
     const o = valid(); o.state.configurationAuthority.grants = [{ permissionKey: "agents:create", scope: null }]; expect(gradeIntegratorSkillEnable(o).passed).toBe(false);
     const assigned = valid(); assigned.state.configurationAuthority.after.desiredSkills.push(assigned.skill.key); expect(gradeIntegratorSkillEnable(assigned).passed).toBe(false);
     const changed = valid(); changed.state.configurationAuthority.after.desiredSkills.push("another-existing-skill"); expect(gradeIntegratorSkillEnable(changed).passed).toBe(false);

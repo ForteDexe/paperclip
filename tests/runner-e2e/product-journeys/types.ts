@@ -20,7 +20,7 @@ export type JourneyId =
   | "protected-actions"
   | "create-skill-studio"
   | "stop-redirect"
-  | "hire-delegate-reuse"
+  | "create-delegate-reuse"
   | "agent-settings-persistence"
   | "file-input-answer"
   | "inbox-triage"

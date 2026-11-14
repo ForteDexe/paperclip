@@ -22,7 +22,7 @@ scenarios:
     capabilities:
       - onboarding/space
       - spaces/selection
-      - agents/hire
+      - agents/create
     context: >-
       A signed-in human can use space onboarding; their existing chat belongs to another
       space.

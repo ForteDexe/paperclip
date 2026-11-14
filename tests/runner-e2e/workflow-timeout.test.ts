@@ -8,7 +8,7 @@ describe("workflow timeout classification", () => {
     vi.useFakeTimers();
     try {
       const pending = pollUntil({
-        label: "everyday hire-reuse settled",
+        label: "everyday create-reuse settled",
         deadlineAt: Date.now() + 10,
         intervalMs: 10,
         load: async () => ({

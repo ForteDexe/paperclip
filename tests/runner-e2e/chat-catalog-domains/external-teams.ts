@@ -79,7 +79,7 @@ export const teamExternalCases = ["find-team", "preview-install"].map(id => defi
       ctx.input.api.get(`${root(ctx)}/teams/catalog/installed`),
     ]);
     state.agentIdsAfter = agents.map(row => row.id).sort(); state.projectIdsAfter = projects.map(row => row.id).sort(); state.installedAfter = installed;
-    if (id === "preview-install") state.preview = await ctx.input.api.post(`${root(ctx)}/teams/catalog/${encodeURIComponent((state.team as CatalogTeam).id)}/preview`, { targetManagerAgentId: ctx.input.fixtures.agent.id });
+    if (id === "preview-install") state.preview = await ctx.input.api.post(`${root(ctx)}/teams/catalog/${encodeURIComponent((state.team as CatalogTeam).id)}/preview`, { targetLeadAgentId: ctx.input.fixtures.agent.id });
     const events: { seq?: number; payload?: Record<string, unknown> | null }[] = [];
     for (const run of await ctx.allRuns()) events.push(...await collectRunEvents<{ seq?: number; payload?: Record<string, unknown> | null }>((afterSeq, limit) =>
       ctx.input.api.getRunObservation(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`)));

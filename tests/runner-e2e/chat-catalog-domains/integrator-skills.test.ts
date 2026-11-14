@@ -139,10 +139,10 @@ it("admits explicit current-run author-only self-use without treating adapter ma
   expect(gradeIntegratorSkills(pinned).passed).toBe(true);
   expect(gradeIntegratorSkills(valid("skills.author-skill")).passed).toBe(true);
 });
-it.each(["other agent", "extra agent", "missing audit", "wrong run", "wrong actor", "unattributed audit", "foreign audit", "wrong creation run", "wrong skill", "wrong version", "replace assignments", "not desired", "unreported binding", "global policy", "global claim"])("rejects self-use with %s", invalid => {
+it.each(["other agent", "extran agent", "missing audit", "wrong run", "wrong actor", "unattributed audit", "foreign audit", "wrong creation run", "wrong skill", "wrong version", "replace assignments", "not desired", "unreported binding", "global policy", "global claim"])("rejects self-use with %s", invalid => {
   const o = authoredSelfUse(), sync = o.activity[1]!, details = sync.details as Record<string, unknown>;
   if (invalid === "other agent") o.skills[0]!.usedByAgents[0]!.id = "other";
-  if (invalid === "extra agent") o.skills[0]!.usedByAgents.push({ id: "other", name: "Other", desired: true, versionId: null });
+  if (invalid === "extran agent") o.skills[0]!.usedByAgents.push({ id: "other", name: "Other", desired: true, versionId: null });
   if (invalid === "missing audit") o.activity.pop();
   if (invalid === "wrong run") sync.runId = "foreign";
   if (invalid === "wrong actor") sync.agentId = "other";

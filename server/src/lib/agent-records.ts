@@ -25,7 +25,7 @@ const CONFIG_REVISION_FIELDS = [
   "title",
   "icon",
   "appearance",
-  "reportsTo",
+  "leadAgentId",
   "capabilities",
   "adapterType",
   "adapterConfig",
@@ -103,7 +103,7 @@ export interface CreateAgentOptions {
   claudeLogin?: ClaudeLoginContext;
 }
 
-type AgentEligibilityRow = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "reportsTo">;
+type AgentEligibilityRow = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "leadAgentId">;
 
 interface AgentShortnameRow {
   id: string;
@@ -144,7 +144,7 @@ export function buildConfigSnapshot(
     title: row.title,
     icon: row.icon,
     appearance: row.appearance,
-    reportsTo: row.reportsTo,
+    leadAgentId: row.leadAgentId,
     capabilities: row.capabilities,
     adapterType: row.adapterType,
     adapterConfig,
@@ -186,8 +186,8 @@ export function configPatchFromApprovalPayload(payload: Record<string, unknown>)
   if (Object.prototype.hasOwnProperty.call(payload, "icon")) {
     patch.icon = typeof payload.icon === "string" ? payload.icon : null;
   }
-  if (Object.prototype.hasOwnProperty.call(payload, "reportsTo")) {
-    patch.reportsTo = typeof payload.reportsTo === "string" ? payload.reportsTo : null;
+  if (Object.prototype.hasOwnProperty.call(payload, "leadAgentId")) {
+    patch.leadAgentId = typeof payload.leadAgentId === "string" ? payload.leadAgentId : null;
   }
   if (Object.prototype.hasOwnProperty.call(payload, "capabilities")) {
     patch.capabilities = typeof payload.capabilities === "string" ? payload.capabilities : null;
@@ -263,8 +263,8 @@ export function configPatchFromSnapshot(snapshot: unknown): Partial<typeof agent
     name: snapshot.name,
     role: snapshot.role,
     title: typeof snapshot.title === "string" || snapshot.title === null ? snapshot.title : null,
-    reportsTo:
-      typeof snapshot.reportsTo === "string" || snapshot.reportsTo === null ? snapshot.reportsTo : null,
+    leadAgentId:
+      typeof snapshot.leadAgentId === "string" || snapshot.leadAgentId === null ? snapshot.leadAgentId : null,
     capabilities:
       typeof snapshot.capabilities === "string" || snapshot.capabilities === null
         ? snapshot.capabilities
@@ -338,13 +338,13 @@ export function agentRecordQueries(db: Db) {
     });
   }
 
-  function toEligibilityAgent(row: Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "reportsTo">): AgentEligibilityAgent {
+  function toEligibilityAgent(row: Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "leadAgentId">): AgentEligibilityAgent {
     return {
       id: row.id,
       spaceId: row.spaceId,
       name: row.name,
       status: row.status,
-      reportsTo: row.reportsTo,
+      leadAgentId: row.leadAgentId,
     };
   }
 
@@ -357,10 +357,10 @@ export function agentRecordQueries(db: Db) {
         ...base,
         appearance,
         avatarUrl: agentAvatarUrl(appearance),
-        orgChainHealth: getAgentWorkEligibility({
+        coordinationHealth: getAgentWorkEligibility({
           agent: toEligibilityAgent(row),
           agents: eligibilityAgents,
-        }).orgChainHealth,
+        }).coordinationHealth,
       };
     });
   }
@@ -375,7 +375,7 @@ export function agentRecordQueries(db: Db) {
 
   async function listSpaceAgentEligibilityRows(spaceId: string): Promise<AgentEligibilityRow[]> {
     return db.select({ id: agents.id, spaceId: agents.spaceId, name: agents.name,
-      status: agents.status, reportsTo: agents.reportsTo }).from(agents).where(eq(agents.spaceId, spaceId));
+      status: agents.status, leadAgentId: agents.leadAgentId }).from(agents).where(eq(agents.spaceId, spaceId));
   }
 
   async function getMonthlySpendByAgentIds(spaceId: string, agentIds: string[]) {
@@ -424,24 +424,24 @@ export function agentRecordQueries(db: Db) {
     return normalizeAgentRow(hydrated, spaceRows);
   }
 
-  async function ensureManager(spaceId: string, managerId: string) {
-    const manager = await getById(managerId);
-    if (!manager) throw notFound("Manager not found");
-    if (manager.spaceId !== spaceId) {
-      throw unprocessable("Manager must belong to same space");
+  async function ensureLeadAgent(spaceId: string, leadAgentId: string) {
+    const lead = await getById(leadAgentId);
+    if (!lead) throw notFound("Coordination lead not found");
+    if (lead.spaceId !== spaceId) {
+      throw unprocessable("Coordination lead must belong to the same space");
     }
-    return manager;
+    return lead;
   }
 
-  async function assertNoCycle(agentId: string, reportsTo: string | null | undefined) {
-    if (!reportsTo) return;
-    if (reportsTo === agentId) throw unprocessable("Agent cannot report to itself");
+  async function assertNoCycle(agentId: string, leadAgentId: string | null | undefined) {
+    if (!leadAgentId) return;
+    if (leadAgentId === agentId) throw unprocessable("Agent cannot coordinate itself");
 
-    let cursor: string | null = reportsTo;
+    let cursor: string | null = leadAgentId;
     while (cursor) {
-      if (cursor === agentId) throw unprocessable("Reporting relationship would create cycle");
+      if (cursor === agentId) throw unprocessable("Coordination relationship would create a cycle");
       const next = await getById(cursor);
-      cursor = next?.reportsTo ?? null;
+      cursor = next?.leadAgentId ?? null;
     }
   }
 
@@ -486,5 +486,5 @@ export function agentRecordQueries(db: Db) {
   }
 
   return { normalizeAgentRows, normalizeAgentRow, listSpaceAgentRows, listSpaceAgentEligibilityRows, hydrateAgentSpend,
-    getById, ensureManager, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed };
+    getById, ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed };
 }

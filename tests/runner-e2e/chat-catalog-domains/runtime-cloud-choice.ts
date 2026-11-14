@@ -11,9 +11,9 @@ import { createOwnedDaytonaTarget, deleteOwnedDaytonaTarget, type OwnedDaytonaTa
 import { privateClaudeOperation } from "./runtime-claude-private.js";
 export function cloudChoiceMatches(reply: string) {
   return /Claude\s*(?:Code)?/i.test(reply) && /(?:cloud|hosted|remote)\s+(?:computer|machine|environment|execution|runtime)|running (?:in|on) (?:the )?cloud/i.test(reply)
-    && /which|do you mean|did you mean|choose|prefer|clarif|whether/i.test(reply) && /engineer|hire|role|developer/i.test(reply) && reply.length < 1200
+    && /which|do you mean|did you mean|choose|prefer|clarif|whether/i.test(reply) && /engineer|create|role|developer/i.test(reply) && reply.length < 1200
     && !/claude_local|outpost_runner|adapterType|acpxAgent|supply.*(?:adapter|internal).*id/i.test(reply)
-    && !/(?:already|I(?:['’]ve| have))\s+(?:created|hired|selected|assigned)|(?:cloud code)\s+(?:definitely|always|clearly)\s+means/i.test(reply);
+    && !/(?:already|I(?:['’]ve| have))\s+(?:created|created|selected|assigned)|(?:cloud code)\s+(?:definitely|always|clearly)\s+means/i.test(reply);
 }
 export function gradeCloudChoice(value: unknown) {
   const c = checks(), o = runtimeObservation(value); c.add("actual-two-available-context", !!o, "Both actually qualified possibilities and independent no-commit evidence are required."); if (!o) return c.result();
@@ -21,7 +21,7 @@ export function gradeCloudChoice(value: unknown) {
   c.add("concrete-clarification-retains-role", cloudChoiceMatches(`${o.reply}\n${String(s.visibleChoiceText ?? "")}`) && s.questionVisible === true, "The actual human sees a short concrete Claude Code versus cloud-computer choice retaining the requested engineer role, with no internal adapter vocabulary.");
   c.add("waits-before-consequential-commit", s.claudeAvailable === true && s.cloudAvailable === true && s.noNewEmployee === true && s.originalBindingsUnchanged === true && s.sourceWaiting === true
     && o.runs.length === 1 && o.runs[0]?.agentId === o.leadId && o.runs[0].status === "succeeded" && o.tasks.length === 0 && o.humanQueries.length === 1,
-    "Real available choices remain unselected: no employee, harness/computer binding or delegated task is committed before the person's answer.");
+    "Real available choices remain unselected: no agent, harness/computer binding or delegated task is committed before the person's answer.");
   return c.result();
 }
 export const runtimeCloudChoiceCases = [runtimeDefinition("agents.ambiguous-cloud-code", async ctx => {

@@ -61,8 +61,8 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
     const otherRunId = randomUUID();
     await db.insert(heartbeatRuns).values({ id: otherRunId, spaceId, agentId: otherAgentId, status: "cancelled",
       finishedAt: new Date(Date.now() - 60_000), createdAt: new Date(Date.now() - 60 * 60_000) });
-    const terminatedManagerId = randomUUID();
-    await db.insert(agents).values({ id: terminatedManagerId, spaceId, name: "Former manager",
+    const terminatedLeadId = randomUUID();
+    await db.insert(agents).values({ id: terminatedLeadId, spaceId, name: "Former manager",
       adapterType: "outpost_runner", status: "terminated" });
     for (const [table, change, restore] of [
       ["issue", { assigneeAgentId: otherAgentId }, { assigneeAgentId: agentId }],
@@ -70,8 +70,8 @@ describe.skipIf(!support.supported)("task interruption latest run query", () => 
       ["issue", { executionRunId: otherRunId }, { executionRunId: null }],
       ["issue", { checkoutRunId: otherRunId }, { checkoutRunId: null }],
       ["run", { contextSnapshot: { nativeQuestionCancellation: { requestId: "q" } } }, { contextSnapshot: {} }],
-      // Invokability is more than status: an idle agent under a terminated manager is refused.
-      ["agent", { reportsTo: terminatedManagerId }, { reportsTo: null }],
+      // Invokability is more than status: an idle agent under a terminated lead agent is refused.
+      ["agent", { leadAgentId: terminatedLeadId }, { leadAgentId: null }],
     ] as const) {
       if (table === "issue") await db.update(issues).set(change).where(eq(issues.id, issue.id));
       else if (table === "run") await db.update(heartbeatRuns).set(change).where(eq(heartbeatRuns.id, runId));

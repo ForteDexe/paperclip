@@ -594,7 +594,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       runtimeConfig: {},
       permissions: {},
     });
-    await db.update(agents).set({ reportsTo: leadAgentId }).where(eq(agents.id, reportAgentId));
+    await db.update(agents).set({ leadAgentId: leadAgentId }).where(eq(agents.id, reportAgentId));
     await db.insert(heartbeatRuns).values({
       id: leadRunId,
       spaceId,

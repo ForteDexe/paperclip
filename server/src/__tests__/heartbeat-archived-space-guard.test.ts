@@ -81,9 +81,9 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
     return { spaceId, agentId };
   }
 
-  async function insertInvalidOrgChainAgent() {
+  async function insertInvalidCoordinationChainAgent() {
     const spaceId = randomUUID();
-    const managerId = randomUUID();
+    const leadAgentId = randomUUID();
     const childId = randomUUID();
 
     await db.insert(spaces).values({
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
 
     await db.insert(agents).values([
       {
-        id: managerId,
+        id: leadAgentId,
         spaceId,
         name: "Terminated Manager",
         role: "engineering_lead",
@@ -117,7 +117,7 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
         spaceId,
         name: "Invalid Chain Child",
         role: "engineer",
-        reportsTo: managerId,
+        leadAgentId: leadAgentId,
         status: "idle",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -132,7 +132,7 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
       },
     ]);
 
-    return { spaceId, managerId, childId };
+    return { spaceId, leadAgentId, childId };
   }
 
   it("does not iterate archived-space agents in tickTimers", async () => {
@@ -264,8 +264,8 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
     expect(runCount).toBe(0);
   });
 
-  it("rejects explicit user invokes for invalid-org-chain agents", async () => {
-    const { childId } = await insertInvalidOrgChainAgent();
+  it("rejects explicit user invokes for invalid-coordination-chain agents", async () => {
+    const { childId } = await insertInvalidCoordinationChainAgent();
 
     const heartbeat = heartbeatService(db);
 
@@ -277,8 +277,8 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
     })).rejects.toMatchObject({
       status: 409,
       details: {
-        reason: "manager_terminated",
-        invalidOrgChain: true,
+        reason: "lead_agent_terminated",
+        invalidCoordinationChain: true,
       },
     });
 
@@ -289,8 +289,8 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
     expect(runCount).toBe(0);
   });
 
-  it("cancels existing queued runs for invalid-org-chain agents instead of starting them", async () => {
-    const { spaceId, childId } = await insertInvalidOrgChainAgent();
+  it("cancels existing queued runs for invalid-coordination-chain agents instead of starting them", async () => {
+    const { spaceId, childId } = await insertInvalidCoordinationChainAgent();
     const wakeupRequestId = randomUUID();
     const runId = randomUUID();
 
@@ -322,7 +322,7 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
       .then((rows) => rows.find((row) => row.status === "cancelled") ?? null);
     expect(run).toMatchObject({
       status: "cancelled",
-      error: "Cancelled because the agent is not invokable: manager_terminated",
+      error: "Cancelled because the agent is not invokable: lead_agent_terminated",
     });
 
     const wakeup = await db
@@ -334,12 +334,12 @@ describeEmbeddedPostgres("heartbeat archived-space guard", () => {
       .then((rows) => rows[0] ?? null);
     expect(wakeup).toMatchObject({
       status: "cancelled",
-      error: "Cancelled because the agent is not invokable: manager_terminated",
+      error: "Cancelled because the agent is not invokable: lead_agent_terminated",
     });
   });
 
-  it("suppresses due scheduled retries for invalid-org-chain agents", async () => {
-    const { spaceId, childId } = await insertInvalidOrgChainAgent();
+  it("suppresses due scheduled retries for invalid-coordination-chain agents", async () => {
+    const { spaceId, childId } = await insertInvalidCoordinationChainAgent();
     const wakeupRequestId = randomUUID();
     const runId = randomUUID();
     const now = new Date("2026-06-04T00:10:00Z");

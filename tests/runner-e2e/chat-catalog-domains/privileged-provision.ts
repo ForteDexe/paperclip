@@ -56,7 +56,7 @@ const provision = privilegedDefinition("instance-operations.provision-runtime", 
     const profile = extendedHarnessProfiles.find(p => p.id === "runner-acpx-pi")!;
     const config = profile.buildAgent({ environmentId: ctx.input.fixtures.environment.id, environmentFixtureId: "local", workspacePath: ctx.input.workspacePath,
       secretRefs: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: secret.id, version: "latest" } }, executionId: ctx.input.nonce });
-    const agent = await ctx.input.api.post<RuntimeAgent>(`/api/spaces/${space}/agents`, { ...config, name: "Pi qualification worker", reportsTo: ctx.input.fixtures.agent.id,
+    const agent = await ctx.input.api.post<RuntimeAgent>(`/api/spaces/${space}/agents`, { ...config, name: "Pi qualification worker", leadAgentId: ctx.input.fixtures.agent.id,
       runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } } }); state.piAgentId = agent.id;
     const ready = await pollUntil({ label: "Actual release Pi worker readiness", deadlineAt: Date.now() + 90000,
       load: () => ctx.input.api.get<RuntimeAgent>(`/api/agents/${agent.id}`), accept: a => a.lifecycleState === "ready" });

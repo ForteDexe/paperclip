@@ -815,7 +815,7 @@ function Setup({
         name: created.name,
         appearance: created.appearance ?? appearanceDraft.appearance,
         role: created.role,
-        reportsTo: created.reportsTo,
+        leadAgentId: created.leadAgentId,
         adapterType: requestAdapterType,
         ...(["codex_local", "claude_local", "opencode_local", "pi_local", "cursor_cloud"].includes(adapterType) && runner !== "auto" ? { runner } : {}),
         adapterConfig: config,

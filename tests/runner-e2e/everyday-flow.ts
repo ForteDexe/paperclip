@@ -746,7 +746,7 @@ export async function runEverydayFlow(input: Input) {
         name: "Riley Builder",
         role: "engineer",
         title: "Engineer",
-        reportsTo: fixtures.agent.id,
+        leadAgentId: fixtures.agent.id,
         instructionsBundle: {
           entryFile: "AGENTS.md",
           files: {
@@ -1350,24 +1350,24 @@ export async function runEverydayFlow(input: Input) {
           "The first delivered version remains retrievable.",
         );
       }
-    } else if (caseId === "hire-reuse") {
+    } else if (caseId === "create-reuse") {
       let agents = await api.get<Row[]>(
         `/api/spaces/${fixtures.space.id}/agents`,
       );
       const hires = agents.filter((a) => a.name === "Morgan QA");
       check(
-        "exactly-one-hire",
+        "exactly-one-create",
         hires.length === 1,
-        "One Morgan QA must be hired.",
+        "One Morgan QA must be created.",
       );
       check(
         "manager-correct",
-        hires.length === 1 && hires[0]!.reportsTo === fixtures.agent.id,
-        "The hired agent reports to the lead.",
+        hires.length === 1 && hires[0]!.leadAgentId === fixtures.agent.id,
+        "The created agent reports to the lead.",
       );
       const lead = agents.find((a) => a.id === fixtures.agent.id);
       check(
-        "hire-native-connection",
+        "create-native-connection",
         hires.length === 1 &&
           hires[0]!.adapterType === "outpost_runner" &&
           hires[0]!.adapterConfig?.model === lead?.adapterConfig?.model &&
@@ -1375,11 +1375,11 @@ export async function runEverydayFlow(input: Input) {
             hires[0]!.runtimeConfig?.aiConnection,
             fixtures.aiConnection?.binding,
           ),
-        "The hire keeps the native model and inherits the managed AI account binding.",
+        "The create keeps the native model and inherits the managed AI account binding.",
       );
       const children = ev.issues.filter((i) => i.parentId === parent!.id);
       check(
-        "hired-agent-executed",
+        "created-agent-executed",
         hires.length === 1 &&
           ev.runs.some(
             (r) =>
@@ -1388,12 +1388,12 @@ export async function runEverydayFlow(input: Input) {
               (r.contextSnapshot?.aiConnection as Row | undefined)
                 ?.connectionId === fixtures.aiConnection?.connectionId,
           ),
-        "The new hire must complete a run using the fixture managed account.",
+        "The new agent must complete a run using the fixture managed account.",
       );
-      await downloadDelegated("base", "hired-delivery");
+      await downloadDelegated("base", "created-delivery");
       const reuseRequestedAt = Date.now();
       await reply(
-        `Have the existing Morgan QA add --separator support to the delivered project. Use the same agent; do not hire another. ${SLUGIFY_REVISION}`,
+        `Have the existing Morgan QA add --separator support to the delivered project. Use the same agent; do not create another. ${SLUGIFY_REVISION}`,
       );
       note("reuse-requested");
       await settled();
@@ -1401,20 +1401,20 @@ export async function runEverydayFlow(input: Input) {
         `/api/spaces/${fixtures.space.id}/agents`,
       );
       check(
-        "hire-reused",
+        "create-reused",
         agents.filter((a) => a.name === "Morgan QA").length === 1 &&
           agents.some((a) => a.id === hires[0]?.id),
-        "The original hired identity remains unique.",
+        "The original created identity remains unique.",
       );
       check(
-        "hired-agent-executed-revision",
+        "created-agent-executed-revision",
         ev.runs.some(
           (r) =>
             r.agentId === hires[0]?.id &&
             r.status === "succeeded" &&
             Date.parse(r.finishedAt ?? "") >= reuseRequestedAt,
         ),
-        "The same hired agent performs the follow-up work.",
+        "The same created agent performs the follow-up work.",
       );
       await downloadDelegated("separator", "reused-delivery", reuseRequestedAt);
     } else if (caseId === "delegate-feedback") {
@@ -1613,7 +1613,7 @@ export async function runEverydayFlow(input: Input) {
     );
     if (
       caseId === "delegate-feedback" ||
-      caseId === "hire-reuse" ||
+      caseId === "create-reuse" ||
       caseId === "agent-review-handoff"
     ) {
       check(

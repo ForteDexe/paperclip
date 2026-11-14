@@ -31,8 +31,8 @@ interface TeamListOptions extends TeamBrowseOptions {}
 
 interface TeamPreviewOptions extends BaseClientOptions {
   spaceId?: string;
-  targetManagerAgentId?: string;
-  targetManagerSlug?: string;
+  targetLeadAgentId?: string;
+  targetLeadSlug?: string;
   agent?: string[];
   collisionStrategy?: "rename" | "skip" | "replace";
   nameOverride?: string[];
@@ -169,8 +169,8 @@ export function registerTeamCommands(program: Command): void {
       .command("preview")
       .description("Preview importing a catalog team into a space")
       .argument("<catalogRef>", "Catalog team ID, key, or unique slug")
-      .option("--target-manager-agent-id <id>", "Existing agent ID that catalog root agents should report to")
-      .option("--target-manager-slug <slug>", "Portable manager slug that catalog root agents should report to")
+      .option("--target-lead-agent-id <id>", "Existing agent ID that catalog root agents should report to")
+      .option("--target-lead-slug <slug>", "Portable coordination-lead slug for catalog root agents")
       .option("--agent <slug>", "Only preview selected agent slug; may be repeated", collectOptionValue, [] as string[])
       .option("--collision-strategy <strategy>", "Import collision strategy (rename, skip, replace)")
       .option("--name-override <slug=name>", "Override an imported entity name; may be repeated", collectOptionValue, [] as string[])
@@ -202,8 +202,8 @@ export function registerTeamCommands(program: Command): void {
       .command("install")
       .description("Install a catalog team into a space")
       .argument("<catalogRef>", "Catalog team ID, key, or unique slug")
-      .option("--target-manager-agent-id <id>", "Existing agent ID that catalog root agents should report to")
-      .option("--target-manager-slug <slug>", "Portable manager slug that catalog root agents should report to")
+      .option("--target-lead-agent-id <id>", "Existing agent ID that catalog root agents should report to")
+      .option("--target-lead-slug <slug>", "Portable coordination-lead slug for catalog root agents")
       .option("--agent <slug>", "Only install selected agent slug; may be repeated", collectOptionValue, [] as string[])
       .option("--collision-strategy <strategy>", "Import collision strategy (rename, skip, replace)")
       .option("--name-override <slug=name>", "Override an imported entity name; may be repeated", collectOptionValue, [] as string[])
@@ -351,8 +351,8 @@ function catalogTeamSpacePath(spaceId: string | undefined, catalogRef: string, a
 
 function buildTeamOptions(opts: TeamPreviewOptions): CatalogTeamImportOptions {
   return removeUndefined({
-    targetManagerAgentId: emptyStringToUndefined(opts.targetManagerAgentId),
-    targetManagerSlug: emptyStringToUndefined(opts.targetManagerSlug),
+    targetLeadAgentId: emptyStringToUndefined(opts.targetLeadAgentId),
+    targetLeadSlug: emptyStringToUndefined(opts.targetLeadSlug),
     agents: opts.agent && opts.agent.length > 0 ? opts.agent : undefined,
     collisionStrategy: opts.collisionStrategy,
     nameOverrides: parseNameOverrides(opts.nameOverride),
@@ -410,7 +410,7 @@ async function requestInstallApproval(
         "Approve the catalog team source and rerun the install with an operator or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
       risks: [
         "Catalog team installation can create agents, projects, tasks, routines, skills, and secret bindings.",
-        "Only approve after checking the catalog source, selected files, target manager, and collision strategy.",
+        "Only approve after checking the catalog source, selected files, coordination lead, and collision strategy.",
       ],
       installAttempt: {
         spaceId: ctx.spaceId,

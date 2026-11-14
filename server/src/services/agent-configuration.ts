@@ -48,7 +48,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
   }
   await notifyAttentionRetentionWork(db, { spaceId: existing.spaceId });
   const id = existing.id;
-  const { ensureManager, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
+  const { ensureLeadAgent, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
   if (existing.status === "pending_approval" && !options?.allowPendingApprovalConfigUpdate) {
     const changedFields = changedPendingApprovalConfigFields(agentRecordQueries(db).normalizeAgentRow(existing), data);
     if (changedFields.length > 0) {
@@ -60,11 +60,11 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     }
   }
 
-  if (data.reportsTo !== undefined) {
-    if (data.reportsTo) {
-      await ensureManager(existing.spaceId, data.reportsTo);
+  if (data.leadAgentId !== undefined) {
+    if (data.leadAgentId) {
+      await ensureLeadAgent(existing.spaceId, data.leadAgentId);
     }
-    await assertNoCycle(id, data.reportsTo);
+    await assertNoCycle(id, data.leadAgentId);
   }
 
   if (data.name !== undefined) {
@@ -121,7 +121,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
   await notifyStrandedAgentStatus(db, { spaceId: existing.spaceId, agentId: existing.id });
   await notifyRunDispatch(db, { spaceId: existing.spaceId });
   await notifyDeferredExecutionEligibility(db, { spaceId: existing.spaceId });
-  if (normalizedPatch.runtimeConfig !== undefined || normalizedPatch.reportsTo !== undefined) {
+  if (normalizedPatch.runtimeConfig !== undefined || normalizedPatch.leadAgentId !== undefined) {
     await notifyDeliveryWork(db, DELIVERY_QUEUES.agentTimers);
   }
   if (normalizedPatch.adapterConfig !== undefined) {

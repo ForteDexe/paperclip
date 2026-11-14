@@ -11,9 +11,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "../context/ToastContext";
 import type { BuiltInAgentState } from "../api/builtInAgents";
-import { Agents, filterAgents, filterOrgTree } from "./Agents";
+import { Agents, filterAgentHierarchy, filterAgents } from "./Agents";
 import { Agents as ProductionAgents } from "./Agents.production";
-import type { AgentOrgChainHealth } from "@outpost/shared";
+import type { AgentCoordinationHealth } from "@outpost/shared";
 
 const mockRouterState = vi.hoisted(() => ({
   pathname: "/agents/all",
@@ -22,7 +22,7 @@ const mockRouterState = vi.hoisted(() => ({
 
 const mockAgentsApi = vi.hoisted(() => ({
   list: vi.fn(),
-  org: vi.fn(),
+  hierarchy: vi.fn(),
 }));
 
 const mockBuiltInAgentsApi = vi.hoisted(() => ({
@@ -129,7 +129,7 @@ function makeAgent(overrides: Partial<Agent>): Agent {
     title: null,
     icon: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},
@@ -259,8 +259,8 @@ function makeInstanceSettings({
   };
 }
 
-const invalidOrgChainHealth: AgentOrgChainHealth = {
-  status: "invalid_org_chain",
+const invalidCoordinationHealth: AgentCoordinationHealth = {
+  status: "invalid_coordination_chain",
   reason: "terminated_ancestor",
   fullChain: [
     {
@@ -268,7 +268,7 @@ const invalidOrgChainHealth: AgentOrgChainHealth = {
       spaceId: "space-1",
       name: "Alpha",
       status: "active",
-      reportsTo: "manager-1",
+      leadAgentId: "manager-1",
       depth: 0,
       relation: "self",
     },
@@ -277,7 +277,7 @@ const invalidOrgChainHealth: AgentOrgChainHealth = {
       spaceId: "space-1",
       name: "Terminated Manager",
       status: "terminated",
-      reportsTo: null,
+      leadAgentId: null,
       depth: 1,
       relation: "ancestor",
     },
@@ -311,12 +311,12 @@ describe("agent search", () => {
     expect(filterAgents(agents, "all", new Set(), "   ")).toEqual([alpha, beta]);
   });
 
-  it("retains the hierarchy above a matching report and promotes reports of hidden agents", () => {
-    const child = { id: "child", name: "Designer", role: "designer", status: "paused", reports: [] };
-    const root = { id: "root", name: "Default agent", role: "lead", status: "active", reports: [child] };
-    expect(filterOrgTree([root], "all", new Set(), new Set([child.id]))).toEqual([root]);
-    expect(filterOrgTree([root], "all", new Set(), new Set())).toEqual([]);
-    expect(filterOrgTree([{ ...root, status: "terminated" }], "all", new Set(), new Set([child.id]))).toEqual([child]);
+  it("retains the hierarchy above a matching agent and promotes children of hidden agents", () => {
+    const child = { id: "child", name: "Designer", role: "designer", status: "paused", children: [] };
+    const root = { id: "root", name: "Default agent", role: "lead", status: "active", children: [child] };
+    expect(filterAgentHierarchy([root], "all", new Set(), new Set([child.id]))).toEqual([root]);
+    expect(filterAgentHierarchy([root], "all", new Set(), new Set())).toEqual([]);
+    expect(filterAgentHierarchy([{ ...root, status: "terminated" }], "all", new Set(), new Set([child.id]))).toEqual([child]);
   });
 });
 function renderAgentsView(root: ReturnType<typeof createRoot> | null, queryClient: QueryClient) {
@@ -351,13 +351,13 @@ describe("Agents", () => {
         lastHeartbeatAt: new Date("2026-01-15T00:00:00Z"),
       }),
     ]);
-    mockAgentsApi.org.mockResolvedValue([
+    mockAgentsApi.hierarchy.mockResolvedValue([
       {
         id: "agent-1",
         name: "Alpha",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
     ]);
     mockBuiltInAgentsApi.list.mockResolvedValue([]);
@@ -415,10 +415,10 @@ describe("Agents", () => {
     expect(mockRouterState.navigate).not.toHaveBeenCalled();
   });
 
-  it("shows a crown only for agents with direct reports", async () => {
+  it("shows a crown only for agents with coordinated agents", async () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({ id: "manager", name: "Manager" }),
-      makeAgent({ id: "worker", name: "Worker", reportsTo: "manager" }),
+      makeAgent({ id: "worker", name: "Worker", leadAgentId: "manager" }),
       makeAgent({ id: "peer", name: "Peer" }),
     ]);
     root = createRoot(container);
@@ -437,12 +437,12 @@ describe("Agents", () => {
   ] as const)("%s: combines metadata filters, keeps hidden selections, and retains org ancestors", async (_mode, AgentList) => {
     const agents = [
       makeAgent({ id: "manager", name: "Manager", adapterType: "process" }),
-      makeAgent({ id: "alpha", name: "Alpha", status: "idle", adapterConfig: { model: "custom-model" }, reportsTo: "manager" }),
+      makeAgent({ id: "alpha", name: "Alpha", status: "idle", adapterConfig: { model: "custom-model" }, leadAgentId: "manager" }),
       makeAgent({ id: "beta", name: "Beta", status: "paused", adapterType: "claude_local", adapterConfig: { model: "other-model" } }),
     ];
     mockAgentsApi.list.mockResolvedValue(agents);
-    mockAgentsApi.org.mockResolvedValue([
-      { ...agents[0], reports: [{ ...agents[1], reports: [] }] }, { ...agents[2], reports: [] },
+    mockAgentsApi.hierarchy.mockResolvedValue([
+      { ...agents[0], children: [{ ...agents[1], children: [] }] }, { ...agents[2], children: [] },
     ]);
     root = createRoot(container);
     await act(async () => root!.render(<QueryClientProvider client={queryClient}><TooltipProvider><ToastProvider><AgentList /></ToastProvider></TooltipProvider></QueryClientProvider>));
@@ -478,7 +478,7 @@ describe("Agents", () => {
     await select("Connection", "local");
     // Close the nonmodal popover before switching views.
     await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Filter agents"]')!.click());
-    await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Crew map view"]')!.click());
+    await act(() => container.querySelector<HTMLButtonElement>('[aria-label="Agent hierarchy view"]')!.click());
     await flushReact();
     await flushReact();
     expect(container.textContent).toContain("Alpha");
@@ -569,7 +569,7 @@ describe("Agents", () => {
     expect(heartbeatCell?.textContent).not.toContain("\n");
   });
 
-  it("switches between the preserved list and the interactive org chart with icon buttons", async () => {
+  it("switches between the preserved list and the interactive agent hierarchy with icon buttons", async () => {
     root = createRoot(container);
     await act(async () => {
       renderAgentsView(root, queryClient);
@@ -577,12 +577,12 @@ describe("Agents", () => {
     await flushReact();
 
     const listToggle = container.querySelector<HTMLButtonElement>('button[aria-label="List view"]');
-    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Crew map view"]');
+    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Agent hierarchy view"]');
     expect(listToggle?.getAttribute("aria-pressed")).toBe("true");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("false");
     expect(orgToggle?.querySelector(".lucide-network")).not.toBeNull();
     expect(orgToggle?.querySelector(".lucide-git-branch")).toBeNull();
-    expect(container.querySelector('[data-testid="org-chart-viewport"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-hierarchy-viewport"]')).toBeNull();
 
     await act(async () => {
       orgToggle?.click();
@@ -590,9 +590,9 @@ describe("Agents", () => {
     await flushReact();
     await flushReact();
 
-    expect(mockAgentsApi.org).toHaveBeenCalledWith("space-1");
+    expect(mockAgentsApi.hierarchy).toHaveBeenCalledWith("space-1");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("true");
-    const orgViewport = container.querySelector('[data-testid="org-chart-viewport"]');
+    const orgViewport = container.querySelector('[data-testid="agent-hierarchy-viewport"]');
     expect(orgViewport).not.toBeNull();
     expect(orgViewport?.parentElement?.classList.contains("flex-1")).toBe(true);
     expect(orgViewport?.parentElement?.classList.contains("md:min-h-0")).toBe(true);
@@ -606,7 +606,7 @@ describe("Agents", () => {
       listToggle?.click();
     });
     await flushReact();
-    expect(container.querySelector('[data-testid="org-chart-viewport"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-hierarchy-viewport"]')).toBeNull();
     expect(container.textContent).toContain("gpt-5.4");
   });
 
@@ -787,20 +787,20 @@ describe("Agents", () => {
         defaultEnvironmentId: "env-daytona",
       }),
     ]);
-    mockAgentsApi.org.mockResolvedValue([
+    mockAgentsApi.hierarchy.mockResolvedValue([
       {
         id: "agent-local",
         name: "Local Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
       {
         id: "agent-sandbox",
         name: "Sandbox Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
     ]);
     mockEnvironmentsApi.list.mockResolvedValue([
@@ -841,20 +841,20 @@ describe("Agents", () => {
         defaultEnvironmentId: "env-override",
       }),
     ]);
-    mockAgentsApi.org.mockResolvedValue([
+    mockAgentsApi.hierarchy.mockResolvedValue([
       {
         id: "agent-fallback",
         name: "Fallback Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
       {
         id: "agent-override",
         name: "Override Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
     ]);
     mockEnvironmentsApi.list.mockResolvedValue([
@@ -970,20 +970,20 @@ describe("Agents", () => {
       urlKey: "regular-agent",
     });
     mockAgentsApi.list.mockResolvedValue([builtInAgent, regularAgent]);
-    mockAgentsApi.org.mockResolvedValue([
+    mockAgentsApi.hierarchy.mockResolvedValue([
       {
         id: "built-in-agent",
         name: "Briefs Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
       {
         id: "regular-agent",
         name: "Regular Agent",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
     ]);
     mockBuiltInAgentsApi.list.mockResolvedValue([
@@ -1050,7 +1050,7 @@ describe("Agents", () => {
     expect(container.querySelector('[aria-label="Star Alpha"]')).toBeNull();
 
     // Explicitly select the org view and assert no membership actions there.
-    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Crew map view"]');
+    const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Agent hierarchy view"]');
     expect(orgToggle).not.toBeNull();
     await act(async () => {
       orgToggle!.click();
@@ -1102,9 +1102,9 @@ describe("Agents", () => {
     expect(row?.closest("tr")?.textContent).toContain("paused");
   });
 
-  it("keeps invalid-org-chain agents visible with a warning marker", async () => {
+  it("keeps invalid-coordination-chain agents visible with a warning marker", async () => {
     mockAgentsApi.list.mockResolvedValue([
-      makeAgent({ orgChainHealth: invalidOrgChainHealth }),
+      makeAgent({ coordinationHealth: invalidCoordinationHealth }),
     ]);
 
     root = createRoot(container);
@@ -1115,7 +1115,7 @@ describe("Agents", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Alpha");
-    expect(container.querySelector('[aria-label="Invalid reporting chain"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Invalid coordination chain"]')).not.toBeNull();
   });
 
   describe("disconnect handling", () => {

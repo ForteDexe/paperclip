@@ -1,4 +1,4 @@
-# AI connections through hiring
+# AI connections through creation
 
 Paid, opt-in acceptance against a separate loopback `local_trusted` instance. Each
 scenario creates its own space and accounts. It never edits an existing space.
@@ -8,7 +8,7 @@ missing managed-connection bindings.
 Start from a fresh worktree with dependencies installed:
 
 ```sh
-pnpm exec tsx cli/src/index.ts test-drive --data-dir /tmp/outpost-hiring-qa --no-browser
+pnpm exec tsx cli/src/index.ts test-drive --data-dir /tmp/outpost-creation-qa --no-browser
 ```
 
 Use the URL printed at startup. Test-drive may choose another available port when
@@ -16,13 +16,13 @@ restarted. In a separate shell, export `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`,
 
 ```sh
 HIRING_AI_LIVE=1 HIRING_AI_TEST_URL=http://127.0.0.1:3100 \
-  pnpm exec playwright test --config tests/hiring-ai-connections/playwright.config.ts --grep 'local:'
+  pnpm exec playwright test --config tests/creation-ai-connections/playwright.config.ts --grep 'local:'
 ```
 
 For both Claude and Codex, the browser creates a task instructing the real parent to
-hire one agent of each provider and create a self-assigned subtask. The server's
+create one agent of each provider and create a self-assigned subtask. The server's
 activity log must attribute both hires to the parent agent. The test verifies the
-subtask and a task assigned to the same-provider hire finish under the original
+subtask and a task assigned to the same-provider create finish under the original
 managed account. It then assigns work to the other provider, checks the pending AI
 connection card, connects with an API key in the card, and verifies the task resumes
 and finishes without sending another message or clicking retry. Completion comments
@@ -34,17 +34,17 @@ Provider calls use real credentials and incur usage. The fixture uses Claude Son
 not automated by this live suite. Integration tests cover subscription inheritance,
 credential serialization, and automatic retry after the parent's lease is released.
 
-The newer native runner enables its managed API and hiring tools by default.
+The newer native runner enables its managed API and creation tools by default.
 No enabling environment variable is required. Operator restrictions still apply;
 see [Runner API tools](../../doc/runner-api-tools.md). For native coverage, use:
 
 ```sh
 HIRING_AI_LIVE=1 HIRING_AI_RUNNER=native HIRING_AI_TEST_URL=http://127.0.0.1:3100 \
-  pnpm exec playwright test --config tests/hiring-ai-connections/playwright.config.ts --grep 'local: native: Codex'
+  pnpm exec playwright test --config tests/creation-ai-connections/playwright.config.ts --grep 'local: native: Codex'
 ```
 
 This uses native Codex and native ACPX/Claude. It verifies native run persistence,
-managed API hiring, native `create_task` delegation, and `outpost_finish`
+managed API creation, native `create_task` delegation, and `outpost_finish`
 completion. Set `HIRING_AI_ENVIRONMENT=daytona` to exercise the same native path
 remotely. The default remains legacy CLI adapters; it also asserts that successful
 runs stayed on the legacy path. A single native parent scenario exercises both
@@ -60,7 +60,7 @@ pnpm -C packages/plugins/sandbox-providers/daytona build
 HIRING_AI_LIVE=1 HIRING_AI_ENVIRONMENT=daytona \
   HIRING_AI_TEST_URL=http://127.0.0.1:3100 \
   HIRING_AI_DAYTONA_IMAGE=ghcr.io/paperclipai/paperclip-daytona-runner@sha256:YOUR_DIGEST \
-  pnpm exec playwright test --config tests/hiring-ai-connections/playwright.config.ts --grep 'daytona:'
+  pnpm exec playwright test --config tests/creation-ai-connections/playwright.config.ts --grep 'daytona:'
 ```
 
 The same tests install the plugin only in the disposable instance, create a Daytona
@@ -76,10 +76,10 @@ digests; a newer image is not automatically compatible. Extract into an empty
 destination directory without starting the container:
 
 ```sh
-mkdir -p /tmp/hiring-native-artifacts
+mkdir -p /tmp/creation-native-artifacts
 hiring_image_container=$(docker create "$HIRING_AI_DAYTONA_IMAGE" /bin/true)
-docker cp "$hiring_image_container:/opt/outpost-runner/provider-pack" /tmp/hiring-native-artifacts/provider-pack
-docker cp "$hiring_image_container:/usr/local/bin/outpost-runnerd" /tmp/hiring-native-artifacts/outpost-runnerd
+docker cp "$hiring_image_container:/opt/outpost-runner/provider-pack" /tmp/creation-native-artifacts/provider-pack
+docker cp "$hiring_image_container:/usr/local/bin/outpost-runnerd" /tmp/creation-native-artifacts/outpost-runnerd
 docker rm "$hiring_image_container"
 ```
 
@@ -87,8 +87,8 @@ Add these settings to the disposable instance's `instances/default/.env`, alongs
 the native API-tools flag, and restart test-drive:
 
 ```dotenv
-OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH=/tmp/hiring-native-artifacts/provider-pack
-OUTPOST_RUNNER_REMOTE_BINARY_PATH=/tmp/hiring-native-artifacts/outpost-runnerd
+OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH=/tmp/creation-native-artifacts/provider-pack
+OUTPOST_RUNNER_REMOTE_BINARY_PATH=/tmp/creation-native-artifacts/outpost-runnerd
 ```
 
 Run the Daytona command with `HIRING_AI_RUNNER=native` and
@@ -103,14 +103,14 @@ handshake even when the individual provider version pins match.
 ## Regression and Storybook checks
 
 ```sh
-pnpm exec vitest run server/src/__tests__/agent-hire-ai-connections.test.ts \
+pnpm exec vitest run server/src/__tests__/agent-create-ai-connections.test.ts \
   server/src/services/legacy-execution-recovery.test.ts \
   server/src/services/execution-recovery-attempt.test.ts \
   server/src/services/native-runtime/runner-api.integration.test.ts \
   ui/src/features/connections/ConnectionIntentInteractionBody.test.tsx
 pnpm --filter @outpost/ui exec storybook dev -p 6010 -c storybook/.storybook --ci --no-open
 HIRING_AI_STORYBOOK_URL=http://127.0.0.1:6010 \
-  pnpm exec playwright test --config tests/hiring-ai-connections/playwright.config.ts --grep storybook
+  pnpm exec playwright test --config tests/creation-ai-connections/playwright.config.ts --grep storybook
 ```
 
 The Storybook checks use the production card and credential components with fixture

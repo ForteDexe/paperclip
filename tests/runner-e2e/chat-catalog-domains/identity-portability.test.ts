@@ -12,8 +12,8 @@ function valid(scenarioId: string): IdentityObservation {
         files: { "COMPANY.md": "Acorn", "agents/ceo/AGENTS.md": "CEO", "skills/launch-checklist/SKILL.md": "Checklist" }, envInputs: [{ key: "EXPORT_FIXTURE_KEY", kind: "secret", requirement: "optional", defaultValue: "" }] } };
   } else {
     o.state = { existing: { id: "morgan" }, preview: { targetSpaceId: "acorn", errors: [], plan: { agentPlans: [{ slug: "morgan", existingAgentId: "morgan", action: "create" }] } },
-      beforeChoiceUnchanged: true, firstTurnAwaitedHuman: true, firstReply: "Previewed (nothing imported): adds 1 agent, Morgan. Slug `morgan` already exists here, so the default rename plans it as Morgan 2 instead of overwriting the existing employee.", actualPackageAttached: true, importedAgentId: "new", existingConfigurationUnchanged: true, existingStillPresent: true, importedAgentVisible: true };
-    o.humanQueries = ["Show me what this space package would add before importing it.", "Rename the incoming employee Morgan Package and import it."];
+      beforeChoiceUnchanged: true, firstTurnAwaitedHuman: true, firstReply: "Previewed (nothing imported): adds 1 agent, Morgan. Slug `morgan` already exists here, so the default rename plans it as Morgan 2 instead of overwriting the existing agent.", actualPackageAttached: true, importedAgentId: "new", existingConfigurationUnchanged: true, existingStillPresent: true, importedAgentVisible: true };
+    o.humanQueries = ["Show me what this space package would add before importing it.", "Rename the incoming agent Morgan Package and import it."];
     o.agents = [{ id: "morgan", name: "Morgan", spaceId: "acorn" }, { id: "new", name: "Morgan Package", spaceId: "acorn" }];
     o.activity = [{ id: "import", action: "space.imported", entityId: "acorn", agentId: "ceo", details: { importMode: "agent_safe" } }];
   }
@@ -33,12 +33,12 @@ describe("actual space package download and conflict-safe import", () => {
   });
   it("rejects secret values in an otherwise supported package", () => { const o = valid("spaces.export-space"); o.state.packageContainsPrivateValue = true; expect(gradePortability(o).passed).toBe(false); });
   it("rejects silently performing the import before human conflict choice", () => { const o = valid("spaces.import-preview"); o.state.beforeChoiceUnchanged = false; expect(gradePortability(o).passed).toBe(false); });
-  it("rejects a replaced employee despite identical visible name", () => { const o = valid("spaces.import-preview"); o.state.importedAgentId = "morgan"; expect(gradePortability(o).passed).toBe(false); });
+  it("rejects a replaced agent despite identical visible name", () => { const o = valid("spaces.import-preview"); o.state.importedAgentId = "morgan"; expect(gradePortability(o).passed).toBe(false); });
   it("accepts a reworded first preview that surfaces the conflict without the old keywords", () => {
     const o = valid("spaces.import-preview"); o.state.firstReply = "Nothing has been imported yet. The package brings one engineer, Morgan, but you already employ a Morgan; tell me what the newcomer should be called, or whether to leave it out.";
     expect(gradePortability(o).passed).toBe(true);
   });
-  it("rejects a first turn that never surfaces the conflicting employee or that did not stop for the person", () => {
+  it("rejects a first turn that never surfaces the conflicting agent or that did not stop for the person", () => {
     const silent = valid("spaces.import-preview"); silent.state.firstReply = "The package adds one engineer. Ready when you are."; expect(gradePortability(silent).passed).toBe(false);
     const kept = valid("spaces.import-preview"); kept.state.firstTurnAwaitedHuman = false; expect(gradePortability(kept).passed).toBe(false);
   });

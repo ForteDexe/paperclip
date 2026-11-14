@@ -186,7 +186,7 @@ describe("Coordinator Needs You", () => {
   it("renders a pending canonical question from persistent chat with its original resolver and context", async () => {
     fixture.pending = [{ id: "issue_thread_interaction:interaction:chat-question", sourceKind: "issue_thread_interaction", inlineResolvable: true,
       subject: { id: "chat-question", kind: "interaction", title: "Choose the screen", metadata: { kind: "ask_user_questions", issueId: "chat-issue" } },
-      relatedIssue: { id: "chat-issue", identifier: "PAP-10", title: "Chat with Chief of Staff", href: "/PAP/issues/PAP-10" },
+      relatedIssue: { id: "chat-issue", identifier: "PAP-10", title: "Chat with Default agent", href: "/PAP/issues/PAP-10" },
       detail: { kind: "questions", questionCount: 1, firstQuestionText: "Which screen should we redesign?", images: [] },
       activityAt: new Date().toISOString() } as unknown as AttentionItem];
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -194,7 +194,7 @@ describe("Coordinator Needs You", () => {
     await flush();
     expect(container.querySelectorAll("article")).toHaveLength(1);
     expect(container.querySelector('[data-issue-id="chat-issue"]')?.textContent).toBe("Resolve chat-question");
-    expect(container.textContent).toContain("Chat with Chief of Staff");
+    expect(container.textContent).toContain("Chat with Default agent");
     expect(container.textContent).not.toContain("You're caught up.");
     await click("PAP-10");
     expect(fixture.navigate).toHaveBeenCalledWith("/PAP/issues/PAP-10");

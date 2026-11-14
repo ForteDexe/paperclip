@@ -26,7 +26,7 @@ const KEY_LABELS: Record<string, string> = {
   name: "name",
   title: "title",
   role: "role",
-  reportsTo: "reporting line",
+  leadAgentId: "coordination lead",
   capabilities: "capabilities",
   adapterType: "harness",
   adapterConfig: "harness settings",

@@ -148,7 +148,7 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     title: null,
     icon: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

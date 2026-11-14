@@ -37,7 +37,7 @@ export function gradeIntegratorSkillEnable(value: unknown) {
   const original = o.state.skill as SpaceSkillDetail; const worker = o.state.worker as Entity;
   c.add("actual-ceo-target-configuration-and-no-op-readback", skillEnableAuthorityReady(o.state.configurationAuthority as SkillEnableAuthorityProof | undefined, o.spaceId, o.leadId, worker.id, original.key),
     "The actual same-space CEO membership/default configuration grant and its successful target-specific agent-bearer no-op are read back without assigning the requested skill during setup.");
-  c.add("actual-configuration-grant-prerequisite", o.state.agentConfigurationStatus === 200, "The actual CEO bearer successfully exercised a no-op public skill configuration probe; title/legacy hire authority is not a configuration grant.");
+  c.add("actual-configuration-grant-prerequisite", o.state.agentConfigurationStatus === 200, "The actual CEO bearer successfully exercised a no-op public skill configuration probe; title/legacy create authority is not a configuration grant.");
   const future = o.runs.find(run => run.agentId === worker.id && run.spaceId === o.spaceId && run.contextSnapshot?.issueId === (o.state.futureTask as Entity | undefined)?.id);
   const selectedId = (future?.contextSnapshot?.skillVersions as Record<string, unknown> | undefined)?.[original.key];
   const delivered = o.versions.find(row => row.id === selectedId && row.spaceId === o.spaceId && row.spaceSkillId === original.id);

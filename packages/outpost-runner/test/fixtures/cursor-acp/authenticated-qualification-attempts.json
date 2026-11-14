@@ -168,7 +168,7 @@
       "providerRuns": 0,
       "automaticRetries": 0,
       "cleanup": "passed",
-      "interpretation": "Public agent creation rejected the pending candidate before provider launch; foundation 26dde3cfe added exact host-owned candidate/model qualification admission. A separately authorized replacement retained the failure."
+      "interpretation": "Public creation rejected the pending candidate before provider launch; foundation 26dde3cfe added exact host-owned candidate/model qualification admission. A separately authorized replacement retained the failure."
     },
     {
       "id": "cursor-product-hello-replacement-20260928",

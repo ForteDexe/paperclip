@@ -30,7 +30,7 @@ export function RemoteMcpConnectionReview({ provider, scenario = "journey", inli
   const later = (action: () => void) => { timers.current.push(setTimeout(action, 500)); };
 
   useEffect(() => {
-    const agents: ToolConnectionTestAgent[] = reviewAgents.map((agent) => ({ ...agent, role: "engineer", title: null, status: "active", orgDepth: 0 }));
+    const agents: ToolConnectionTestAgent[] = reviewAgents.map((agent) => ({ ...agent, role: "engineer", title: null, status: "active", hierarchyDepth: 0 }));
     client.setQueryData(queryKeys.tools.catalog(connectionId), { catalog: s.tools });
     client.setQueryData(queryKeys.tools.testAgents(connectionId), { agents });
     for (const agent of agents) {

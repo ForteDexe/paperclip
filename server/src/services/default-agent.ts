@@ -24,7 +24,7 @@ export async function initializeDefaultAgent(db: Db, spaceId: string, userId: st
   });
 }
 
-/** Clear a removed default. A later agent creation may safely become default. */
+/** Clear a removed default. A later creation may safely become default. */
 export async function clearDefaultAgent(db: Db, spaceId: string, agentId: string, _userId?: string) {
   const rows = await db.update(spaces).set({
     defaultAgentId: null,

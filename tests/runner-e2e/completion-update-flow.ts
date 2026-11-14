@@ -165,7 +165,7 @@ export async function runChatCompletionUpdate(context: {
     await api.saveAgentInstructions(f.agent.id, instruction);
   }
   const config = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: "local", workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: input.nonce });
-  const worker = await api.post<Row>(`${space}/agents`, { ...config, name: "Riley Writer", role: "engineer", reportsTo: f.agent.id });
+  const worker = await api.post<Row>(`${space}/agents`, { ...config, name: "Riley Writer", role: "engineer", leadAgentId: f.agent.id });
   const project = await api.post<Row>(`${space}/projects`, { name: "Garden welcome", description: "A non-code neighborhood garden meetup. No repository needed." });
   const wait = workspaceChatBrief(input.nonce, 240_000);
   const reference = marker;

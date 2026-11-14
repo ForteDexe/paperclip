@@ -27,7 +27,7 @@ async function createSpace(board: APIRequestContext, name: string) {
   const space = await res.json();
   // A space without agents lands on "Create your first agent"; add one so the normal shell renders.
   const agentRes = await board.post(`${BASE_URL}/api/spaces/${space.id}/agents`, {
-    data: { name: "Chief of staff", role: "ceo", adapterType: "process", adapterConfig: { command: "true" } },
+    data: { name: "Default agent", role: "ceo", adapterType: "process", adapterConfig: { command: "true" } },
   });
   if (!agentRes.ok()) throw new Error(`POST agents → ${agentRes.status()}: ${await agentRes.text()}`);
   return { id: space.id as string, prefix: (space.issuePrefix ?? space.prefix) as string };

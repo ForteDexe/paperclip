@@ -23,7 +23,7 @@ function proof(): Proof {
   } as unknown as Proof;
 }
 describe("native first-agent public setup custody", () => {
-  it("accepts the same saved CEO/account/local model test and hire", () => expect(() => requireNativeFirstAgentProof(proof())).not.toThrow());
+  it("accepts the same saved CEO/account/local model test and create", () => expect(() => requireNativeFirstAgentProof(proof())).not.toThrow());
   for (const [name, mutate] of Object.entries<(p: Proof) => void>({
     "remote target": p => { p.environment.driver = "remote"; },
     "wrong selected target": p => { p.probes[0]!.environmentId = "other"; },
@@ -45,10 +45,10 @@ describe("native first-agent public setup custody", () => {
     "foreign account tested": p => { p.probes[0]!.binding = { ...p.probes[0]!.binding!, mode: "delegated", connectionId: "other", grantId: "grant" }; },
     "default-account substitution": p => { p.probes[0]!.binding = { provider: "openrouter", method: "api_key", mode: "responsible_user" }; },
     "raw credential in test": p => { p.probes[0]!.containsCredential = true; },
-    "duplicate hire": p => { p.hires.push(p.hires[0]!); },
-    "different hire model": p => { p.hires[0]!.model = "other"; },
-    "hire replaces setup": p => { p.hires[0]!.resultAgentId = "other"; },
-    "hire denied": p => { p.hires[0]!.httpStatus = 403; },
+    "duplicate create": p => { p.hires.push(p.hires[0]!); },
+    "different create model": p => { p.hires[0]!.model = "other"; },
+    "create replaces setup": p => { p.hires[0]!.resultAgentId = "other"; },
+    "create denied": p => { p.hires[0]!.httpStatus = 403; },
     "final different space": p => { p.agent.spaceId = "other"; },
     "renamed general profile": p => { p.agent.role = "general"; },
     "not ready": p => { p.agent.lifecycleState = "setup"; },
@@ -71,7 +71,7 @@ describe("native first-agent public setup custody", () => {
     "space-wide access": p => { p.installs[0]!.targetType = "space"; p.installs[0]!.targetId = spaceId; },
     "other agent access": p => { p.installs[0]!.targetId = "other"; },
   })) it(`rejects ${name}`, () => { const p = proof(); mutate(p); expect(() => requireNativeFirstAgentProof(p)).toThrow(); });
-  it("normalizes the existing public test and hire shapes without exposing raw credentials", () => {
+  it("normalizes the existing public test and create shapes without exposing raw credentials", () => {
     const p = proof(); const config = { provider: "opencode", model: NEW_SPACE_NATIVE_MODEL };
     expect(nativeSetupRequest({ spaceId, adapterType: "outpost_runner", sequence: 1, body: { agentId, environmentId: "local-target", adapterConfig: config, aiConnection: p.agent.runtimeConfig.aiConnection } }, "synthetic-private-key"))
       .toMatchObject({ agentId, environmentId: "local-target", containsCredential: false, binding: p.agent.runtimeConfig.aiConnection });

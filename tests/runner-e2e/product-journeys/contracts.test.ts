@@ -33,9 +33,9 @@ function result(): RunnerE2EResult {
 }
 function connectReceipt(): OnboardingConnectEvidence {
   return {
-    version: 1, checkpoint: "hire",
+    version: 1, checkpoint: "create",
     validation: { state: "json", httpStatus: 200, requestedAdapter: "outpost_runner", adapter: "outpost_runner", outcome: "fail", serverCode: null, checks: [{ code: "adapter_auth_missing", level: "error" }], truncatedChecks: false },
-    hire: { state: "json", httpStatus: 422, requestedAdapter: null, adapter: null, outcome: null, serverCode: "agent_runner_unavailable", checks: [], truncatedChecks: false },
+    create: { state: "json", httpStatus: 422, requestedAdapter: null, adapter: null, outcome: null, serverCode: "agent_runner_unavailable", checks: [], truncatedChecks: false },
   };
 }
 describe("deployment journey contracts", () => {
@@ -80,7 +80,7 @@ describe("deployment journey contracts", () => {
     ["request headers", () => ({ ...connectReceipt(), requestHeaders: { authorization: "must-not-retain" } })],
     ["response bodies", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, body: "must-not-retain" } })],
     ["check messages", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, checks: [{ code: "adapter_auth_missing", level: "error", message: "must-not-retain" }] } })],
-    ["unknown server codes", () => ({ ...connectReceipt(), hire: { ...connectReceipt().hire, serverCode: "raw-provider-error" } })],
+    ["unknown server codes", () => ({ ...connectReceipt(), create: { ...connectReceipt().create, serverCode: "raw-provider-error" } })],
     ["unknown check codes", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, checks: [{ code: "raw-provider-error", level: "error" }] } })],
     ["unknown adapters", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, adapter: "raw-provider-name" } })],
     ["unknown requested adapters", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, requestedAdapter: "raw-provider-name" } })],
@@ -90,7 +90,7 @@ describe("deployment journey contracts", () => {
     ["oversized check arrays", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, checks: Array.from({ length: 33 }, () => ({ code: "adapter_auth_missing", level: "error" })) } })],
     ["invalid HTTP statuses", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, httpStatus: 600 } })],
     ["non-boolean truncation", () => ({ ...connectReceipt(), validation: { ...connectReceipt().validation, truncatedChecks: "true" } })],
-    ["missing response fields", () => ({ ...connectReceipt(), hire: { state: "missing" } })],
+    ["missing response fields", () => ({ ...connectReceipt(), create: { state: "missing" } })],
     ["unsupported receipt versions", () => ({ ...connectReceipt(), version: 2 })],
     ["unknown checkpoints", () => ({ ...connectReceipt(), checkpoint: "raw-browser-text" })],
   ] as const)("rejects Connect receipts containing %s", (_label, makeReceipt) => {
@@ -102,7 +102,7 @@ describe("deployment journey contracts", () => {
     const retained = result();
     retained.productJourney!.onboardingConnect = connectReceipt();
     const output = renderCaseOutcome(retained, true, []);
-    for (const text of ["Onboarding Connect diagnostics", "Last checkpoint", "Native validation", "Agent hire", "HTTP status", "Test endpoint adapter", "Returned adapter", "200", "422", "outpost_runner", "adapter_auth_missing", "agent_runner_unavailable", "error", "Unavailable"]) expect(output).toContain(text);
+    for (const text of ["Onboarding Connect diagnostics", "Last checkpoint", "Native validation", "Agent create", "HTTP status", "Test endpoint adapter", "Returned adapter", "200", "422", "outpost_runner", "adapter_auth_missing", "agent_runner_unavailable", "error", "Unavailable"]) expect(output).toContain(text);
     retained.productJourney!.onboardingConnect.validation.truncatedChecks = true;
     expect(renderCaseOutcome(retained, true, [])).toContain("Only the first 32 validation checks were retained");
     Object.assign(retained.productJourney!.onboardingConnect.validation, { body: "<script>must-not-render</script>" });

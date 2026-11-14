@@ -34,7 +34,7 @@ When you add or change an endpoint that reads or writes space data:
   drains.
 
 Instance-level routes such as `health.ts`, `liveness.ts`, `ready.ts`,
-`public-mcp.ts`, and `org-chart-svg.ts` have no space to check. Do not add a
+`public-mcp.ts`, and `agent-hierarchy-svg.ts` have no space to check. Do not add a
 space access check to a route that serves no space data.
 
 The API reference for callers is in `docs/api/`. Update it when a public

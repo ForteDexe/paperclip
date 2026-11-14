@@ -264,10 +264,10 @@ describe("accepted onboarding plan outcomes", () => {
     expect(failed(approvedPlanRecording("plan-only-accept"))).toEqual([]);
   });
 
-  it.each(["hire", "task", "document", "attachment"])("rejects %s work after plan-only approval", (kind) => {
+  it.each(["create", "task", "document", "attachment"])("rejects %s work after plan-only approval", (kind) => {
     const e = approvedPlanRecording("plan-only-accept");
     const last = e.checkpoints.at(-1)!;
-    if (kind === "hire") last.agents.push({ id: "new-agent" });
+    if (kind === "create") last.agents.push({ id: "new-agent" });
     if (kind === "task") last.tasks.push({ id: "child", parentId: "onboarding", status: "done" });
     if (kind === "document") last.documents.push({ id: "note", key: "welcome", body: "Finished welcome note" });
     if (kind === "attachment") last.attachments = [{ id: "note", originalFilename: "welcome.txt", body: "Finished welcome note", contentVerified: true, contentSha256: digestText("Finished welcome note") }];
@@ -1617,7 +1617,7 @@ describe("recorded refusal cancellation", () => {
       if (kind === "task") last.tasks.push({ id: "unauthorized-child", status: "done" });
       if (kind === "document") last.documents.push({ id: "output", key: "welcome", body: "Completed note" });
       if (kind === "attachment") last.attachments = [{ id: "output", filename: "welcome.md" }];
-      if (kind === "agent") last.agents.push({ id: "unapproved-hire" });
+      if (kind === "agent") last.agents.push({ id: "unapproved-create" });
       if (kind === "run") last.runs.push({ id: "active", status: "running" });
       expect(failed(e), kind).toContain(kind === "agent" ? "no-premature-work" : "rejection-respected");
     }

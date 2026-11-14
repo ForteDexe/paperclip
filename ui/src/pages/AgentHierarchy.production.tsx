@@ -2,7 +2,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { agentsApi, type OrgNode } from "../api/agents";
+import { agentsApi, type AgentHierarchyNode } from "../api/agents";
 import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -56,24 +56,24 @@ interface TouchGesture {
 // ── Layout algorithm ────────────────────────────────────────────────────
 
 /** Compute the width each subtree needs. */
-function subtreeWidth(node: OrgNode): number {
-  if (node.reports.length === 0) return CARD_W;
-  const childrenW = node.reports.reduce((sum, c) => sum + subtreeWidth(c), 0);
-  const gaps = (node.reports.length - 1) * GAP_X;
+function subtreeWidth(node: AgentHierarchyNode): number {
+  if (node.children.length === 0) return CARD_W;
+  const childrenW = node.children.reduce((sum, c) => sum + subtreeWidth(c), 0);
+  const gaps = (node.children.length - 1) * GAP_X;
   return Math.max(CARD_W, childrenW + gaps);
 }
 
 /** Recursively assign x,y positions. */
-function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
+function layoutTree(node: AgentHierarchyNode, x: number, y: number): LayoutNode {
   const totalW = subtreeWidth(node);
   const layoutChildren: LayoutNode[] = [];
 
-  if (node.reports.length > 0) {
-    const childrenW = node.reports.reduce((sum, c) => sum + subtreeWidth(c), 0);
-    const gaps = (node.reports.length - 1) * GAP_X;
+  if (node.children.length > 0) {
+    const childrenW = node.children.reduce((sum, c) => sum + subtreeWidth(c), 0);
+    const gaps = (node.children.length - 1) * GAP_X;
     let cx = x + (totalW - childrenW - gaps) / 2;
 
-    for (const child of node.reports) {
+    for (const child of node.children) {
       const cw = subtreeWidth(child);
       layoutChildren.push(layoutTree(child, cx, y + CARD_H + GAP_Y));
       cx += cw + GAP_X;
@@ -92,7 +92,7 @@ function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
 }
 
 /** Layout all root nodes side by side. */
-function layoutForest(roots: OrgNode[]): LayoutNode[] {
+function layoutForest(roots: AgentHierarchyNode[]): LayoutNode[] {
   if (roots.length === 0) return [];
 
   const totalW = roots.reduce((sum, r) => sum + subtreeWidth(r), 0);
@@ -173,7 +173,7 @@ const defaultDotColor = "var(--hex-a3a3a3)";
 
 // ── Main component ──────────────────────────────────────────────────────
 
-export function OrgChart() {
+export function AgentHierarchy() {
   const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
@@ -185,13 +185,13 @@ export function OrgChart() {
   const showImport = !isCloud && !hiddenSettings.has("space.import");
   const showExport = !hiddenSettings.has("space.export");
 
-  const orgTreeQuery = useQuery({
-    queryKey: queryKeys.org(selectedSpaceId!),
-    queryFn: () => agentsApi.org(selectedSpaceId!),
+  const agentHierarchyQuery = useQuery({
+    queryKey: queryKeys.agentHierarchy(selectedSpaceId!),
+    queryFn: () => agentsApi.hierarchy(selectedSpaceId!),
     enabled: !!selectedSpaceId,
   });
-  const { data: orgTree, isLoading } = orgTreeQuery;
-  const orgTreeView = useQueryView(orgTreeQuery);
+  const { data: agentHierarchy, isLoading } = agentHierarchyQuery;
+  const agentHierarchyView = useQueryView(agentHierarchyQuery);
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedSpaceId!),
@@ -210,7 +210,7 @@ export function OrgChart() {
   }, [setBreadcrumbs]);
 
   // Layout computation
-  const layout = useMemo(() => layoutForest(orgTree ?? []), [orgTree]);
+  const layout = useMemo(() => layoutForest(agentHierarchy ?? []), [agentHierarchy]);
   const allNodes = useMemo(() => flattenLayout(layout), [layout]);
   const edges = useMemo(() => collectEdges(layout), [layout]);
 
@@ -446,24 +446,24 @@ export function OrgChart() {
 
   // Keep a loaded chart on screen through a failed refetch; only a real
   // failure, or an outage before the first load, replaces the page.
-  if (isLoading || orgTreeView.kind === "reconnecting") {
-    return <PageSkeleton variant="org-chart" />;
+  if (isLoading || agentHierarchyView.kind === "reconnecting") {
+    return <PageSkeleton variant="agent-hierarchy" />;
   }
 
-  if (orgTreeView.kind === "error") {
+  if (agentHierarchyView.kind === "error") {
     return (
       <QueryErrorState
         size="page"
-        error={orgTreeView.error}
+        error={agentHierarchyView.error}
         action="load the crew map"
-        onRetry={orgTreeView.retry}
-        retrying={orgTreeView.isFetching}
+        onRetry={agentHierarchyView.retry}
+        retrying={agentHierarchyView.isFetching}
       />
     );
   }
 
-  if (orgTree && orgTree.length === 0) {
-    return <EmptyState icon={Network} message="No organizational hierarchy defined." />;
+  if (agentHierarchy && agentHierarchy.length === 0) {
+    return <EmptyState icon={Network} message="No agent hierarchy defined." />;
   }
 
   return (
@@ -488,7 +488,7 @@ export function OrgChart() {
       </div>
       <div
         ref={containerRef}
-        data-testid="org-chart-viewport"
+        data-testid="agent-hierarchy-viewport"
         className="w-full flex-1 min-h-0 overflow-hidden relative bg-muted/20 border border-border rounded-lg"
         style={{
           cursor: dragging ? "grabbing" : "grab",
@@ -580,7 +580,7 @@ export function OrgChart() {
 
         {/* Card layer */}
         <div
-          data-testid="org-chart-card-layer"
+          data-testid="agent-hierarchy-card-layer"
           className="absolute inset-0"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,

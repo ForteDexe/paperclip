@@ -77,11 +77,11 @@ describeEmbeddedPostgres("teams catalog install with no caller adapter overrides
     return new Map(rows.map((row) => [row.name, row]));
   }
 
-  it("installs core-exec-team end-to-end with no caller overrides and creates 3 native Claude agents", async () => {
+  it("installs core-crew end-to-end with no caller overrides and creates 3 native Claude agents", async () => {
     const spaceId = await seedEmptySpace();
     const svc = teamsCatalogService(db);
 
-    const installed = await svc.installCatalogTeam(spaceId, "core-exec-team", {
+    const installed = await svc.installCatalogTeam(spaceId, "core-crew", {
       collisionStrategy: "rename",
       include: { projects: false, issues: false },
     });
@@ -137,7 +137,7 @@ describeEmbeddedPostgres("teams catalog install with no caller adapter overrides
     const spaceId = await seedEmptySpace();
     const svc = teamsCatalogService(db);
 
-    await svc.installCatalogTeam(spaceId, "core-exec-team", {
+    await svc.installCatalogTeam(spaceId, "core-crew", {
       collisionStrategy: "rename",
       include: { projects: false, issues: false },
       adapterOverrides: {

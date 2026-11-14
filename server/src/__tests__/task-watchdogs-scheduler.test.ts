@@ -96,7 +96,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       adapterConfig: overrides.adapterConfig ?? {},
       runtimeConfig: overrides.runtimeConfig ?? {},
       permissions: overrides.permissions ?? {},
-      reportsTo: overrides.reportsTo,
+      leadAgentId: overrides.leadAgentId,
     });
     return id;
   }

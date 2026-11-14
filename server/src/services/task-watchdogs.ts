@@ -578,7 +578,7 @@ async function assertWatchdogAgentInvokable(dbOrTx: any, spaceId: string, agentI
       id: agents.id,
       spaceId: agents.spaceId,
       name: agents.name,
-      reportsTo: agents.reportsTo,
+      leadAgentId: agents.leadAgentId,
       status: agents.status,
     })
     .from(agents)
@@ -587,7 +587,7 @@ async function assertWatchdogAgentInvokable(dbOrTx: any, spaceId: string, agentI
       id: string;
       spaceId: string;
       name: string;
-      reportsTo: string | null;
+      leadAgentId: string | null;
       status: string;
     }>) => rows[0] ?? null);
   if (!agent || agent.spaceId !== spaceId) {

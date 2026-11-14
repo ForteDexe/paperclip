@@ -346,7 +346,7 @@ and from `--all`, as is the explicit-only chat catalog.
 
 The explicit setup-health diagnostic first makes one bounded, read-only OpenRouter
 current-key request on the trusted remote Linux job. Unrecognized credentials stop
-before agent creation or any model call. A recognized key permits the existing
+before creation or any model call. A recognized key permits the existing
 single ordinary lifecycle hello. The closed receipt records only HTTP status,
 recognition, expiry and key-budget availability; unlimited/unknown key budgets do
 not establish account credit or model access. Response bodies, labels, amounts,
@@ -505,7 +505,7 @@ The full-catalog private evidence policy binds the launcher digest from the same
 
 ### Historical repair source 4 (2026-11-03; candidate only)
 
-Historical target `51ef450754370c8a8f2cbe4bd18e1536bbc93966` adds remaining-original-deadline observation for primary guidance; independently expected normalized MCP results; fixed owned timeline-file reads through fixture board authority; finite supported CLI profile guidance with no identifier substitutions and fresh board/API/space/human readback; real completion-turn observation for plan review; and the reviewed true-price hire counterpart. Original failed attempts remain unchanged.
+Historical target `51ef450754370c8a8f2cbe4bd18e1536bbc93966` adds remaining-original-deadline observation for primary guidance; independently expected normalized MCP results; fixed owned timeline-file reads through fixture board authority; finite supported CLI profile guidance with no identifier substitutions and fresh board/API/space/human readback; real completion-turn observation for plan review; and the reviewed true-price create counterpart. Original failed attempts remain unchanged.
 
 The app-review journey now requires inspection of the exact full redacted arguments and audit hash in the normal shared review card, then verifies that authorized provider dispatch equals that proposal. The 17-line product disclosure is an explicit candidate-only overlay from unmerged core PR #18734; no backend permission or approval rule changes. The independent core guidance PR #18717 also remains unmerged.
 
@@ -518,7 +518,7 @@ The reviewed prior cut `de6d29e025683f5c28125bcaa4f38b41836d8516` has not run as
 
 ### Repair source 6 (2026-11-03; candidate only)
 
-The canonical candidate above retains Source5 and adds initial personal-secret and team-install observation within their original deadlines, real hire-review link readiness, and skill-update observation at genuine provider checkpoints after local native readiness. Case queries, controller model, permissions and declared clocks/run counts remain unchanged from Source5; Studio144 retains its earlier explicit 2..3 accounting revision.
+The canonical candidate above retains Source5 and adds initial personal-secret and team-install observation within their original deadlines, real create-review link readiness, and skill-update observation at genuine provider checkpoints after local native readiness. Case queries, controller model, permissions and declared clocks/run counts remain unchanged from Source5; Studio144 retains its earlier explicit 2..3 accounting revision.
 
 The reviewed product overlay from unmerged core PR #18742 at `61996a96dd09e90a5788e8711a94fc5ae631f425` allows a new Ask-first review for a strictly authenticated later same-person human intent following a declined request, including the normal reopened-comment source. Repeating the same intent stays denied; this grants no approval or execution authority. Both PostgreSQL route regressions ran and passed on that core head. The candidate preserves the compatible gateway and actual database row contracts; this is not a core merge or a qualified chat pass. Core PRs #18717, #18734 and #18742 remain unmerged. SDK115 completion remains unknown; the other five SDK cases remain held.
 
@@ -685,7 +685,7 @@ latency repair, reliability improvement or new native pass is claimed.
 
 Approval resubmission metadata describes the existing revision/resubmission
 operation and its unchanged authority boundary so ordinary API discovery can find
-it. This does not approve or execute a hire. Candidate core changes remain open
+it. This does not approve or execute a create. Candidate core changes remain open
 and unmerged; the 196/244 full-catalog gate remains held. All 244 YAML identities,
 queries, contexts and outcomes remain unchanged. Combined qualification and any
 next native measurement remain pending the coherent release decision.

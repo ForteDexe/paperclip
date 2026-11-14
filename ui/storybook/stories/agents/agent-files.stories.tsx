@@ -107,7 +107,7 @@ function AgentFilesStory({ failedSync = false, fullStorageRun = false, historica
   </QueryClientProvider>;
 }
 const meta = { id: "agents-persistent-files",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Persistent files", component: AgentFilesStory, parameters: { layout: "fullscreen",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Persistent files", component: AgentFilesStory, parameters: { layout: "fullscreen",
     outpost: {
       "capabilities": [
         "agents/instructions"

@@ -161,7 +161,7 @@ function makeAgent() {
     role: "engineer",
     title: "Engineer",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

@@ -216,7 +216,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
 
   async function seedSpace() {
     const spaceId = randomUUID();
-    const managerId = randomUUID();
+    const leadAgentId = randomUUID();
     const coderId = randomUUID();
     const sourceIssueId = randomUUID();
     const prefix = `RA${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`;
@@ -228,7 +228,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     });
     await db.insert(agents).values([
       {
-        id: managerId,
+        id: leadAgentId,
         spaceId,
         name: "Engineering Lead",
         role: "engineering_lead",
@@ -244,7 +244,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
         name: "Coder",
         role: "engineer",
         status: "idle",
-        reportsTo: managerId,
+        leadAgentId: leadAgentId,
         adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: {},
@@ -262,7 +262,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       identifier: `${prefix}-1`,
     });
     const [sourceIssue] = await db.select().from(issues).where(eq(issues.id, sourceIssueId));
-    return { spaceId, managerId, coderId, sourceIssueId, prefix, sourceIssue: sourceIssue! };
+    return { spaceId, leadAgentId, coderId, sourceIssueId, prefix, sourceIssue: sourceIssue! };
   }
 
   async function seedHeartbeatRun(input: {
@@ -434,9 +434,9 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   );
 
   it("converges two service instances after their real inserts compete for one active source", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const input = { spaceId, sourceIssueId, kind: "stranded_assigned_issue" as const, ownerType: "agent" as const,
-      ownerAgentId: managerId, cause: "stranded_assigned_issue", fingerprint: "concurrent-source",
+      ownerAgentId: leadAgentId, cause: "stranded_assigned_issue", fingerprint: "concurrent-source",
       evidence: { sourceRunId: "concurrent-source-run" }, lastAttemptAt: new Date("2026-11-03T12:00:00Z"),
       nextAction: "Restore the existing execution path." };
     let release!: () => void, acquired!: () => void;
@@ -470,14 +470,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     // The lost insert uses the existing upsert merge, just like a second sequential call.
     expect(active[0]).toMatchObject({
       status: "active", attemptCount: 2, maxAttempts: null, timeoutAt: null,
-      ownerType: "agent", ownerAgentId: managerId, ownerUserId: null,
+      ownerType: "agent", ownerAgentId: leadAgentId, ownerUserId: null,
       evidence: input.evidence, lastAttemptAt: input.lastAttemptAt,
       nextAction: input.nextAction, wakePolicy: null, monitorPolicy: null,
     });
   });
 
   it("upserts one active source-scoped action per issue and keeps space scoping explicit", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const svc = issueRecoveryActionService(db);
 
     const first = await svc.upsertSourceScoped({
@@ -485,7 +485,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "stranded_assigned_issue",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "stranded_assigned_issue",
       fingerprint: "recovery:fingerprint",
       evidence: { latestRunId: "run-1" },
@@ -497,7 +497,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "stranded_assigned_issue",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "stranded_assigned_issue",
       fingerprint: "recovery:fingerprint",
       evidence: { latestRunId: "run-2" },
@@ -513,15 +513,15 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("enforces maxAttempts once and removes every automatic recovery path", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const svc = issueRecoveryActionService(db);
     const base = {
       spaceId,
       sourceIssueId,
       kind: "active_run_watchdog" as const,
       ownerType: "agent" as const,
-      ownerAgentId: managerId,
-      returnOwnerAgentId: managerId,
+      ownerAgentId: leadAgentId,
+      returnOwnerAgentId: leadAgentId,
       cause: "process_lost",
       fingerprint: "run-process-lost",
       nextAction: "Resume the same run.",
@@ -542,7 +542,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       status: "escalated",
       ownerType: "operator",
       ownerAgentId: null,
-      returnOwnerAgentId: managerId,
+      returnOwnerAgentId: leadAgentId,
       attemptCount: 3,
       maxAttempts: 3,
       wakePolicy: null,
@@ -560,21 +560,21 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("preserves legacy recovery ownership when new evidence is folded into an active action", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const svc = issueRecoveryActionService(db);
     const legacy = await svc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "stranded_assigned_issue",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       previousOwnerAgentId: coderId,
       returnOwnerAgentId: coderId,
       cause: "process_lost",
       fingerprint: "legacy-recovery",
       evidence: { latestRunId: "run-1" },
       nextAction: "Repair the execution path.",
-      wakePolicy: { type: "bounded_recovery_owner", ownerAgentId: managerId, attempt: 1, maxAttempts: 5 },
+      wakePolicy: { type: "bounded_recovery_owner", ownerAgentId: leadAgentId, attempt: 1, maxAttempts: 5 },
       attemptCount: 1,
       maxAttempts: 5,
     });
@@ -599,7 +599,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     expect(updated).toMatchObject({
       id: legacy.id,
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       previousOwnerAgentId: coderId,
       returnOwnerAgentId: coderId,
       attemptCount: 2,
@@ -680,7 +680,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   it.each(["done", "cancelled", "reassigned", "returned_to_todo"] as const)(
     "preserves a concurrent %s decision when stale stranded recovery waits for the issue lock",
     async (decision) => {
-      const { spaceId, managerId, coderId, sourceIssue } = await seedSpace();
+      const { spaceId, leadAgentId, coderId, sourceIssue } = await seedSpace();
       const issuesSvc = issueService(db);
       const observed = (await issuesSvc.update(sourceIssue.id, { status: "todo" }))!;
       await db.update(agents).set({ status: "paused" }).where(eq(agents.id, coderId));
@@ -704,7 +704,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
           return issuesSvc.update(observed.id, { status: "todo" }, tx);
         }
         return issuesSvc.update(observed.id, decision === "reassigned"
-          ? { assigneeAgentId: managerId }
+          ? { assigneeAgentId: leadAgentId }
           : { status: decision }, tx);
       });
       await locked;
@@ -738,7 +738,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       expect(winner).toMatchObject(saved!);
       expect(saved).toMatchObject({
         status: decision === "done" || decision === "cancelled" ? decision : "todo",
-        assigneeAgentId: decision === "reassigned" ? managerId : coderId,
+        assigneeAgentId: decision === "reassigned" ? leadAgentId : coderId,
       });
       expect(await db.select().from(issueRecoveryActions)
         .where(eq(issueRecoveryActions.sourceIssueId, observed.id))).toEqual([]);
@@ -775,7 +775,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it.each(["awaiting_release", "pending_dispatch"] as const)("preserves an accepted %s agent transfer at both recovery boundaries", async state => {
-    const { spaceId, coderId, managerId, sourceIssue } = await seedSpace();
+    const { spaceId, coderId, leadAgentId, sourceIssue } = await seedSpace();
     await instanceSettingsService(db).updateExperimental({ enableCases: true });
     if (state === "awaiting_release") {
       const runId = randomUUID();
@@ -785,7 +785,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     }
     const [observed] = await db.select().from(issues).where(eq(issues.id, sourceIssue.id));
     await db.update(agents).set({ status: "paused" }).where(eq(agents.id, coderId));
-    const toAgentId = state === "awaiting_release" ? managerId : coderId;
+    const toAgentId = state === "awaiting_release" ? leadAgentId : coderId;
     const receipt = await caseHandoffService(db).handoff(spaceId,
       { type: "operator", source: "local_implicit" }, {
         idempotencyKey: randomUUID(),
@@ -1321,7 +1321,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("schedules a quota monitor for a cross-agent active review participant", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const stageId = randomUUID();
     await db.update(issues).set({
       status: "in_review",
@@ -1333,7 +1333,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
           id: stageId,
           type: "review",
           approvalsNeeded: 1,
-          participants: [{ id: randomUUID(), type: "agent", agentId: managerId, userId: null }],
+          participants: [{ id: randomUUID(), type: "agent", agentId: leadAgentId, userId: null }],
         }],
       },
       executionState: {
@@ -1341,7 +1341,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
         currentStageId: stageId,
         currentStageIndex: 0,
         currentStageType: "review",
-        currentParticipant: { type: "agent", agentId: managerId, userId: null },
+        currentParticipant: { type: "agent", agentId: leadAgentId, userId: null },
         returnAssignee: { type: "agent", agentId: coderId, userId: null },
         reviewRequest: null,
         completedStageIds: [],
@@ -1353,7 +1353,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     expect(reviewIssueBeforeRecovery).toMatchObject({
       assigneeAgentId: coderId,
       executionState: {
-        currentParticipant: { type: "agent", agentId: managerId },
+        currentParticipant: { type: "agent", agentId: leadAgentId },
         returnAssignee: { type: "agent", agentId: coderId },
       },
     });
@@ -1361,7 +1361,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     await db.insert(heartbeatRuns).values({
       id: runId,
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       invocationSource: "automation",
       status: "failed",
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
@@ -1391,7 +1391,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("does not restamp an in_review quota monitor when the assignee has a newer terminal run", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const stageId = randomUUID();
     await db.update(issues).set({
       status: "in_review",
@@ -1403,7 +1403,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
           id: stageId,
           type: "review",
           approvalsNeeded: 1,
-          participants: [{ id: randomUUID(), type: "agent", agentId: managerId, userId: null }],
+          participants: [{ id: randomUUID(), type: "agent", agentId: leadAgentId, userId: null }],
         }],
       },
       executionState: {
@@ -1411,7 +1411,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
         currentStageId: stageId,
         currentStageIndex: 0,
         currentStageType: "review",
-        currentParticipant: { type: "agent", agentId: managerId, userId: null },
+        currentParticipant: { type: "agent", agentId: leadAgentId, userId: null },
         returnAssignee: { type: "agent", agentId: coderId, userId: null },
         reviewRequest: null,
         completedStageIds: [],
@@ -1423,7 +1423,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     await db.insert(heartbeatRuns).values({
       id: participantRunId,
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       invocationSource: "automation",
       status: "failed",
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
@@ -1478,7 +1478,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("classifies review recovery from the active participant run instead of a newer assignee run", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const stageId = randomUUID();
     await db.update(issues).set({
       status: "in_review",
@@ -1490,7 +1490,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
           id: stageId,
           type: "review",
           approvalsNeeded: 1,
-          participants: [{ id: randomUUID(), type: "agent", agentId: managerId, userId: null }],
+          participants: [{ id: randomUUID(), type: "agent", agentId: leadAgentId, userId: null }],
         }],
       },
       executionState: {
@@ -1498,7 +1498,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
         currentStageId: stageId,
         currentStageIndex: 0,
         currentStageType: "review",
-        currentParticipant: { type: "agent", agentId: managerId, userId: null },
+        currentParticipant: { type: "agent", agentId: leadAgentId, userId: null },
         returnAssignee: { type: "agent", agentId: coderId, userId: null },
         reviewRequest: null,
         completedStageIds: [],
@@ -1511,7 +1511,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     await db.insert(heartbeatRuns).values([{
       id: participantRunId,
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       invocationSource: "automation",
       status: "failed",
       error: "review process exited unexpectedly",
@@ -1554,7 +1554,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("blocks a cross-agent review participant with incomplete configuration", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const stageId = randomUUID();
     await db.update(issues).set({
       status: "in_review",
@@ -1565,7 +1565,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
           id: stageId,
           type: "review",
           approvalsNeeded: 1,
-          participants: [{ id: randomUUID(), type: "agent", agentId: managerId, userId: null }],
+          participants: [{ id: randomUUID(), type: "agent", agentId: leadAgentId, userId: null }],
         }],
       },
       executionState: {
@@ -1573,7 +1573,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
         currentStageId: stageId,
         currentStageIndex: 0,
         currentStageType: "review",
-        currentParticipant: { type: "agent", agentId: managerId, userId: null },
+        currentParticipant: { type: "agent", agentId: leadAgentId, userId: null },
         returnAssignee: { type: "agent", agentId: coderId, userId: null },
         reviewRequest: null,
         completedStageIds: [],
@@ -1585,7 +1585,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     await db.insert(heartbeatRuns).values({
       id: runId,
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       invocationSource: "automation",
       status: "failed",
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
@@ -1685,12 +1685,12 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("does not classify stale configuration failures from a non-assignee run", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       invocationSource: "manual",
       status: "failed",
       error: "model_not_found: previous assignee model does not exist",
@@ -1717,7 +1717,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("reuses the same source-scoped action when latest run IDs change while the cause stays the same", async () => {
-    const { spaceId, managerId, coderId, sourceIssue } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssue } = await seedSpace();
     const enqueueWakeup = vi.fn(async () => null);
     const recovery = recoveryService(db, { enqueueWakeup });
     const firstLatestRun = {
@@ -1878,8 +1878,8 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("keeps the source issue blocked when source-scoped wakeup is claimed synchronously", async () => {
-    const { spaceId, managerId, coderId, sourceIssue } = await seedSpace();
-    await db.update(agents).set({ status: "paused" }).where(eq(agents.id, managerId));
+    const { spaceId, leadAgentId, coderId, sourceIssue } = await seedSpace();
+    await db.update(agents).set({ status: "paused" }).where(eq(agents.id, leadAgentId));
     const enqueueWakeup = vi.fn(async () => {
       await db
         .update(issues)
@@ -1948,7 +1948,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("does not create nested recovery artifacts when issue-backed fallback work itself fails", async () => {
-    const { spaceId, managerId, sourceIssueId, prefix } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId, prefix } = await seedSpace();
     const recoveryIssueId = randomUUID();
     await db.insert(issues).values({
       id: recoveryIssueId,
@@ -1956,7 +1956,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       title: "Recover stalled issue",
       status: "in_progress",
       priority: "medium",
-      assigneeAgentId: managerId,
+      assigneeAgentId: leadAgentId,
       parentId: sourceIssueId,
       issueNumber: 2,
       identifier: `${prefix}-2`,
@@ -1972,7 +1972,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       previousStatus: "in_progress",
       latestRun: {
         id: randomUUID(),
-        agentId: managerId,
+        agentId: leadAgentId,
         status: "failed",
         error: "adapter failed",
         errorCode: "adapter_failed",
@@ -1993,14 +1993,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("exposes active recovery actions on the issue read API", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "missing_disposition",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "successful_run_missing_issue_disposition",
       fingerprint: "missing-disposition:fingerprint",
       evidence: { sourceRunId: "run-1" },
@@ -2014,7 +2014,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       id: action.id,
       sourceIssueId,
       kind: "missing_disposition",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
     });
 
     const list = await request(app).get(`/api/issues/${sourceIssueId}/recovery-actions`).expect(200);
@@ -2053,13 +2053,13 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("projects recovery action metadata into the structured wake payload", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     const action = await issueRecoveryActionService(db).upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "workspace_validation",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       previousOwnerAgentId: coderId,
       returnOwnerAgentId: coderId,
       cause: "workspace_validation_failed",
@@ -2634,13 +2634,13 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   it.each(["owner", "status", "decision"] as const)(
     "rechecks the current reconciliation %s after the sweep read",
     async (changed) => {
-      const { action, heartbeat, sourceIssueId, managerId } =
+      const { action, heartbeat, sourceIssueId, leadAgentId } =
         await seedReconciledDelivery();
       await deliverReconciledExecutions(db, async (...args) => {
         if (changed === "owner")
           await db
             .update(issues)
-            .set({ assigneeAgentId: managerId })
+            .set({ assigneeAgentId: leadAgentId })
             .where(eq(issues.id, sourceIssueId));
         if (changed === "status")
           await db
@@ -2752,14 +2752,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("resolves an active recovery action and removes it from active projections", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "missing_disposition",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "successful_run_missing_issue_disposition",
       fingerprint: "missing-disposition:fingerprint",
       evidence: { sourceRunId: "run-1" },
@@ -2867,7 +2867,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("hands restored work back to the recorded return owner and records the outcome", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: coderId })
@@ -2878,7 +2878,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "workspace_validation",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       previousOwnerAgentId: coderId,
       returnOwnerAgentId: coderId,
       cause: "workspace_validation_failed",
@@ -2922,7 +2922,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("does not enqueue a restored wake when todo status and assignee are unchanged", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "todo", assigneeAgentId: coderId })
@@ -2933,7 +2933,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "workspace_validation",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       previousOwnerAgentId: coderId,
       returnOwnerAgentId: coderId,
       cause: "workspace_validation_failed",
@@ -2960,7 +2960,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("resolves an active recovery action by returning the source issue to todo", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -2971,7 +2971,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:try-again",
       evidence: { latestIssueStatus: "blocked" },
@@ -3005,7 +3005,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("marks a recovery action stale when a blocked source issue is manually moved to todo", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3016,7 +3016,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:manual-restore",
       evidence: { latestIssueStatus: "blocked" },
@@ -3065,14 +3065,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("folds stale recovery during read projection after the source issue reaches done", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:done-projection",
       evidence: { latestIssueStatus: "in_progress" },
@@ -3157,7 +3157,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("keeps active recovery visible when a plain comment does not create a live path", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3168,7 +3168,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:plain-comment",
       evidence: { latestIssueStatus: "in_progress" },
@@ -3191,7 +3191,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("folds stale recovery when a structured resume comment restores todo dispatch", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3202,7 +3202,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:resume-comment",
       evidence: { latestIssueStatus: "blocked" },
@@ -3241,7 +3241,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("rejects peer-agent source issue updates that would hide another owner's recovery action", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3252,7 +3252,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:peer-status-update",
       evidence: { latestIssueStatus: "blocked" },
@@ -3286,7 +3286,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("rejects peer-agent recovery action resolution on an operator-owned source issue", async () => {
-    const { spaceId, managerId, coderId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, coderId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3297,7 +3297,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:peer-resolution",
       evidence: { latestIssueStatus: "blocked" },
@@ -3336,7 +3336,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("keeps the named recovery owner from completing an operator-owned source issue", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db
       .update(issues)
       .set({ status: "blocked", assigneeAgentId: null, assigneeUserId: "operator-user" })
@@ -3347,7 +3347,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:owner-resolution",
       evidence: { latestIssueStatus: "blocked" },
@@ -3357,14 +3357,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
     const runId = randomUUID();
     const app = createApp({
       type: "agent",
-      agentId: managerId,
+      agentId: leadAgentId,
       spaceId,
       runId,
       source: "agent_jwt",
     });
     await seedHeartbeatRun({
       spaceId,
-      agentId: managerId,
+      agentId: leadAgentId,
       runId,
       issueId: sourceIssueId,
     });
@@ -3389,14 +3389,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("rejects blocked recovery resolution when the source issue has no first-class blockers", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:blocked-without-blocker",
       evidence: { latestIssueStatus: "in_progress" },
@@ -3431,7 +3431,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("allows blocked recovery resolution when the source issue has an unresolved first-class blocker", async () => {
-    const { spaceId, managerId, sourceIssueId, prefix } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId, prefix } = await seedSpace();
     const blockerIssueId = randomUUID();
     await db.insert(issues).values({
       id: blockerIssueId,
@@ -3439,7 +3439,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       title: "Unblock recovery disposition",
       status: "todo",
       priority: "medium",
-      assigneeAgentId: managerId,
+      assigneeAgentId: leadAgentId,
       issueNumber: 2,
       identifier: `${prefix}-2`,
     });
@@ -3455,7 +3455,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:blocked-with-blocker",
       evidence: { latestIssueStatus: "in_progress" },
@@ -3489,14 +3489,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("rejects false-positive recovery resolution without an explicit source issue status", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:fingerprint",
       evidence: { latestIssueStatus: "in_progress" },
@@ -3529,7 +3529,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("allows false-positive recovery resolution to restore a blocked source issue in the same request", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, sourceIssueId));
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
@@ -3537,7 +3537,7 @@ describeEmbeddedPostgres("issue recovery actions", () => {
       sourceIssueId,
       kind: "issue_graph_liveness",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "issue_graph_liveness",
       fingerprint: "graph-liveness:false-positive-unblock",
       evidence: { latestIssueStatus: "blocked" },
@@ -3570,14 +3570,14 @@ describeEmbeddedPostgres("issue recovery actions", () => {
   });
 
   it("enforces space scope when resolving recovery actions", async () => {
-    const { spaceId, managerId, sourceIssueId } = await seedSpace();
+    const { spaceId, leadAgentId, sourceIssueId } = await seedSpace();
     const recoveryActionSvc = issueRecoveryActionService(db);
     const action = await recoveryActionSvc.upsertSourceScoped({
       spaceId,
       sourceIssueId,
       kind: "missing_disposition",
       ownerType: "agent",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       cause: "successful_run_missing_issue_disposition",
       fingerprint: "missing-disposition:fingerprint",
       evidence: { sourceRunId: "run-1" },

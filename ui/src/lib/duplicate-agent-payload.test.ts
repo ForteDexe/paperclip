@@ -12,7 +12,7 @@ const baseAgent: AgentDetail = {
   title: "Senior Product Engineer",
   icon: "code",
   status: "idle",
-  reportsTo: "manager-1",
+  leadAgentId: "manager-1",
   capabilities: "Builds product features.",
   adapterType: "codex_local",
   adapterConfig: {
@@ -70,7 +70,7 @@ describe("duplicate agent payload", () => {
       role: "engineer",
       title: "Senior Product Engineer",
       icon: "code",
-      reportsTo: "manager-1",
+      leadAgentId: "manager-1",
       capabilities: "Builds product features.",
       adapterType: "codex_local",
       adapterConfig: { model: "gpt-5.5" },

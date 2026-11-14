@@ -635,7 +635,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
             scheduledRetryAttempt: nextAttempt,
             maxAttempts,
             reason: invokability.reason,
-            invalidOrgChain: invokability.invalidOrgChain,
+            invalidCoordinationChain: invokability.invalidCoordinationChain,
             ...invokability.details,
           },
         });

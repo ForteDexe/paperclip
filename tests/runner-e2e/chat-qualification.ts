@@ -96,8 +96,8 @@ export async function runActiveReassignment(context: Context) {
   const { api, fixtures: f, execution } = input;
   const space = `/api/spaces/${f.space.id}`;
   const config = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: "local", workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: input.nonce });
-  const first = await api.post<Row>(`${space}/agents`, { ...config, name: "Riley Original", role: "engineer", reportsTo: f.agent.id });
-  const second = await api.post<Row>(`${space}/agents`, { ...config, name: "Morgan Successor", role: "engineer", reportsTo: f.agent.id });
+  const first = await api.post<Row>(`${space}/agents`, { ...config, name: "Riley Original", role: "engineer", leadAgentId: f.agent.id });
+  const second = await api.post<Row>(`${space}/agents`, { ...config, name: "Morgan Successor", role: "engineer", leadAgentId: f.agent.id });
   const wait = await brief(input, first.id);
   const reference = `REFERENCE${randomUUID().replaceAll("-", "")}`;
   const workerInstructions = `First save a draft Outpost document on the assigned task containing the reference from its plan. Then run node ${wait.scriptPath} and wait for the brief before finishing. Do not finish before the command returns.`;

@@ -89,7 +89,7 @@ suite("case handoff through the assembled native runner", () => {
     await db.insert(spaces).values({ id: spaceId, name: "Native factory proof", issuePrefix: `N${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
     await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
     for (const [id, role] of [[triage, "lead"], [engineer, "engineer"]] as const) await db.insert(agents).values({ id, spaceId, name: role,
-      role, ...(id === engineer ? { reportsTo: triage } : {}), status: "idle", adapterType: "outpost_runner",
+      role, ...(id === engineer ? { leadAgentId: triage } : {}), status: "idle", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-sol", cwd: workspace, lifecycleMode: "per_turn", codexPermissionMode: "never", timeoutSec: 30,
         env: { CODEX_HOME: sourceHome, OPENAI_API_KEY: "", CODEX_API_KEY: "" } }, runtimeConfig: { heartbeat: { enabled: false } } });
     const initial = await caseHandoffService(db).handoff(spaceId, { type: "operator", source: "local_implicit", userId }, {

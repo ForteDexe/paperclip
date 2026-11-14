@@ -108,7 +108,7 @@ it("GitHub enrollment alone never bypasses its credential continuity deadline or
 
 
 function timerAgent(index: number): typeof agents.$inferSelect {
-  return { id: `agent-${index}`, spaceId: "space", name: "Timer", status: "idle", reportsTo: null,
+  return { id: `agent-${index}`, spaceId: "space", name: "Timer", status: "idle", leadAgentId: null,
     adapterType: "codex_local", adapterConfig: {}, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 3600, maxDailyRuns: 1 } },
     createdAt: new Date(now), lastHeartbeatAt: new Date(now) } as unknown as typeof agents.$inferSelect;
 }
@@ -180,7 +180,7 @@ it("checks global suppression even without eligible timers and retains owner org
       expect(reads).toBe(0);
     }
   }
-  const parent = timerAgent(1), child = { ...timerAgent(2), reportsTo: parent.id };
+  const parent = timerAgent(1), child = { ...timerAgent(2), leadAgentId: parent.id };
   const rows = [parent, child].map(agent => ({ agent, spaceStatus: "active", spaceUpdatedAt: new Date(now) }));
   const tx = fixtureDb({ agents: rows });
   expect((await readIdleAgentTimerSchedule(tx, now, {})).blocked).toBe(false);
@@ -188,7 +188,7 @@ it("checks global suppression even without eligible timers and retains owner org
   expect((await readIdleAgentTimerSchedule(tx, now, {})).blocked).toBe(false);
   parent.status = "terminated";
   expect((await readIdleAgentTimerSchedule(tx, now, {})).blocked).toBe(true);
-  parent.status = "idle"; parent.reportsTo = child.id;
+  parent.status = "idle"; parent.leadAgentId = child.id;
   expect((await readIdleAgentTimerSchedule(tx, now, {})).blocked).toBe(true);
   let checks = 0;
   await expect(readIdleAgentTimerSchedule(tx, now, {}, () => {

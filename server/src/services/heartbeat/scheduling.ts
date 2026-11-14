@@ -72,7 +72,7 @@ type RunPreparation = ReturnType<typeof createHeartbeatRunPreparation>;
 export interface HeartbeatSchedulingDependencies
   extends Pick<HeartbeatRetryDependencies, "getRun" | "getAgent" | "getWorktreeExecutionCutoff">,
     Pick<HeartbeatQueue, "enqueueWakeup" | "parseHeartbeatPolicy" | "nextTimerHeartbeatAt" | "claimDueTimerHeartbeat">,
-    Pick<RunPreparation, "toAgentOrgRow" | "groupAgentOrgRowsBySpace"> {
+    Pick<RunPreparation, "toAgentCoordinationRow" | "groupAgentCoordinationRowsBySpace"> {
   issuesSvc: Pick<ReturnType<typeof issueService>, "listReviewAttention" | "create">;
   scheduleBoundedRetryForRun: ReturnType<typeof createHeartbeatRetries>["scheduleBoundedRetryForRun"];
   getSchedulingSuppression: (fresh?: boolean) => Promise<{ suppressed: boolean }>;
@@ -137,8 +137,8 @@ export function createHeartbeatScheduling(
     scheduleBoundedRetryForRun,
     getSchedulingSuppression,
     getWorktreeExecutionCutoff,
-    toAgentOrgRow,
-    groupAgentOrgRowsBySpace,
+    toAgentCoordinationRow,
+    groupAgentCoordinationRowsBySpace,
     parseHeartbeatPolicy,
     nextTimerHeartbeatAt,
     claimDueTimerHeartbeat,
@@ -1303,14 +1303,14 @@ export function createHeartbeatScheduling(
       .from(agents)
       .innerJoin(spaces, eq(spaces.id, agents.spaceId))
       .where(eq(spaces.status, "active"));
-    const agentsBySpace = groupAgentOrgRowsBySpace(
-      allAgents.map(toAgentOrgRow),
+    const agentsBySpace = groupAgentCoordinationRowsBySpace(
+      allAgents.map(toAgentCoordinationRow),
     );
     const eligible: Array<{ agent: typeof agents.$inferSelect; intervalSec: number }> = [];
 
     for (const agent of allAgents) {
       const invokability = evaluateAgentInvokability(
-        toAgentOrgRow(agent),
+        toAgentCoordinationRow(agent),
         agentsBySpace.get(agent.spaceId) ?? [],
       );
       if (!invokability.invokable) continue;

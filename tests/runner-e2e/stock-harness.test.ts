@@ -15,7 +15,7 @@ function recording(generation: "legacy" | "native" = "legacy"): StockHarnessEvid
     bundle: { entryFile: "AGENTS.md", files: [{ path: "AGENTS.md", content: STOCK_HIRE_IDENTITY }] },
     runIds: ["fresh", "resumed"],
     invocations: generation === "native" ? [] : [
-      { runId: "fresh", conversationMode: false, prompt: "You are agent agent (QA).\nConnection tools:\nUse connections_search.\nCurrent assignment.", promptMetrics: { heartbeatPromptChars: 113 } },
+      { runId: "fresh", conversationMode: false, prompt: "You are agent (QA).\nConnection tools:\nUse connections_search.\nCurrent assignment.", promptMetrics: { heartbeatPromptChars: 113 } },
       { runId: "resumed", conversationMode: false, prompt: "## Outpost Resume Delta\nCurrent ordered comments.", promptMetrics: { heartbeatPromptChars: 0 } },
     ],
   };
@@ -59,14 +59,14 @@ describe("stock harness Product E2E", () => {
     expect(gradeStockHarness(recording(generation)).some(check => /vendor|base/.test(check.id))).toBe(false);
   });
 
-  it("checks the hire before paid execution without treating that receipt as provider evidence", () => {
-    const hire = recording();
-    hire.runIds = [];
-    hire.invocations = [];
-    expect(gradeStockHire(hire).every(check => check.passed)).toBe(true);
-    expect(gradeStockHarness(hire)).toContainEqual(expect.objectContaining({ id: "provider-runs-present", passed: false }));
-    hire.bundle.files[0]!.content += "Old operating manual.";
-    expect(gradeStockHire(hire)).toContainEqual(expect.objectContaining({ id: "default-hire-bundle", passed: false }));
+  it("checks the create before paid execution without treating that receipt as provider evidence", () => {
+    const create = recording();
+    create.runIds = [];
+    create.invocations = [];
+    expect(gradeStockHire(create).every(check => check.passed)).toBe(true);
+    expect(gradeStockHarness(create)).toContainEqual(expect.objectContaining({ id: "provider-runs-present", passed: false }));
+    create.bundle.files[0]!.content += "Old operating manual.";
+    expect(gradeStockHire(create)).toContainEqual(expect.objectContaining({ id: "default-create-bundle", passed: false }));
   });
 
   it("keeps historical instruction observations separate from the unchanged behavioral oracle", () => {
@@ -77,8 +77,8 @@ describe("stock harness Product E2E", () => {
     evidence.invocations[1]!.prompt += "\nExecution contract: take concrete action\na successful process exit or final response is not sufficient";
     expect(gradeSourceHarness(evidence, historical).every(check => check.passed)).toBe(true);
     expect(gradeSourceHarness(evidence, historical)).toContainEqual(expect.objectContaining({ id: "historical-continuation-contract", passed: true }));
-    expect(gradeSourceHarness(evidence, reduced)).toContainEqual(expect.objectContaining({ id: "default-hire-bundle", passed: false }));
-    evidence.invocations[0]!.prompt = "You are agent agent. Connection tools: connections_search";
+    expect(gradeSourceHarness(evidence, reduced)).toContainEqual(expect.objectContaining({ id: "default-create-bundle", passed: false }));
+    evidence.invocations[0]!.prompt = "You are agent. Connection tools: connections_search";
     expect(gradeSourceHarness(evidence, historical)).toContainEqual(expect.objectContaining({ id: "historical-startup-contract", passed: false }));
     const current = readStockInstructionVariant();
     evidence.bundle.files[0]!.content = current.content;
@@ -109,16 +109,16 @@ describe("stock harness Product E2E", () => {
   });
 
   it.each([
-    ["manual-regrew", (e: StockHarnessEvidence) => { e.bundle.files[0]!.content += "Always comment and delegate."; }, "default-hire-bundle"],
-    ["extra-file", (e: StockHarnessEvidence) => { e.bundle.files.push({ path: "HEARTBEAT.md", content: "Do everything again." }); }, "default-hire-bundle"],
-    ["wrong-entry", (e: StockHarnessEvidence) => { e.bundle.entryFile = "OTHER.md"; }, "default-hire-bundle"],
+    ["manual-regrew", (e: StockHarnessEvidence) => { e.bundle.files[0]!.content += "Always comment and delegate."; }, "default-create-bundle"],
+    ["extra-file", (e: StockHarnessEvidence) => { e.bundle.files.push({ path: "HEARTBEAT.md", content: "Do everything again." }); }, "default-create-bundle"],
+    ["wrong-entry", (e: StockHarnessEvidence) => { e.bundle.entryFile = "OTHER.md"; }, "default-create-bundle"],
     ["missing-runs", (e: StockHarnessEvidence) => { e.runIds = []; }, "provider-runs-present"],
     ["missing-invocation", (e: StockHarnessEvidence) => { e.invocations.pop(); }, "invocation-evidence-complete"],
     ["empty-prompt", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt = ""; }, "invocation-evidence-complete"],
     ["malformed-prompt", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt = { text: "hidden" }; }, "invocation-evidence-complete"],
     ["old-startup", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt += "\nExecution contract:"; }, "generic-procedures-absent"],
     ["old-resume", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt += "\na successful process exit or final response is not sufficient"; }, "generic-procedures-absent"],
-    ["missing-connections", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt = "You are agent agent."; }, "fresh-default-delivered"],
+    ["missing-connections", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt = "You are agent."; }, "fresh-default-delivered"],
     ["missing-fresh-evidence", (e: StockHarnessEvidence) => { e.invocations[0]!.promptMetrics = {}; }, "fresh-default-delivered"],
     ["wrong-budget", (e: StockHarnessEvidence) => { e.budgets.agentMonthlyCents = 0; }, "budget-hard-stops"],
   ] as const)("fails closed for %s", (_name, mutate, failedId) => {

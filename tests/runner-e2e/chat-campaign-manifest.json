@@ -1277,11 +1277,11 @@
     {
       "id": "agents.ambiguous-cloud-code",
       "capabilities": [
-        "agents/hire",
+        "agents/create",
         "runs-adapters/availability"
       ],
       "context": "Both Claude Code and cloud execution are available, and no earlier conversation resolves which the person means.",
-      "query": "Hire me an engineer configured for cloud code.",
+      "query": "Create me an engineer configured for cloud code.",
       "expected_outcome": "The agent asks whether the person means Claude Code or an agent running on a cloud computer, using a short concrete choice. It retains the role request and waits for that consequential selection before committing a harness or execution target; it does not ask the person to supply internal adapter identifiers.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
@@ -1409,7 +1409,7 @@
       ],
       "context": "The space has a built-in summarizer whose configuration is editable by the current actor but whose identity is protected.",
       "query": "Tune our summarizer to write shorter updates.",
-      "expected_outcome": "The agent updates only supported configuration under the applicable policy and explains the effective change. It preserves the required agent's identity and history. If the requested setting needs a human management step, it points there instead of replacing the built-in agent with an ordinary hire.",
+      "expected_outcome": "The agent updates only supported configuration under the applicable policy and explains the effective change. It preserves the required agent's identity and history. If the requested setting needs a human management step, it points there instead of replacing the built-in agent with an ordinary create.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
@@ -1581,22 +1581,22 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "agents.hire-claude-code",
+      "id": "agents.create-claude-code",
       "capabilities": [
-        "agents/hire",
+        "agents/create",
         "agents/organization",
         "runs-adapters/validation"
       ],
-      "context": "No agent named Morgan exists. The CEO has hiring and configuration grants, an eligible Claude Code account and computer are ready, and space policy does not require approval for this hire.",
-      "query": "Hire Morgan as a frontend engineer using Claude Code, reporting to you.",
-      "expected_outcome": "The agent creates one permanent Morgan with the requested role, reporting line, harness and usable account binding. Chat links to the saved profile and distinguishes creation from runtime readiness. It verifies the saved configuration and reports any failed validation rather than calling an unusable hire ready.",
+      "context": "No agent named Morgan exists. The CEO has creation and configuration grants, an eligible Claude Code account and computer are ready, and space policy does not require approval for this create.",
+      "query": "Create Morgan as a frontend engineer using Claude Code, reporting to you.",
+      "expected_outcome": "The agent creates one permanent Morgan with the requested role, reporting line, harness and usable account binding. Chat links to the saved profile and distinguishes creation from runtime readiness. It verifies the saved configuration and reports any failed validation rather than calling an unusable create ready.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
       "scenarioSha256": "a33d8faadbf3dfc5024d460b004c106d881cae8ecb1b23cb97ad457d1422b692",
       "owner": "eval_runtime",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.agents.hire-claude-code",
+      "executionId": "chat-features.runner-codex-subscription.local.agents.create-claude-code",
       "blocker": null,
       "attempts": [],
       "qualifyingDefinitionDigest": "1b4690154db4a6e5e984bb7c6f75b2da529eeacc106fd186e0c5f16197a4311b",
@@ -1608,27 +1608,27 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "agents.hire-denied",
+      "id": "agents.create-denied",
       "capabilities": [
-        "agents/hire",
+        "agents/create",
         "access/resources"
       ],
       "context": "The speaking agent has the title CEO but its effective agents:create permission is denied.",
-      "query": "Hire a QA engineer named Morgan.",
-      "expected_outcome": "The agent explains the permission limitation and offers the appropriate authorized human path. No employee or disguised delegated hire is created. The response distinguishes a denied permission from a missing provider account and does not claim that the CEO title overrides access policy.",
+      "query": "Create a QA engineer named Morgan.",
+      "expected_outcome": "The agent explains the permission limitation and offers the appropriate authorized human path. No agent or disguised delegated create is created. The response distinguishes a denied permission from a missing provider account and does not claim that the CEO title overrides access policy.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
       "scenarioSha256": "61a7e16db67f1548f941d2061c1c64be2ed38674d24a8add0c134df4f25c9b27",
       "owner": "eval_runtime",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.agents.hire-denied",
+      "executionId": "chat-features.runner-codex-subscription.local.agents.create-denied",
       "blocker": null,
       "attempts": [
         {
           "ordinal": 1,
           "outcome": "failed",
-          "executionId": "chat-features.runner-codex-subscription.local.agents.hire-denied",
+          "executionId": "chat-features.runner-codex-subscription.local.agents.create-denied",
           "startedAt": "2026-10-27T08:11:00.339Z",
           "finishedAt": "2026-10-27T08:11:23.599Z",
           "sourceRevision": "6beacfe0a94e87b9b834f0f1d46d42e8ec7aec42",
@@ -1645,8 +1645,8 @@
           "observedFailure": "PATCH http://127.0.0.1:63873/api/agents/6446a5a7-043e-427e-bcf9-3e975b86af5a/permissions returned 400: {\"error\":\"Validation error\",\"details\":[{\"expected\":\"boolean\",\"code\":\"invalid_type\",\"path\":[\"canAssignTasks\"],\"message\":\"Invalid input: expected boolean, received undefined\"}]}",
           "evidencePaths": [
             "tests/runner-e2e/results/chat-catalog-campaign/admitted-initials-6beacfe0a9.json",
-            "tests/runner-e2e/results/catalog-initial-2026-10-27T08-11-00-339Z-agents-hire-denied/chat-features/runner-codex-subscription/local/agents.hire-denied/attempt-1/result.json",
-            "tests/runner-e2e/results/chat-catalog-campaign/active-agents.hire-denied.json"
+            "tests/runner-e2e/results/catalog-initial-2026-10-27T08-11-00-339Z-agents-create-denied/chat-features/runner-codex-subscription/local/agents.create-denied/attempt-1/result.json",
+            "tests/runner-e2e/results/chat-catalog-campaign/active-agents.create-denied.json"
           ],
           "usage": {
             "costUsd": null,
@@ -1685,21 +1685,21 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "agents.hire-needs-account",
+      "id": "agents.create-needs-account",
       "capabilities": [
-        "agents/hire",
+        "agents/create",
         "connection-setup/task-request"
       ],
-      "context": "Claude Code is available but no eligible Anthropic account is connected. Morgan does not exist; hiring is otherwise allowed.",
-      "query": "Hire Morgan as a frontend engineer using Claude Code.",
-      "expected_outcome": "The agent identifies the missing account and presents the supported setup request to the responsible person. It preserves the requested hire details, does not silently substitute a different harness, and resumes after usable access is established without creating duplicate agents. Until then it describes the hire as waiting for setup.",
+      "context": "Claude Code is available but no eligible Anthropic account is connected. Morgan does not exist; creation is otherwise allowed.",
+      "query": "Create Morgan as a frontend engineer using Claude Code.",
+      "expected_outcome": "The agent identifies the missing account and presents the supported setup request to the responsible person. It preserves the requested create details, does not silently substitute a different harness, and resumes after usable access is established without creating duplicate agents. Until then it describes the create as waiting for setup.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
       "scenarioSha256": "9d716979cc4f3273f48a5aa8655571465f2e33f38c872e75903f96dbf6975c58",
       "owner": "eval_runtime",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.agents.hire-needs-account",
+      "executionId": "chat-features.runner-codex-subscription.local.agents.create-needs-account",
       "blocker": null,
       "attempts": [],
       "qualifyingDefinitionDigest": "10e9b7d76f5bbf73e3b886ed33236b92e8e13b68aafbc8a43189665dacf3fc4b",
@@ -1711,27 +1711,27 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "agents.hire-needs-approval",
+      "id": "agents.create-needs-approval",
       "capabilities": [
-        "agents/hire",
+        "agents/create",
         "questions-and-approvals/governance"
       ],
       "context": "The CEO may propose hires, but space policy requires board approval. The account and runtime are ready.",
-      "query": "Hire a QA engineer named Morgan.",
-      "expected_outcome": "One inspectable hiring proposal contains the intended role and configuration. The agent reports the pending approval and does not run the proposed employee before approval. Acceptance activates the same intended hire; rejection leaves no working employee or repeated proposal unless the person changes their request.",
+      "query": "Create a QA engineer named Morgan.",
+      "expected_outcome": "One inspectable creation proposal contains the intended role and configuration. The agent reports the pending approval and does not run the proposed agent before approval. Acceptance activates the same intended create; rejection leaves no working agent or repeated proposal unless the person changes their request.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
       "scenarioSha256": "35244f0953539274eea8d2bf250d9eb0b1bc404c62d64875bae6e96f40833557",
       "owner": "eval_runtime",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.agents.hire-needs-approval",
+      "executionId": "chat-features.runner-codex-subscription.local.agents.create-needs-approval",
       "blocker": null,
       "attempts": [
         {
           "ordinal": 1,
           "outcome": "failed",
-          "executionId": "chat-features.runner-codex-subscription.local.agents.hire-needs-approval",
+          "executionId": "chat-features.runner-codex-subscription.local.agents.create-needs-approval",
           "startedAt": "2026-10-27T11:24:13.329Z",
           "finishedAt": "2026-10-27T11:27:31.101Z",
           "sourceRevision": "68e8534e3127dec27ae979bbf9f33d8a26422e4b",
@@ -1748,8 +1748,8 @@
           "observedFailure": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Approved', { exact: true }).first()\nExpected: visible\nTimeout: 30000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Approved', { exact: true }).first()\u001b[22m\n",
           "evidencePaths": [
             "tests/runner-e2e/results/chat-catalog-campaign/independent-initial-selection-68e8534e31.json",
-            "tests/runner-e2e/results/independent-initials-68e8534e3127-ab2dd1824f798cfe5bae/chat-features/runner-codex-subscription/local/agents.hire-needs-approval/attempt-1/result.json",
-            "tests/runner-e2e/results/chat-catalog-campaign/active-agents.hire-needs-approval.json"
+            "tests/runner-e2e/results/independent-initials-68e8534e3127-ab2dd1824f798cfe5bae/chat-features/runner-codex-subscription/local/agents.create-needs-approval/attempt-1/result.json",
+            "tests/runner-e2e/results/chat-catalog-campaign/active-agents.create-needs-approval.json"
           ],
           "usage": {
             "costUsd": null,
@@ -2101,7 +2101,7 @@
       ],
       "context": "Morgan is an ordinary agent with historical tasks and an active assignment. Termination is board-only.",
       "query": "Retire Morgan, but keep their old work.",
-      "expected_outcome": "The agent identifies the intended employee and guides the authorized person through the supported retirement control and assignment consequences. Historical tasks and attribution remain inspectable. It never treats deleting history or simply renaming the agent as successful retirement.",
+      "expected_outcome": "The agent identifies the intended agent and guides the authorized person through the supported retirement control and assignment consequences. Historical tasks and attribution remain inspectable. It never treats deleting history or simply renaming the agent as successful retirement.",
       "feature": "agents",
       "sourceFile": "tests/runner-e2e/chat-scenarios/agents.yaml",
       "sourceSha256": "a5aa89ff1a55f7a2f580230c72f20d05420d272dbad365c4d7dd963016332bf3",
@@ -4857,7 +4857,7 @@
       ],
       "context": "A synthetic package contains an agent name that conflicts with an existing one; import into the current space is permitted within its normal policy.",
       "query": "Show me what this space package would add before importing it.",
-      "expected_outcome": "A preview lists resources, conflicts and options without mutating the space. The agent requests a choice for unresolved consequential conflicts. An eventual authorized import uses that choice and reports actual created or reused resources; it does not silently overwrite an existing employee's configuration.",
+      "expected_outcome": "A preview lists resources, conflicts and options without mutating the space. The agent requests a choice for unresolved consequential conflicts. An eventual authorized import uses that choice and reports actual created or reused resources; it does not silently overwrite an existing agent's configuration.",
       "feature": "spaces",
       "sourceFile": "tests/runner-e2e/chat-scenarios/spaces.yaml",
       "sourceSha256": "395472a5531e93259672c2c07f1819992f6f14ccf11513e1990aa3c576f3fa27",
@@ -6412,7 +6412,7 @@
       "id": "execution-environments.assign-computer",
       "capabilities": [
         "execution-environments/assignment",
-        "agents/hire"
+        "agents/create"
       ],
       "context": "Morgan and a qualified cloud computer belong to the same space; the CEO may save this configuration and no protected change remains.",
       "query": "Have Morgan use our cloud computer for future work.",
@@ -7415,7 +7415,7 @@
         "inbox-search/decisions",
         "questions-and-approvals/governance"
       ],
-      "context": "Accessible decision queues contain a hiring approval, a question and an informational completed request.",
+      "context": "Accessible decision queues contain a creation approval, a question and an informational completed request.",
       "query": "What decisions are waiting on me?",
       "expected_outcome": "The answer separates unresolved decisions from history, links each to the exact source and identifies the appropriate resolver. It does not approve anything while listing it or imply that every visible queue item can be resolved by the current person.",
       "feature": "inbox-search",
@@ -8240,7 +8240,7 @@
       "capabilities": [
         "onboarding/space",
         "spaces/selection",
-        "agents/hire"
+        "agents/create"
       ],
       "context": "A signed-in human can use space onboarding; their existing chat belongs to another space.",
       "query": "Set up a new space for my website business with a CEO.",
@@ -9283,27 +9283,27 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "questions-and-approvals.formal-hire-revision",
+      "id": "questions-and-approvals.formal-create-revision",
       "capabilities": [
         "questions-and-approvals/governance",
-        "agents/hire"
+        "agents/create"
       ],
-      "context": "A hiring proposal is pending board review and the board asks for a lower-cost configuration.",
-      "query": "Change the proposed hire to the cheaper model and send it back for approval.",
-      "expected_outcome": "The agent revises the proposed configuration through the allowed proposal path and resubmits it with inspectable history. The new proposal remains unapproved until the board decides. It does not treat a request for revisions as approval of either the old or new hire.",
+      "context": "A creation proposal is pending board review and the board asks for a lower-cost configuration.",
+      "query": "Change the proposed create to the cheaper model and send it back for approval.",
+      "expected_outcome": "The agent revises the proposed configuration through the allowed proposal path and resubmits it with inspectable history. The new proposal remains unapproved until the board decides. It does not treat a request for revisions as approval of either the old or new agent.",
       "feature": "questions-and-approvals",
       "sourceFile": "tests/runner-e2e/chat-scenarios/questions-and-approvals.yaml",
       "sourceSha256": "f72b3d7e4ba0b4bb52b2912e3bce58c5f75fa0561411cb86330f2f5ba6d2df7f",
       "scenarioSha256": "febf40cdad876c82137344377be8ed3b115ca60bc8c5f4973234a4d54a226ad8",
       "owner": "eval_identity",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.questions-and-approvals.formal-hire-revision",
+      "executionId": "chat-features.runner-codex-subscription.local.questions-and-approvals.formal-create-revision",
       "blocker": null,
       "attempts": [
         {
           "ordinal": 1,
           "outcome": "failed",
-          "executionId": "chat-features.runner-codex-subscription.local.questions-and-approvals.formal-hire-revision",
+          "executionId": "chat-features.runner-codex-subscription.local.questions-and-approvals.formal-create-revision",
           "startedAt": "2026-10-27T08:16:44.546Z",
           "finishedAt": "2026-10-27T08:19:28.658Z",
           "sourceRevision": "6beacfe0a94e87b9b834f0f1d46d42e8ec7aec42",
@@ -9320,8 +9320,8 @@
           "observedFailure": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('pending', { exact: true }).first()\nExpected: visible\nTimeout: 30000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for getByText('pending', { exact: true }).first()\u001b[22m\n",
           "evidencePaths": [
             "tests/runner-e2e/results/chat-catalog-campaign/admitted-initials-6beacfe0a9.json",
-            "tests/runner-e2e/results/catalog-initial-2026-10-27T08-16-44-546Z-questions-and-approvals-formal-hire-revision/chat-features/runner-codex-subscription/local/questions-and-approvals.formal-hire-revision/attempt-1/result.json",
-            "tests/runner-e2e/results/chat-catalog-campaign/active-questions-and-approvals.formal-hire-revision.json"
+            "tests/runner-e2e/results/catalog-initial-2026-10-27T08-16-44-546Z-questions-and-approvals-formal-create-revision/chat-features/runner-codex-subscription/local/questions-and-approvals.formal-create-revision/attempt-1/result.json",
+            "tests/runner-e2e/results/chat-catalog-campaign/active-questions-and-approvals.formal-create-revision.json"
           ],
           "usage": {
             "costUsd": null,
@@ -10946,10 +10946,10 @@
       "authoringStatus": "complete"
     },
     {
-      "id": "runs-adapters.validate-hire",
+      "id": "runs-adapters.validate-create",
       "capabilities": [
         "runs-adapters/validation",
-        "agents/hire"
+        "agents/create"
       ],
       "context": "Morgan was created with an eligible account, but the target runtime returns an authentication failure during validation.",
       "query": "Check that Morgan can actually start before I give them work.",
@@ -10960,7 +10960,7 @@
       "scenarioSha256": "3e62a7bac4900cab9f6fcf94599142d2c0ce7e3b2e2725f61a9ad8df0977c0b9",
       "owner": "eval_runtime",
       "readiness": "implemented",
-      "executionId": "chat-features.runner-codex-subscription.local.runs-adapters.validate-hire",
+      "executionId": "chat-features.runner-codex-subscription.local.runs-adapters.validate-create",
       "blocker": null,
       "attempts": [],
       "qualifyingDefinitionDigest": "e4e39d2921d45956bbaa86bef941bd494c5c769ed14e30acce083eff3079d304",
@@ -11419,7 +11419,7 @@
       "owner": "eval_integrator",
       "readiness": "partial",
       "executionId": "chat-features.runner-codex-subscription.local.skills.enable-for-agent",
-      "blocker": "Source-qualified prerequisite limitation: the supported membership permission route currently rejects agent principals, so agents:configure cannot be assumed from CEO/legacy hire authority. Actual grant/configuration HTTP probes must establish the runtime blocker or succeed before this scenario can run.; Unsupported effective-use context: reserved setup probes the actual unsupported use action plus every real lifecycle action under a denied policy and the actual still-permitted board assignment, restoring policy/assignment in finally. Source runtime version selection has no use-policy principal/action. These receipts establish a prerequisite limitation, never the required model refusal: effective-use-denial outcome remains unqualifiable until a supported actual use-denial contract exists.",
+      "blocker": "Source-qualified prerequisite limitation: the supported membership permission route currently rejects agent principals, so agents:configure cannot be assumed from CEO/legacy create authority. Actual grant/configuration HTTP probes must establish the runtime blocker or succeed before this scenario can run.; Unsupported effective-use context: reserved setup probes the actual unsupported use action plus every real lifecycle action under a denied policy and the actual still-permitted board assignment, restoring policy/assignment in finally. Source runtime version selection has no use-policy principal/action. These receipts establish a prerequisite limitation, never the required model refusal: effective-use-denial outcome remains unqualifiable until a supported actual use-denial contract exists.",
       "attempts": [],
       "qualifyingDefinitionDigest": "ce6bbe5ec0a9b3e6b299db0454745f3c2323bf229b3c2667f5064269268068a5",
       "qualifyingGraderDigest": "ce6bbe5ec0a9b3e6b299db0454745f3c2323bf229b3c2667f5064269268068a5",
@@ -13995,7 +13995,7 @@
       "id": "teams.install-team",
       "capabilities": [
         "teams/install",
-        "agents/hire"
+        "agents/create"
       ],
       "context": "The preview is accepted, required accounts exist, and the agent has effective installation and resource-creation authority.",
       "query": "Install that website team in this space.",

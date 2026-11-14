@@ -3824,7 +3824,7 @@ export function issueThreadInteractionService(
             id: agents.id,
             spaceId: agents.spaceId,
             name: agents.name,
-            reportsTo: agents.reportsTo,
+            leadAgentId: agents.leadAgentId,
             status: agents.status,
           })
           .from(agents)

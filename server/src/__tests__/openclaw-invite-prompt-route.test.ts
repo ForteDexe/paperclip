@@ -168,7 +168,7 @@ describe("POST /spaces/:spaceId/openclaw/invite-prompt", () => {
     expect(res.body.error).toContain("Permission denied");
   });
 
-  it("rejects Default agent agent callers outside the target space scope", async () => {
+  it("rejects Default agent callers outside the target space scope", async () => {
     const db = createDbStub();
     const app = createApp(
       {

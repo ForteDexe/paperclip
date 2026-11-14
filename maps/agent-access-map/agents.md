@@ -1,6 +1,6 @@
-# Hiring, agent configuration, and organization — agent access
+# Agent creation, configuration, and coordination — agent access
 
-Product map: [Hiring, agent configuration, and organization](../feature-map/agents.md).
+Product map: [Agent creation, configuration, and coordination](../feature-map/agents.md).
 
 Feature ID: `agents`.
 
@@ -38,9 +38,9 @@ validate the full profile. Existing active Legacy agents and explicit Legacy
 choices do not convert automatically. A client-supplied setup flag does not grant
 draft status or bypass active model validation.
 
-## `hire`
+## `create`
 
-Capability ID: `agents/hire`.
+Capability ID: `agents/create`.
 
 Review: `baseline`.
 
@@ -267,9 +267,9 @@ remaining operations before qualifying the whole capability.
 Gaps: Canonical entry file, revision guard, space boundary, and protected-change
 policy apply.
 
-## `organization`
+## `coordination`
 
-Capability ID: `agents/organization`.
+Capability ID: `agents/coordination`.
 
 Review: `baseline`.
 

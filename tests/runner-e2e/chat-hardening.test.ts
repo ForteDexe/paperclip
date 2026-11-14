@@ -4,10 +4,10 @@ import { runnerMatrix } from "./catalog.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 
 const binding = { provider: "anthropic", method: "api_key", mode: "responsible_user" };
-const hire = { id: "hire", name: "Morgan", reportsTo: "lead", adapterType: "outpost_runner", adapterConfig: { model: "model" }, runtimeConfig: { aiConnection: binding } };
-const task = { id: "task", spaceId: "space", title: "Checklist", status: "done", assigneeAgentId: "hire", parentId: null, projectId: "project" };
-const run = { id: "run", spaceId: "space", agentId: "hire", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task", aiConnection: { connectionId: "account" } } };
-const hiring = { agents: [{ id: "lead", name: "Lead", adapterConfig: { model: "model" } }, hire], leadId: "lead", hireName: "Morgan", hiredId: "hire", connectionId: "account", binding, taskIds: ["task"], tasks: [task], runs: [run] };
+const create = { id: "create", name: "Morgan", leadAgentId: "lead", adapterType: "outpost_runner", adapterConfig: { model: "model" }, runtimeConfig: { aiConnection: binding } };
+const task = { id: "task", spaceId: "space", title: "Checklist", status: "done", assigneeAgentId: "create", parentId: null, projectId: "project" };
+const run = { id: "run", spaceId: "space", agentId: "create", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task", aiConnection: { connectionId: "account" } } };
+const creation = { agents: [{ id: "lead", name: "Lead", adapterConfig: { model: "model" } }, create], leadId: "lead", hireName: "Morgan", hiredId: "create", connectionId: "account", binding, taskIds: ["task"], tasks: [task], runs: [run] };
 
 describe("agent chat hardening oracles", () => {
   it("requires remembered context after restart, not just a new reply", () => {
@@ -15,17 +15,17 @@ describe("agent chat hardening oracles", () => {
     expect(() => assertChatRememberedAfterRestart("CHAT123", "OLDCONTEXT123", "CHAT123")).toThrow();
     expect(() => assertChatRememberedAfterRestart("OLDCONTEXT999 CHAT123", "OLDCONTEXT123", "CHAT123")).toThrow();
   });
-  it("grades actual execution by the original hired identity and managed account", () => {
-    expect(() => assertChatHire(hiring)).not.toThrow();
+  it("grades actual execution by the original created identity and managed account", () => {
+    expect(() => assertChatHire(creation)).not.toThrow();
     for (const wrong of [
-      { ...hiring, agents: [...hiring.agents, { ...hire, id: "duplicate" }] },
-      { ...hiring, hiredId: "replaced" },
-      { ...hiring, tasks: [{ ...task, parentId: "chat" }] },
-      { ...hiring, tasks: [{ ...task, assigneeAgentId: "lead" }] },
-      { ...hiring, runs: [] },
-      { ...hiring, runs: [run, { ...run, id: "duplicate-run" }] },
-      { ...hiring, runs: [{ ...run, agentId: "lead" }] },
-      { ...hiring, connectionId: "wrong-account" },
+      { ...creation, agents: [...creation.agents, { ...create, id: "duplicate" }] },
+      { ...creation, hiredId: "replaced" },
+      { ...creation, tasks: [{ ...task, parentId: "chat" }] },
+      { ...creation, tasks: [{ ...task, assigneeAgentId: "lead" }] },
+      { ...creation, runs: [] },
+      { ...creation, runs: [run, { ...run, id: "duplicate-run" }] },
+      { ...creation, runs: [{ ...run, agentId: "lead" }] },
+      { ...creation, connectionId: "wrong-account" },
     ]) expect(() => assertChatHire(wrong)).toThrow();
   });
 
@@ -105,7 +105,7 @@ describe("agent chat hardening oracles", () => {
     expect(cells.filter(cell => cell.environment.id === "daytona")).toHaveLength(6);
     for (const cell of cells) {
       expect(buildRunnerE2EProcessEnvironment({}, [cell]).OUTPOST_RUNNER_API_TOOLS_ENABLED).toBe(
-        ["hire-delegate-reuse", "blocked-status-review"].includes(cell.task.id) ? "true" : undefined);
+        ["create-delegate-reuse", "blocked-status-review"].includes(cell.task.id) ? "true" : undefined);
       const config = cell.profile.buildAgent({ executionId: "fixture", workspacePath: "/workspace", environmentId: "local",
         environmentFixtureId: "local", secretRefs: { [cell.profile.credential]: { type: "secret_ref", secretId: "secret", version: "latest" } } });
       expect(config.role).toBe("ceo");

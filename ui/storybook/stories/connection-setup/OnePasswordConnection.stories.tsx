@@ -10,7 +10,7 @@ import { ActionsSection } from "@/pages/apps/app-detail/PermissionsPanel";
 
 const app = getAppStoreDefinition("1password")!;
 const spaceId = "space-storybook";
-const testAgent: ToolConnectionTestAgent = { id: "onepassword-review-agent", name: "Vault test agent", role: "engineer", title: null, status: "active", orgDepth: 0 };
+const testAgent: ToolConnectionTestAgent = { id: "onepassword-review-agent", name: "Vault test agent", role: "engineer", title: null, status: "active", hierarchyDepth: 0 };
 const tools = [
   { name: "onepassword_list_vaults", risk: "read", description: "List authorized vaults.", properties: {} },
   { name: "onepassword_create_item", risk: "write", description: "Create a disposable item.", properties: { vaultId: { type: "string" }, title: { type: "string" }, category: { type: "string", enum: ["SecureNote"] } } },

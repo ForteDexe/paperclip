@@ -19,7 +19,7 @@ export const createAgentAction = {
   },
   documentation: {
     title: "Create a native agent",
-    description: "Create a persistent native Runner teammate with an identity and persona. The teammate reports to the caller and inherits the caller's native runtime; provider, adapter, environment, and credential settings are selected by Outpost and are never caller-supplied here.",
+    description: "Create a persistent native Runner teammate with an identity and persona. The caller becomes its coordination lead and the teammate inherits the caller's native runtime; provider, adapter, environment, and credential settings are selected by Outpost and are never caller-supplied here.",
     note: "Use list_agents first when a suitable teammate may already exist.",
   },
   examples: {
@@ -40,7 +40,7 @@ export const createAgentAction = {
       operationId: "create_agent",
       version: 1,
       title: "Create a native agent",
-      description: "Create a persistent native Runner teammate with an identity and persona. The teammate reports to the caller and inherits the caller's native runtime; provider, adapter, environment, and credential settings are selected by Outpost and are never caller-supplied here. Reuse a suitable teammate from list_agents when possible.",
+      description: "Create a persistent native Runner teammate with an identity and persona. The caller becomes its coordination lead and the teammate inherits the caller's native runtime; provider, adapter, environment, and credential settings are selected by Outpost and are never caller-supplied here. Reuse a suitable teammate from list_agents when possible.",
       exposure: "optional",
       requiredClaims: ["delegation:agents:create"],
       allowedModes: ["standard", "skill_test"],

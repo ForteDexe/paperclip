@@ -132,11 +132,11 @@ import { agentRouteRef } from "../lib/utils";
 import { syncAgentRouteAfterRename } from "./agent-detail/agent-route";
 import { InstructionsBundleSettings } from "./agent-detail/InstructionsBundleSettings";
 import { AgentAuditTab } from "./AgentAuditTab";
-import { AgentDirectReports } from "./agent-detail/AgentDirectReports";
+import { AgentCoordinatedAgents } from "./agent-detail/AgentCoordinatedAgents";
 import { instructionFileDateLabel } from "./agent-detail/instruction-file-date";
 import { AgentConfigSaveBar } from "./agent-detail/AgentConfigSaveBar";
 import { markdownFileName } from "./agent-detail/markdown-file-name";
-import { AgentReportingManager } from "./agent-detail/AgentReportingManager";
+import { AgentCoordinationLead } from "./agent-detail/AgentCoordinationLead";
 import { AgentChip, AgentMetricTile, AgentPanel, AgentSectionHeading } from "../components/agent-detail/AgentPanels";
 import { AgentHistoryDialog } from "./agent-detail/AgentHistoryDialog";
 import { countSince, formatWindowCount } from "./agent-detail/overview-counts";
@@ -199,8 +199,8 @@ const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string 
   cancelled: { icon: Slash, color: "text-neutral-500 dark:text-neutral-400" },
 };
 
-function formatOrgChainHealthPath(agent: AgentDetailRecord) {
-  return agent.orgChainHealth?.fullChain
+function formatCoordinationHealthPath(agent: AgentDetailRecord) {
+  return agent.coordinationHealth?.fullChain
     .map((entry) => `${entry.name}${entry.status !== "active" && entry.status !== "idle" ? ` (${entry.status})` : ""}`)
     .join(" -> ") ?? agent.name;
 }
@@ -540,7 +540,6 @@ export function AgentDetail() {
     () => [...(allIssues ?? [])].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
     [allIssues],
   );
-  const reportsToAgent = (allAgents ?? []).find((a) => a.id === agent?.reportsTo);
   const [historyOpen, setHistoryOpen] = useState(false);
   const headerUpdate = useMutation({
     mutationFn: ({ target, patch }: { target: AgentDetailRecord; patch: Record<string, unknown> }) =>
@@ -567,7 +566,7 @@ export function AgentDetail() {
       setActionError(err instanceof Error ? err.message : "Could not save that change");
     }
   };
-  const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
+  const coordinatedAgents = (allAgents ?? []).filter((a) => a.leadAgentId === agent?.id && a.status !== "terminated");
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
     [heartbeats],
@@ -776,8 +775,8 @@ export function AgentDetail() {
   const currentAgent = lifecycle.data && (lifecycle.data.lifecycleVersion ?? 0) >= (agent.lifecycleVersion ?? 0)
     ? { ...agent, ...lifecycle.data } : agent;
   const isPendingApproval = currentAgent.status === "pending_approval";
-  const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
-  const pausedEscalationWarning = !hasInvalidOrgChain ? agent.orgChainHealth?.escalationWarning ?? null : null;
+  const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
+  const pausedEscalationWarning = !hasInvalidCoordination ? agent.coordinationHealth?.escalationWarning ?? null : null;
   const showConfigActionBar = activeView === "runtime" || activeView === "instructions";
   const showLeftAgentNotice = agentMembershipState === "left" && !dismissedLeftAgentIds.has(agent.id);
   const agentMembershipPending =
@@ -833,22 +832,22 @@ export function AgentDetail() {
           </div>
         </div>
       ) : null}
-      {hasInvalidOrgChain ? (
+      {hasInvalidCoordination ? (
         <div className="flex items-start gap-3 border border-amber-300/35 bg-amber-300/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 space-y-1">
-            <p className="font-medium">Invalid reporting chain</p>
+            <p className="font-medium">Invalid coordination chain</p>
             <p className="text-amber-900/90 dark:text-amber-100/90">
-              {agent.name} cannot accept tasks or start runs until its reporting chain is repaired.
+              {agent.name} cannot accept tasks or start runs until its coordination chain is repaired.
             </p>
             <p className="break-words font-mono text-xs text-amber-900/80 dark:text-amber-100/80">
-              {formatOrgChainHealthPath(agent)}
+              {formatCoordinationHealthPath(agent)}
             </p>
-            {agent.orgChainHealth?.repairGuidance ? (
-              <p className="text-amber-900/85 dark:text-amber-100/85">{agent.orgChainHealth.repairGuidance}</p>
+            {agent.coordinationHealth?.repairGuidance ? (
+              <p className="text-amber-900/85 dark:text-amber-100/85">{agent.coordinationHealth.repairGuidance}</p>
             ) : (
               <p className="text-amber-900/85 dark:text-amber-100/85">
-                Assign this agent to an active manager/root, or explicitly pause or terminate the affected agent/subtree.
+                Assign this agent to an active coordination lead or make it a root agent, or explicitly pause or terminate the affected subtree.
               </p>
             )}
           </div>
@@ -905,8 +904,8 @@ export function AgentDetail() {
           workActionsInMenu
           menuItems={[{ label: "Agent history", icon: HistoryIcon, onSelect: () => setHistoryOpen(true) }]}
           actionsDisabled={agentAction.isPending || (activeView === "advanced" && configSaving)}
-          workActionsDisabled={hasInvalidOrgChain}
-          workActionsDisabledReason="Repair this agent's reporting chain before assigning tasks or starting runs"
+          workActionsDisabled={hasInvalidCoordination}
+          workActionsDisabledReason="Repair this agent's coordination chain before assigning tasks or starting runs"
           hasPendingNavigationChanges={configDirty}
           onBeforeNavigate={prepareAgentNavigation}
           onActionError={setActionError}
@@ -1057,9 +1056,7 @@ export function AgentDetail() {
           runs={heartbeats ?? []}
           assignedIssues={assignedIssues}
           runtimeState={runtimeState}
-          reportsToAgent={reportsToAgent}
-          directReportCount={directReports.length}
-          directReports={directReports}
+          coordinatedAgents={coordinatedAgents}
           agentRouteId={canonicalAgentRef}
         />
       )}
@@ -1374,15 +1371,13 @@ export function AgentOverview({
   agent,
   runs,
   assignedIssues,
-  directReports = [],
+  coordinatedAgents = [],
 }: {
   agent: AgentDetailRecord;
   runs: HeartbeatRun[];
   assignedIssues: Issue[];
   runtimeState?: AgentRuntimeState;
-  reportsToAgent?: Agent;
-  directReportCount: number;
-  directReports?: Agent[];
+  coordinatedAgents?: Agent[];
   agentRouteId: string;
 }) {
   const agentRef = agentRouteRef(agent);
@@ -1426,10 +1421,10 @@ export function AgentOverview({
             {creatorFailed ? "Could not load creator" : creatorLabel ? `Created by ${creatorLabel} · ${formatDate(agent.createdAt)}` : `Created ${formatDate(agent.createdAt)}`}
           </span>}>
           <div className="flex flex-col pb-3">
-            <AgentReportingManager key={agent.id} agent={agent} />
-            {directReports.length > 0 && <div className="flex flex-col gap-1.5 px-(--agent-detail-module-inset) py-1.5 text-sm">
-              <span className="text-muted-foreground">Direct reports:</span>
-              <AgentDirectReports reports={directReports} />
+            <AgentCoordinationLead key={agent.id} agent={agent} />
+            {coordinatedAgents.length > 0 && <div className="flex flex-col gap-1.5 px-(--agent-detail-module-inset) py-1.5 text-sm">
+              <span className="text-muted-foreground">Coordinated agents:</span>
+              <AgentCoordinatedAgents agents={coordinatedAgents} />
             </div>}
 
           </div>

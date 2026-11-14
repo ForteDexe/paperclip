@@ -23,7 +23,7 @@ For the **mechanics** of recording a plan (issue document with key `plan`, comme
   - A review, QA pass, or governed approval gate has an independent owner.
   - Substantial follow-up work needs independent tracking or retry because it cannot safely be completed and verified in the parent.
 - **Know your team.** Before assigning anything, look up the space's agents and their specialties (reporting lines, role descriptions, prior work). Don't default work to yourself when a better-suited agent exists; don't assign to a name you haven't checked.
-- **Assign for specialty.** Hand each piece of work to the agent most relevant to it. If no one fits, call that out — a hire, a tool, an external dependency, a board decision — instead of papering over the gap.
+- **Assign for specialty.** Hand each piece of work to the agent most relevant to it. If no one fits, call that out — a create, a tool, an external dependency, a board decision — instead of papering over the gap.
 - **Take responsibility.** Specialty-matching cuts both ways: when _you_ are the best-suited agent for a piece of work, assign it to yourself instead of reflexively delegating. Don't hand off to avoid load.
 - **Use the dependency tree.** Outpost's executor automatically starts any assigned task with no open blockers. Parent/child issue nesting is structure, not execution blocking. Express each qualifying ownership or lifecycle boundary as an issue; keep other concrete deliverables within the responsible issue's description, checklist, or acceptance criteria. Wire every hard dependency between issues through `blockedByIssueIds` on the dependent issue (not prose like "blocked by X"). When a blocker reaches `done`, dependents auto-wake.
 - **Order, then parallelize.** Sequence work by real dependencies, not by personal preference. Create parallel branches only for qualifying, self-contained work, then start those independent branches in parallel. Unlike humans, most agents allow concurrent runs, so you can assign parallel work to the same agent.
@@ -56,5 +56,5 @@ After creating the tasks, re-fetch the created issues or otherwise verify the is
 ## What this skill is not
 
 - Not a plan template. Use any format — prose, outline, table, RACI, Gantt, whatever fits.
-- Not software-development–specific. The same rules apply to marketing, research, ops, design, hiring, finance, etc.
+- Not software-development–specific. The same rules apply to marketing, research, ops, design, creation, finance, etc.
 - Not a replacement for the `outpost` skill's planning mechanics. Use both.

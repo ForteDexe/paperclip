@@ -608,9 +608,9 @@
         "accountBindingRef"
       ]
     },
-    "scenarioId": "agents.hire-claude-code",
+    "scenarioId": "agents.create-claude-code",
     "sourceFiles": [
-      "chat-catalog-domains/runtime-claude-hiring.ts",
+      "chat-catalog-domains/runtime-claude-creation.ts",
       "chat-catalog-domains/runtime-claude-private.ts",
       "chat-catalog-domains/runtime-claude-private-worker.ts",
       "chat-catalog-domains/runtime-private.ts",
@@ -623,18 +623,18 @@
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 600000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/runtime-claude-hiring.js",
+    "modulePath": "./chat-catalog-domains/runtime-claude-creation.js",
     "exportName": "runtimeClaudeHiringCases"
   },
   {
-    "scenarioId": "agents.hire-denied",
+    "scenarioId": "agents.create-denied",
     "sourceFiles": [
       "chat-catalog-domains/runtime-support.ts",
       "chat-catalog-domains/runtime-agents.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-scenarios/agents.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.runtime.hire-denied.v3",
+    "oracleVersion": "outpost.chat-catalog.runtime.create-denied.v3",
     "coverageGaps": [],
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
@@ -655,7 +655,7 @@
         "accountBindingRef"
       ]
     },
-    "scenarioId": "agents.hire-needs-account",
+    "scenarioId": "agents.create-needs-account",
     "sourceFiles": [
       "chat-catalog-domains/runtime-claude-account.ts",
       "chat-catalog-domains/runtime-claude-private.ts",
@@ -678,20 +678,20 @@
     "exportName": "runtimeClaudeAccountCases"
   },
   {
-    "scenarioId": "agents.hire-needs-approval",
+    "scenarioId": "agents.create-needs-approval",
     "sourceFiles": [
-      "chat-catalog-domains/runtime-hiring.ts",
+      "chat-catalog-domains/runtime-creation.ts",
       "chat-catalog-domains/runtime-support.ts",
       "chat-scenarios/agents.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.runtime-hiring.v3",
+    "oracleVersion": "outpost.chat-catalog.runtime-creation.v3",
     "coverageGaps": [],
     "expectedRunCount": 4,
     "expectedHumanMessageCount": 2,
     "minimumRunCount": 2,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 720000,
-    "modulePath": "./chat-catalog-domains/runtime-hiring.js",
+    "modulePath": "./chat-catalog-domains/runtime-creation.js",
     "exportName": "runtimeHiringCases"
   },
   {
@@ -4245,21 +4245,21 @@
     "exportName": "confirmationWorkflowIdentityCases"
   },
   {
-    "scenarioId": "questions-and-approvals.formal-hire-revision",
+    "scenarioId": "questions-and-approvals.formal-create-revision",
     "sourceFiles": [
-      "chat-catalog-domains/identity-hire-revision.ts",
-      "chat-catalog-domains/identity-hire-model-choice.ts",
+      "chat-catalog-domains/identity-create-revision.ts",
+      "chat-catalog-domains/identity-create-model-choice.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
       "chat-rendered-links.ts",
       "chat-scenarios/questions-and-approvals.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.hire-revision.native1017.v6",
+    "oracleVersion": "outpost.chat-catalog.create-revision.native1017.v6",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-hire-revision.js",
+    "modulePath": "./chat-catalog-domains/identity-create-revision.js",
     "exportName": "hireRevisionIdentityCases"
   },
   {
@@ -4905,7 +4905,7 @@
         "accountBindingRef"
       ]
     },
-    "scenarioId": "runs-adapters.validate-hire",
+    "scenarioId": "runs-adapters.validate-create",
     "sourceFiles": [
       "chat-catalog-domains/runtime-claude-validation.ts",
       "chat-catalog-domains/runtime-claude-private.ts",

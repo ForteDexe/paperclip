@@ -22,7 +22,7 @@ function lineCount(widths: number[], available: number, gap: number) {
   return lines;
 }
 
-export function fitReports(widths: number[], available: number, gap: number, moreWidth: number, maxLines = MAX_LINES) {
+export function fitCoordinatedAgents(widths: number[], available: number, gap: number, moreWidth: number, maxLines = MAX_LINES) {
   if (available <= 0 || lineCount(widths, available, gap) <= maxLines) return widths.length;
   for (let shown = widths.length - 1; shown > 0; shown -= 1) {
     if (lineCount([...widths.slice(0, shown), moreWidth], available, gap) <= maxLines) return shown;
@@ -30,12 +30,12 @@ export function fitReports(widths: number[], available: number, gap: number, mor
   return 0;
 }
 
-export function AgentDirectReports({ reports }: { reports: Agent[] }) {
+export function AgentCoordinatedAgents({ agents }: { agents: Agent[] }) {
   const listRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(reports.length);
+  const [shown, setShown] = useState(agents.length);
   const [expanded, setExpanded] = useState(false);
-  const reportsKey = reports.map((report) => `${report.id}:${report.name}`).join("|");
+  const agentsKey = agents.map((agent) => `${agent.id}:${agent.name}`).join("|");
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -45,7 +45,7 @@ export function AgentDirectReports({ reports }: { reports: Agent[] }) {
       const widths = Array.from(measure.children, (child) => Math.ceil(child.getBoundingClientRect().width));
       const moreWidth = widths.pop() ?? 0;
       const gap = Number.parseFloat(getComputedStyle(list).columnGap) || 0;
-      setShown(fitReports(widths, Math.floor(list.clientWidth), gap, moreWidth));
+      setShown(fitCoordinatedAgents(widths, Math.floor(list.clientWidth), gap, moreWidth));
     };
     fit();
     if (typeof ResizeObserver === "undefined") return;
@@ -53,21 +53,21 @@ export function AgentDirectReports({ reports }: { reports: Agent[] }) {
     observer.observe(list);
     observer.observe(measure);
     return () => observer.disconnect();
-  }, [reportsKey]);
+  }, [agentsKey]);
 
-  const hidden = expanded ? 0 : Math.max(0, reports.length - shown);
-  const visible = hidden > 0 ? reports.slice(0, shown) : reports;
+  const hidden = expanded ? 0 : Math.max(0, agents.length - shown);
+  const visible = hidden > 0 ? agents.slice(0, shown) : agents;
 
   return (
     <div className="relative">
       <div ref={listRef} className="flex flex-wrap items-center gap-2">
-        {visible.map((report) => (
+        {visible.map((agent) => (
           <Link
-            key={report.id}
-            to={agentDetailHref(agentRouteRef(report))}
+            key={agent.id}
+            to={agentDetailHref(agentRouteRef(agent))}
             className={`${agentIdentityChipClass} no-underline`}
           >
-            <AgentIdentityChipContent agent={report} />
+            <AgentIdentityChipContent agent={agent} />
           </Link>
         ))}
         {hidden > 0 ? (
@@ -75,7 +75,7 @@ export function AgentDirectReports({ reports }: { reports: Agent[] }) {
             +{hidden} more
           </button>
         ) : null}
-        {expanded && shown < reports.length ? (
+        {expanded && shown < agents.length ? (
           <button type="button" className={toggleClass} onClick={() => setExpanded(false)}>
             Show less
           </button>
@@ -83,12 +83,12 @@ export function AgentDirectReports({ reports }: { reports: Agent[] }) {
       </div>
       <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
         <div ref={measureRef} className="flex w-max">
-          {reports.map((report) => (
-            <span key={report.id} className={agentIdentityChipClass}>
-              <AgentIdentityChipContent agent={report} />
+          {agents.map((agent) => (
+            <span key={agent.id} className={agentIdentityChipClass}>
+              <AgentIdentityChipContent agent={agent} />
             </span>
           ))}
-          <span>+{reports.length} more</span>
+          <span>+{agents.length} more</span>
         </div>
       </div>
     </div>

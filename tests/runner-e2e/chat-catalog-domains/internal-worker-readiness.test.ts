@@ -12,7 +12,7 @@ const repairError = lifecycleFailureMessage({ stage: "host", phase: "verifying" 
 function fixture(state: (now: number) => Record<string, unknown>, executionId = selected, deadlineAt = 120_000) {
   const worker = { id: "worker", spaceId: "space", name: "Morgan" };
   const get = vi.fn(async () => normalizeAgentRows([{
-    ...worker, status: "paused", reportsTo: null, permissions: {}, appearance: null, ...state(Date.now()),
+    ...worker, status: "paused", leadAgentId: null, permissions: {}, appearance: null, ...state(Date.now()),
   } as unknown as Parameters<typeof normalizeAgentRows>[0][number]])[0]);
   const evidence = vi.fn(async () => {});
   const ctx = { observationDeadlineAt: deadlineAt, input: {

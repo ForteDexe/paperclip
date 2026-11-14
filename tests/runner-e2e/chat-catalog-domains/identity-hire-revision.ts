@@ -6,7 +6,7 @@ import { collectConversationLinks, conversationLinkLocator, type RenderedConvers
 import { checks, entity, type Entity } from "./internal-support.js";
 import { identityDefinition, identityObservation, observeIdentity, openStandingChat, remainingIdentityObservationBudget, waitForReply, type IdentityObservation } from "./identity-support.js";
 import { CHAT_OPENCODE_MODEL } from "../chat-runtime-profile.js";
-import { readHireModelChoice, validHireModelChoice } from "./identity-hire-model-choice.js";
+import { readHireModelChoice, validHireModelChoice } from "./identity-create-model-choice.js";
 
 function namesSelectedModel(body: string, model: string, catalog: unknown): boolean {
   if (!Array.isArray(catalog) || !catalog.includes(model)) return false;
@@ -63,9 +63,9 @@ export function gradeHireRevision(value: unknown) {
   const c = checks(); const o = identityObservation(value); c.add("complete-formal-revision", !!o, "Actual governance proposal, catalog choice, saved history and attributed resubmission are required."); if (!o) return c.result();
   const approval = o.state.currentApproval as Approval | undefined; const original = o.state.originalApproval as Approval | undefined;
   const adapter = approval?.payload.adapterConfig as { model?: string; provider?: string } | undefined;
-  c.add("same-unapproved-governed-hire", !!approval && approval.id === original?.id && approval.spaceId === o.spaceId && approval.type === "hire_agent"
+  c.add("same-unapproved-governed-create", !!approval && approval.id === original?.id && approval.spaceId === o.spaceId && approval.type === "hire_agent"
     && approval.requestedByAgentId === o.leadId && approval.status === "pending" && approval.decidedByUserId === null && approval.decidedAt === null,
-    "Revision returns the same actual hiring proposal to pending board review; it is never promoted to approved or a ready employee.");
+    "Revision returns the same actual creation proposal to pending board review; it is never promoted to approved or a ready agent.");
   c.add("actual-board-selected-cheaper-choice", typeof o.state.cheaperModel === "string" && adapter?.model === o.state.cheaperModel
     && (original?.payload.adapterConfig as { model?: string } | undefined)?.model !== adapter?.model
     && Array.isArray(o.state.eligibleModels) && o.state.eligibleModels.includes(adapter.model) && o.state.originalOtherFieldsPreserved === true
@@ -81,24 +81,24 @@ export function gradeHireRevision(value: unknown) {
     && o.activity.some(row => row.action === "approval.revision_requested" && row.entityId === approval?.id && row.actorType === "user")
     && o.activity.filter(row => row.action === "approval.resubmitted" && row.entityId === approval?.id && row.actorType === "agent" && row.agentId === o.leadId).length === 1,
     "The retained public original/board-choice comment, agent approval note or bound native revision reply, and actual revision/resubmission audit form inspectable history.");
-  c.add("no-hire-or-approval-side-effect", o.agents.length === o.state.beforeAgentCount && !o.activity.some(row => row.action === "approval.approved" && row.entityId === approval?.id)
+  c.add("no-create-or-approval-side-effect", o.agents.length === o.state.beforeAgentCount && !o.activity.some(row => row.action === "approval.approved" && row.entityId === approval?.id)
     && o.state.pendingProposalVisible === true && o.state.revisedModelVisible === true,
-    "The actual proposal remains visibly pending with the revised model and no employee is instantiated or activated under the revision request.");
+    "The actual proposal remains visibly pending with the revised model and no agent is instantiated or activated under the revision request.");
   return c.result();
 }
-export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("questions-and-approvals.formal-hire-revision", async ctx => {
+export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("questions-and-approvals.formal-create-revision", async ctx => {
   const source = await openStandingChat(ctx); const { fixtures, execution, workspacePath, nonce } = ctx.input;
   const configuration = execution.profile.buildAgent({ environmentId: fixtures.environment.id, environmentFixtureId: execution.environment.id, workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
   const config = configuration.adapterConfig as Record<string, unknown>;
-  if (configuration.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL) throw new Error("This hire-revision fixture requires the requested native OpenCode1017 profile");
+  if (configuration.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL) throw new Error("This create-revision fixture requires the requested native OpenCode1017 profile");
   const models = await ctx.input.api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/adapters/opencode_local/models?provider=openrouter&environmentId=${fixtures.environment.id}`);
   const modelChoice = await readHireModelChoice(models);
   const { originalModel, cheaperModel } = modelChoice;
-  await ctx.input.evidence("identity-hire-model-choice.json", { ...modelChoice, originalConfigurationExecuted: false, publishedRateComparisonOnly: true });
+  await ctx.input.evidence("identity-create-model-choice.json", { ...modelChoice, originalConfigurationExecuted: false, publishedRateComparisonOnly: true });
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
   const originalApproval = await ctx.input.api.post<Approval>(`/api/spaces/${fixtures.space.id}/approvals`, { type: "hire_agent", requestedByAgentId: fixtures.agent.id, issueIds: [source.id],
-    payload: { ...configuration, name: `Launch researcher ${nonce}`, role: "researcher", reportsTo: fixtures.agent.id, adapterConfig: { ...config, model: originalModel } } });
-  const history = await ctx.input.api.post<ApprovalComment>(`/api/approvals/${originalApproval.id}/comments`, { body: `Original proposed hire configuration: model ${originalModel}. Board-selected lower-cost alternative for this proposal: ${cheaperModel}. Preserve all other hiring scope, use this selected alternative and resubmit for board approval. This is a request for revision, not approval. No provider prices or savings estimate are asserted.` });
+    payload: { ...configuration, name: `Launch researcher ${nonce}`, role: "researcher", leadAgentId: fixtures.agent.id, adapterConfig: { ...config, model: originalModel } } });
+  const history = await ctx.input.api.post<ApprovalComment>(`/api/approvals/${originalApproval.id}/comments`, { body: `Original proposed create configuration: model ${originalModel}. Board-selected lower-cost alternative for this proposal: ${cheaperModel}. Preserve all other creation scope, use this selected alternative and resubmit for board approval. This is a request for revision, not approval. No provider prices or savings estimate are asserted.` });
   const url = ctx.input.page.url(); await ctx.input.page.goto(`/${fixtures.space.issuePrefix}/approvals/${originalApproval.id}`, { waitUntil: "domcontentloaded" });
   await ctx.input.page.getByRole("button", { name: "Request revision", exact: true }).click();
   await expect.poll(async () => (await ctx.input.api.get<Approval>(`/api/approvals/${originalApproval.id}`)).status).toBe("revision_requested");
@@ -106,14 +106,14 @@ export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDe
   return { sourceIssueId: source.id, originalApproval, originalHistoryCommentId: history.id, originalModel, cheaperModel, humanId: session.user.id,
     eligibleModels: models.map(row => row.id), modelChoice, beforeAgentCount: (await ctx.input.api.get<unknown[]>(`/api/spaces/${fixtures.space.id}/agents`)).length };
 }, gradeHireRevision, {
-  authentication: "human-session", oracleVersion: "outpost.chat-catalog.hire-revision.native1017.v6", sourceFiles: ["chat-catalog-domains/identity-hire-revision.ts", "chat-catalog-domains/identity-hire-model-choice.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-rendered-links.ts", "chat-scenarios/questions-and-approvals.yaml"],
+  authentication: "human-session", oracleVersion: "outpost.chat-catalog.create-revision.native1017.v6", sourceFiles: ["chat-catalog-domains/identity-create-revision.ts", "chat-catalog-domains/identity-create-model-choice.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-rendered-links.ts", "chat-scenarios/questions-and-approvals.yaml"],
   async act(ctx, state) {
     const remaining = () => remainingIdentityObservationBudget(ctx);
     remaining(); await waitForReply(ctx, ctx.observationDeadlineAt); remaining();
     const id = entity(state, "originalApproval").id, sourceId = String(state.sourceIssueId), source = ctx.input.page.url();
     if (ctx.issue()?.id !== sourceId || entity(state, "originalApproval").spaceId !== ctx.input.fixtures.space.id)
-      throw new Error("Hire review source does not match the owned proposal");
-    const frame = await pollUntil({ label: "Actual canonical pending hire review link", deadlineAt: ctx.observationDeadlineAt!,
+      throw new Error("Create review source does not match the owned proposal");
+    const frame = await pollUntil({ label: "Actual canonical pending create review link", deadlineAt: ctx.observationDeadlineAt!,
       load: async () => {
         await ctx.refreshIssue(); remaining();
         const [runs, comments, approval] = await Promise.all([
@@ -145,7 +145,7 @@ export const hireRevisionIdentityCases: readonly ChatCatalogCase[] = [identityDe
       accept: value => Date.now() < ctx.observationDeadlineAt! && value.approval.id === id && value.approval.spaceId === ctx.input.fixtures.space.id
         && value.approval.status === "pending" && !!value.link && !!value.comment,
       reject: value => value.approval.id !== id || value.approval.spaceId !== ctx.input.fixtures.space.id || value.approval.status !== "pending"
-        ? "The owned revised hire proposal is not pending" : undefined,
+        ? "The owned revised create proposal is not pending" : undefined,
     });
     remaining(); if (!frame.link || !frame.comment) throw new Error("Actual pending revised proposal review link is missing");
     await conversationLinkLocator(ctx.input.page, frame.link).first().click({ timeout: remaining() });

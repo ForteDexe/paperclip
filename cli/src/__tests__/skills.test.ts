@@ -85,7 +85,7 @@ function agent(overrides: Record<string, unknown> = {}) {
     name: "Coder",
     role: "engineer",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     budgetMonthlyCents: 0,
     spentMonthlyCents: 0,
     adapterType: "codex_local",

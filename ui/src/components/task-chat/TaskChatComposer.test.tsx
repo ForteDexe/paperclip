@@ -1485,7 +1485,7 @@ describe("TaskChatComposer", () => {
       workMode: "standard",
       onWorkModeChange: vi.fn(),
       enableReassign: true,
-      reassignOptions: [{ id: "agent:a1", label: "Chief of Staff" }],
+      reassignOptions: [{ id: "agent:a1", label: "Default agent" }],
       currentAssigneeValue: "agent:a1",
     });
 

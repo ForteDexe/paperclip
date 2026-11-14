@@ -24,7 +24,7 @@ export function gradeBuiltInConfiguration(value: unknown) {
   const worker = o.agents.find(row => row.id === original?.agentId);
   c.add("protected-identity-preserved", !!original && !!after && after.definition.key === "summarizer" && after.agentId === original.agentId
     && !!worker && worker.spaceId === o.spaceId && o.agents.length === o.state.agentCountBefore,
-    "The required registry still points to the same summarizer, with no replacement ordinary hire.");
+    "The required registry still points to the same summarizer, with no replacement ordinary create.");
   // The wording of the new guidance is the model's own; grade that the run
   // itself saved a targeted edit of the built-in's bundled instructions.
   const originalLines = beforeInstruction ? nonEmptyLines(beforeInstruction.content) : [];

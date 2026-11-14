@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 const mocks = vi.hoisted(() => ({ wait: vi.fn() }));
 vi.mock("./identity-support.js", async importOriginal => ({ ...await importOriginal<typeof import("./identity-support.js")>(), waitForReply: mocks.wait }));
-import { hireRevisionIdentityCases } from "./identity-hire-revision.js";
+import { hireRevisionIdentityCases } from "./identity-create-revision.js";
 afterEach(() => { vi.useRealTimers(); mocks.wait.mockReset(); });
 it("passes the original remaining observation deadline after the incidental150s window without adding time", async () => {
   vi.useFakeTimers(); vi.setSystemTime(190_000);

@@ -71,11 +71,11 @@ retain their original definition and do not qualify the added Plan cell.
 
 `onboarding-approval-history` uses the existing first-task fixture registry path
 with the production wizard and native Codex/ACPX Claude profiles. Its explicit
-`interview-hire-execute` case has seven expected work turns, one attempt, a $5
+`interview-create-execute` case has seven expected work turns, one attempt, a $5
 space task budget, twelve total run records, and a fifteen-minute deadline.
 The model creates its plan, approval cards, writer, child task, and saved output
 through production tools; the harness answers the interview and clicks normal
-approval controls. Fixture code does not insert approval rows or hire the writer.
+approval controls. Fixture code does not insert approval rows or create the writer.
 The ordinary first-task cleanup owns the complete disposable space, including
 the new writer. See [the journey contract](README.md#first-task-onboarding).
 
@@ -113,7 +113,7 @@ this new model/fixture combination.
 
 The explicit [stock-harness suite](STOCK-HARNESS.md) wraps existing profiles with
 `productionDefaultHireProfile`: omit only `instructionsBundle` so the public
-hire route loads the shipped default, while preserving runtime, permissions,
+create route loads the shipped default, while preserving runtime, permissions,
 auth, skills, and managed secret references. Do not replace this with a fixture
 copy of the default manual. Public receipts check the exact independently
 specified bundle before provider execution and again during cleanup, along with
@@ -173,7 +173,7 @@ instance and database.
 
 
 Native-generation Codex on Daytona qualifies its immutable image through one
-existing saved-environment probe before agent creation. Automatic Codex requests
+existing saved-environment probe before creation. Automatic Codex requests
 also inspect the scoped server discovery default. Legacy and other provider
 fixtures keep their existing setup. The probe uses no provider turn, permits one
 setup lease per cell, has a 330-second HTTP deadline and a 10-second platform
@@ -1049,7 +1049,7 @@ API/tool authoring guidance recommends both a Mermaid `stateDiagram-v2` map and
 prose explaining transition conditions, evidence, ownership and wait/retry rules;
 the small fixture may use prose only because the recommendation is not validation.
 
-The original arithmetic `case-handoffs` fixture uses ordinary agent creation and the
+The original arithmetic `case-handoffs` fixture uses ordinary creation and the
 public case-handoff API for initial kickoff. Subsequent routing is performed by
 the agents through the production native tool. Four phase documents record
 fresh case/task/version observations; the oracle checks these against the

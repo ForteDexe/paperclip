@@ -56,13 +56,13 @@ const meta = {
     docs: {
       description: {
         component:
-          "Production agent connection component with fixture API responses. Provider tests and subsequent hiring are simulated. Choose subscription or API key, reuse a saved connection, or enter a new key.",
+          "Production agent connection component with fixture API responses. Provider tests and subsequent creation are simulated. Choose subscription or API key, reuse a saved connection, or enter a new key.",
       },
     },
     outpost: {
       "capabilities": [
         "runs-adapters/validation",
-        "agents/hire"
+        "agents/create"
       ],
       "status": "current",
       "implementation": "production",

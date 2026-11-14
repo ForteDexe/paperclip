@@ -280,7 +280,7 @@ describe("teams CLI commands", () => {
       "teams",
       "preview",
       "product-engineering",
-      "--target-manager-slug",
+      "--target-lead-slug",
       "engineering-lead",
       "--allow-external-sources",
       "--space-id",
@@ -297,7 +297,7 @@ describe("teams CLI commands", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          targetManagerSlug: "engineering-lead",
+          targetLeadSlug: "engineering-lead",
           sourcePolicy: { allowExternalSources: true },
         }),
       }),
@@ -382,7 +382,7 @@ describe("teams CLI commands", () => {
       "teams",
       "install",
       "product-engineering",
-      "--target-manager-agent-id",
+      "--target-lead-agent-id",
       "manager-1",
       "--collision-strategy",
       "rename",
@@ -406,7 +406,7 @@ describe("teams CLI commands", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          targetManagerAgentId: "manager-1",
+          targetLeadAgentId: "manager-1",
           collisionStrategy: "rename",
           secretValues: { "agent:engineering_lead:OPENAI_API_KEY": "sk-live-secret" },
         }),
@@ -432,7 +432,7 @@ describe("teams CLI commands", () => {
           catalogRef: "product-engineering",
           deniedReason: "Missing permission: can create agents",
           options: {
-            targetManagerAgentId: "manager-1",
+            targetLeadAgentId: "manager-1",
             collisionStrategy: "rename",
           },
         },
@@ -447,7 +447,7 @@ describe("teams CLI commands", () => {
         catalogRef: "product-engineering",
         deniedReason: "Missing permission: can create agents",
         options: {
-          targetManagerAgentId: "manager-1",
+          targetLeadAgentId: "manager-1",
           collisionStrategy: "rename",
           secretValues: { "agent:engineering_lead:OPENAI_API_KEY": "[redacted]" },
         },

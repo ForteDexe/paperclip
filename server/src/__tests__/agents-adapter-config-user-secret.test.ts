@@ -22,7 +22,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 
 const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
-  getChainOfCommand: vi.fn(async () => []),
+  getCoordinationChain: vi.fn(async () => []),
 }));
 
 const mockAccessService = vi.hoisted(() => ({

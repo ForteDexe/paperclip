@@ -79,7 +79,7 @@ describe("blocker guidance oracle calibration", () => {
     ["nested ownership history", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.activity.push({ action: "issue.updated", details: { changes: { assigneeAgentId: { from: "worker", to: "manager" } } } }); }],
     ["extra task", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.issues.push({ id: "handoff" }); }],
     ["manager run", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.runs.push({ id: "manager-run", agentId: "manager", status: "succeeded", runtimeMode: "legacy" }); }],
-    ["unpermitted hire", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.agents.push({ id: "casey" }); }],
+    ["unpermitted create", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.agents.push({ id: "casey" }); }],
     ["premature done", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.issue.status = "done"; }],
     ["invented acknowledgement", (f: ReturnType<typeof fixture>) => { f.checkpoints[1]!.comments[0]!.authorAgentId = "requester"; }],
     ["acknowledgement predates human answer", (f: ReturnType<typeof fixture>) => { f.checkpoints[0]!.comments.push(structuredClone(f.checkpoints[1]!.comments[0]!)); }],

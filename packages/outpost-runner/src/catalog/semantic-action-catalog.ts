@@ -356,7 +356,7 @@ const descriptors: readonly OutpostSemanticActionDescriptor[] = [
     operationId: "create_agent",
     title: "Create a native agent",
     description:
-      "Create one native Outpost Runner teammate for the current space and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
+      "Create one native Outpost Runner teammate for the current space and task. You become the new agent's coordination lead; it inherits your native runtime and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:agents:create"],

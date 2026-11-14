@@ -143,7 +143,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     blockerAssigneeAgentId?: "coder" | "manager" | null;
   } = {}) {
     const spaceId = randomUUID();
-    const managerId = randomUUID();
+    const leadAgentId = randomUUID();
     const coderId = randomUUID();
     const blockedIssueId = randomUUID();
     const blockerIssueId = randomUUID();
@@ -158,7 +158,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
 
     await db.insert(agents).values([
       {
-        id: managerId,
+        id: leadAgentId,
         spaceId,
         name: "Engineering Lead",
         role: "engineering_lead",
@@ -174,7 +174,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         name: "Coder",
         role: "engineer",
         status: "idle",
-        reportsTo: managerId,
+        leadAgentId: leadAgentId,
         adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: { heartbeat: { wakeOnDemand: false } },
@@ -207,7 +207,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         assigneeAgentId: opts.blockerAssigneeAgentId === "coder"
           ? coderId
           : opts.blockerAssigneeAgentId === "manager"
-            ? managerId
+            ? leadAgentId
             : null,
         issueNumber: 2,
         identifier: `${issuePrefix}-2`,
@@ -223,7 +223,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       type: "blocks",
     });
 
-    return { spaceId, managerId, coderId, blockedIssueId, blockerIssueId };
+    return { spaceId, leadAgentId, coderId, blockedIssueId, blockerIssueId };
   }
 
   async function seedResolvedDependencyBackstopFixture(opts: {

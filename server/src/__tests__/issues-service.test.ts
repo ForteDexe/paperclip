@@ -884,7 +884,7 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
     id: string;
     name: string;
     status?: string;
-    reportsTo?: string | null;
+    leadAgentId?: string | null;
   }) {
     return {
       id: input.id,
@@ -892,7 +892,7 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
       name: input.name,
       role: "engineer",
       status: input.status ?? "active",
-      reportsTo: input.reportsTo ?? null,
+      leadAgentId: input.leadAgentId ?? null,
       adapterType: "codex_local",
       adapterConfig: {},
       runtimeConfig: {},
@@ -928,19 +928,19 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
   it("rejects invalid ancestor-chain assignees and preserves the existing assignment", async () => {
     const spaceId = await seedAssignableAgentSpace();
     const activeAgentId = randomUUID();
-    const terminatedManagerId = randomUUID();
+    const terminatedLeadId = randomUUID();
     const blockedAgentId = randomUUID();
     await db.insert(agents).values([
       agentRow(spaceId, { id: activeAgentId, name: "ActiveCoder" }),
       agentRow(spaceId, {
-        id: terminatedManagerId,
+        id: terminatedLeadId,
         name: "TerminatedManager",
         status: "terminated",
       }),
       agentRow(spaceId, {
         id: blockedAgentId,
         name: "BlockedCoder",
-        reportsTo: terminatedManagerId,
+        leadAgentId: terminatedLeadId,
       }),
     ]);
     const issue = await svc.create(spaceId, {
@@ -959,7 +959,7 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
         code: "agent_not_assignable",
         reason: "ancestor_terminated",
         assigneeAgentId: blockedAgentId,
-        invalidAncestorAgentId: terminatedManagerId,
+        invalidAncestorAgentId: terminatedLeadId,
       },
     });
 

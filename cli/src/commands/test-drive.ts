@@ -384,7 +384,7 @@ export async function bootstrapTestDrive(input: {
         adapterType: resolved.adapterType,
         adapterConfig,
       }),
-      "creating the Default agent agent",
+      "creating the Default agent",
     );
 
     if (input.linkedWorktree) {
@@ -497,7 +497,7 @@ export function registerTestDriveCommand(program: Command): void {
     .description("Start an isolated, initialized Outpost instance for manual testing")
     .option("-d, --data-dir <path>", "Outpost data directory to create or reuse")
     .option("--space-name <name>", "Initial space name", "Test Outpost")
-    .option("--agent-name <name>", "Initial Default agent agent name", "Default agent")
+    .option("--agent-name <name>", "Initial Default agent name", "Default agent")
     .addOption(
       new Option("--harness <harness>", "Initial agent harness")
         .choices(TEST_DRIVE_HARNESSES)

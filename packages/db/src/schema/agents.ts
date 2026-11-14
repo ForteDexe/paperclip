@@ -34,7 +34,7 @@ export const agents = pgTable(
     /** Digest of the effective configuration and runner image whose harness verification passed. */
     harnessVerifiedDigest: text("harness_verified_digest"),
     harnessVerifiedAt: timestamp("harness_verified_at", { withTimezone: true }),
-    reportsTo: uuid("reports_to").references((): AnyPgColumn => agents.id),
+    leadAgentId: uuid("lead_agent_id").references((): AnyPgColumn => agents.id),
     capabilities: text("capabilities"),
     adapterType: text("adapter_type").notNull().default("process"),
     adapterConfig: jsonb("adapter_config").$type<Record<string, unknown>>().notNull().default({}),
@@ -57,7 +57,7 @@ export const agents = pgTable(
     spaceIdUq: unique("agents_space_id_uq").on(table.spaceId, table.id),
     lifecycleWorkIdx: index("agents_lifecycle_work_idx").on(table.lifecycleState, table.updatedAt, table.id),
     spaceStatusIdx: index("agents_space_status_idx").on(table.spaceId, table.status),
-    spaceReportsToIdx: index("agents_space_reports_to_idx").on(table.spaceId, table.reportsTo),
+    spaceLeadAgentIdx: index("agents_space_lead_agent_id_idx").on(table.spaceId, table.leadAgentId),
     spaceDefaultEnvironmentIdx: index("agents_space_default_environment_idx").on(table.spaceId, table.defaultEnvironmentId),
   }),
 );

@@ -3,7 +3,7 @@ name: UXDesigner
 slug: ux-designer
 title: Principal Product Designer
 role: designer
-reportsTo: null
+leadAgentId: null
 skills:
   - wireframe
   - design-critique

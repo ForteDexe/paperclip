@@ -5,13 +5,13 @@ import { afterEach, expect, it, vi } from "vitest";
 import { parseAgentMentionHref, parseProjectMentionHref } from "../../../packages/shared/src/project-mentions.js";
 import { ConnectionFailure } from "../connection-config.js";
 import { sendChatMessage, readChatOutputDocument } from "../chat-flow.js";
-import { hireDelegateReuse, hireHandoffMentions, openSavedHireResult } from "./hire-delegate-flow.js";
-import { hireDelegateNames } from "./hire-delegate-evidence.js";
+import { hireDelegateReuse, hireHandoffMentions, openSavedHireResult } from "./create-delegate-flow.js";
+import { hireDelegateNames } from "./create-delegate-evidence.js";
 import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSession } from "./types.js";
 
 vi.mock("@playwright/test", () => ({ expect: (value: unknown) => Object.assign(expect(value), { toBeVisible: async () => {}, toHaveURL: async (predicate: (url: URL) => boolean) => { expect(predicate(new URL((value as Row).currentUrl ?? "https://qa.example.test/QA/issues/QA-2"))).toBe(true); } }) }));
 vi.mock("../chat-flow.js", () => ({ sendChatMessage: vi.fn(), readChatOutputDocument: vi.fn() }));
-vi.mock("./hire-delegate-composer.js", () => ({ sendHireHandoffMessage: (page: any, text: string) => sendChatMessage(page, text) }));
+vi.mock("./create-delegate-composer.js", () => ({ sendHireHandoffMessage: (page: any, text: string) => sendChatMessage(page, text) }));
 type Row = Record<string, any>;
 const directories: string[] = [];
 afterEach(async () => { vi.mocked(sendChatMessage).mockReset(); await Promise.all(directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))); });
@@ -19,9 +19,9 @@ afterEach(async () => { vi.mocked(sendChatMessage).mockReset(); await Promise.al
 async function fixture(options: { readError?: Error; mutate?(agents: Row[], tasks: Row[]): void; ownError?: Error; firstSendError?: Error; connectionList?: Row; connectionReadError?: Error } = {}) {
   const campaignId = "journey-1-deadbeef", names = hireDelegateNames(campaignId), owned: Row[] = [], comments: Row[] = [];
   const binding = { connectionId: "approved" }, lead = { id: "lead", spaceId: "space", name: `Lead ${campaignId}`, permissions: { canCreateAgents: true }, runtimeConfig: { aiConnection: binding } };
-  const hire = { id: "hired", spaceId: "space", name: names.hire, reportsTo: lead.id, adapterType: "outpost_runner",
+  const create = { id: "created", spaceId: "space", name: names.create, leadAgentId: lead.id, adapterType: "outpost_runner",
     adapterConfig: { model: "fixed-model" }, runtimeConfig: { aiConnection: binding } };
-  const agents: Row[] = [lead, hire], tasks: Row[] = [];
+  const agents: Row[] = [lead, create], tasks: Row[] = [];
   const chat = { id: "chat", spaceId: "space", title: `Chat with ${lead.name}`, assigneeAgentId: lead.id, conversationAgentId: lead.id,
     conversationUserId: "user", createdByUserId: "user", status: "in_review", conversationState: "waiting" };
   const run = { id: "lead-run", spaceId: "space", agentId: lead.id, issueId: chat.id, status: "succeeded", runtimeMode: "native",
@@ -30,7 +30,7 @@ async function fixture(options: { readError?: Error; mutate?(agents: Row[], task
   if ((lead.runtimeConfig.aiConnection as Row).mode === "delegated") Object.assign(run.contextSnapshot,
     { aiConnection: { ...lead.runtimeConfig.aiConnection, responsibleUserId: "user" } });
   const audit = (action: string, entityId: string) => ({ spaceId: "space", actorType: "agent", actorId: lead.id, agentId: lead.id, runId: run.id, action, entityId, entityType: action.startsWith("agent.") ? "agent" : "issue" });
-  const activity = [audit("agent.hire_created", hire.id), ...tasks.map(task => audit("issue.created", task.id))];
+  const activity = [audit("agent.hire_created", create.id), ...tasks.map(task => audit("issue.created", task.id))];
   let sent = false, failedRead = false, failedConnectionRead = false, runReads = 0;
   const stop = new JourneyError("failed", "test_stop_before_delegation");
   vi.mocked(sendChatMessage).mockImplementation(async (_page, text) => {
@@ -45,7 +45,7 @@ async function fixture(options: { readError?: Error; mutate?(agents: Row[], task
       if (sent && options.connectionReadError && !failedConnectionRead) { failedConnectionRead = true; throw options.connectionReadError; }
       return options.connectionList ?? { currentUserId: "user", connections: [] };
     }
-    if (route.endsWith("/installs")) return { connectionId: "approved", installs: [{ spaceId: "space", targetType: "agent", targetId: "hired" }] };
+    if (route.endsWith("/installs")) return { connectionId: "approved", installs: [{ spaceId: "space", targetType: "agent", targetId: "created" }] };
     if (route === "/api/spaces/space/chats/lead") return sent ? chat : null;
     if (route === "/api/issues/chat/runs") {
       runReads++;
@@ -53,7 +53,7 @@ async function fixture(options: { readError?: Error; mutate?(agents: Row[], task
       return [{ runId: run.id }];
     }
     if (route === "/api/heartbeat-runs/lead-run") return run;
-    if (route === "/api/agents/hired") return agents.find(row => row.id === "hired");
+    if (route === "/api/agents/created") return agents.find(row => row.id === "created");
     if (route.startsWith("/api/issues/") && tasks.some(row => route === `/api/issues/${row.id}`)) return tasks.find(row => route === `/api/issues/${row.id}`);
     if (route === "/api/spaces/space/agents") return agents;
     if (route === "/api/spaces/space/issues") return tasks;
@@ -65,9 +65,9 @@ async function fixture(options: { readError?: Error; mutate?(agents: Row[], task
   } };
   const context = { api, page: { async goto() {}, getByTestId() { return {}; } }, user: { id: "user" }, space: { id: "space", issuePrefix: "QA" },
     agent: { id: lead.id, model: "fixed-model", provider: "opencode", runtimeMode: "native" }, environmentId: "environment" } as unknown as JourneyContext;
-  const session = { async own(row: Row) { if (row.id === hire.id && options.ownError) throw options.ownError; owned.push(row); } } as unknown as TargetSession;
+  const session = { async own(row: Row) { if (row.id === create.id && options.ownError) throw options.ownError; owned.push(row); } } as unknown as TargetSession;
   const evidence = { checks: [] } as unknown as JourneyEvidence;
-  const directory = await mkdtemp(path.join(os.tmpdir(), "hire-observation-")); directories.push(directory);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "create-observation-")); directories.push(directory);
   return { owned, evidence, stop, directory, runReads: () => runReads,
     run: () => hireDelegateReuse(context, session, campaignId, evidence, { deadlineAt: Date.now() + 10_000, directory, capture: async () => {} }) };
 }
@@ -81,23 +81,23 @@ function handoffTargets(text: string) {
 it("carries the independently verified teammate and project into the actual delegation message", async () => {
   const f = await fixture();
   await expect(f.run()).rejects.toBe(f.stop);
-  expect(handoffTargets(vi.mocked(sendChatMessage).mock.calls[1]![1])).toEqual({ agents: ["hired"], projects: ["project"] });
+  expect(handoffTargets(vi.mocked(sendChatMessage).mock.calls[1]![1])).toEqual({ agents: ["created"], projects: ["project"] });
   expect(sendChatMessage).toHaveBeenCalledTimes(2);
 });
 
 it.each(["missing-agent", "missing-project", "foreign-agent", "foreign-project", "wrong-agent", "wrong-project", "missing-scope", "malformed-id"])(
   "rejects %s handoff context instead of emitting an unbound mention", mismatch => {
     const scope = { spaceId: "space", leadId: "lead", projectId: "project", campaignId: "journey-1-deadbeef" };
-    const names = hireDelegateNames(scope.campaignId), hired = { id: "hired", spaceId: "space", reportsTo: "lead", name: names.hire };
+    const names = hireDelegateNames(scope.campaignId), created = { id: "created", spaceId: "space", leadAgentId: "lead", name: names.create };
     const project = { id: "project", spaceId: "space", name: names.project };
-    if (mismatch === "foreign-agent") hired.spaceId = "foreign";
+    if (mismatch === "foreign-agent") created.spaceId = "foreign";
     if (mismatch === "foreign-project") project.spaceId = "foreign";
-    if (mismatch === "wrong-agent") hired.id = "other";
+    if (mismatch === "wrong-agent") created.id = "other";
     if (mismatch === "wrong-project") project.id = "other";
     if (mismatch === "missing-scope") scope.spaceId = "";
-    if (mismatch === "malformed-id") hired.id = "hired?i=code";
-    expect(() => hireHandoffMentions(scope, mismatch === "malformed-id" ? hired.id : "hired",
-      mismatch === "missing-agent" ? undefined! : hired, mismatch === "missing-project" ? undefined! : project))
+    if (mismatch === "malformed-id") created.id = "created?i=code";
+    expect(() => hireHandoffMentions(scope, mismatch === "malformed-id" ? created.id : "created",
+      mismatch === "missing-agent" ? undefined! : created, mismatch === "missing-project" ? undefined! : project))
       .toThrow("hire_handoff_context_unverified");
   },
 );
@@ -106,8 +106,8 @@ it.each(["api_status_503", "api_request_failed"])("recovers a transient %s read 
   const f = await fixture({ readError: new ConnectionFailure(code) });
   await expect(f.run()).rejects.toBe(f.stop);
   expect(f.runReads()).toBe(2);
-  expect(f.evidence.checks).toContainEqual({ id: "one-attributed-native-hire", passed: true });
-  expect(vi.mocked(sendChatMessage).mock.calls.filter(([, text]) => text.startsWith("Hire exactly one"))).toHaveLength(1);
+  expect(f.evidence.checks).toContainEqual({ id: "one-attributed-native-create", passed: true });
+  expect(vi.mocked(sendChatMessage).mock.calls.filter(([, text]) => text.startsWith("Create exactly one"))).toHaveLength(1);
 });
 it.each([new JourneyError("failed", "api_status_503"), new ConnectionFailure("api_status_403"), new ConnectionFailure("api_status_500"), new Error("api_request_failed")])(
   "never retries a candidate, identity, application or unknown error: %s", async readError => {
@@ -121,12 +121,12 @@ it("never retries ownership callbacks, whose mutations may already have committe
 });
 it.each(["manager", "project", "foreign-space"])("owns proven same-space children before rejecting a %s scope mismatch", async mismatch => {
   const f = await fixture({ mutate(agents, tasks) {
-    if (mismatch === "manager") agents[1]!.reportsTo = "other";
+    if (mismatch === "manager") agents[1]!.leadAgentId = "other";
     else tasks.push({ id: "unexpected-task", spaceId: mismatch === "foreign-space" ? "foreign" : "space",
       title: "Unexpected task", projectId: "other-project" });
   } });
   await expect(f.run()).rejects.toMatchObject({ code: "hire_resource_scope_mismatch" });
-  expect(f.owned.some(row => row.id === "hired")).toBe(true);
+  expect(f.owned.some(row => row.id === "created")).toBe(true);
   expect(f.owned.some(row => row.id === "unexpected-task")).toBe(mismatch === "project");
   expect(sendChatMessage).toHaveBeenCalledTimes(1);
 });
@@ -134,7 +134,7 @@ it.each(["manager", "project", "foreign-space"])("owns proven same-space childre
 it("persists an exact fresh-chat intent before a first send can commit and fail", async () => {
   const firstSendError = new ConnectionFailure("api_request_failed"), f = await fixture({ firstSendError });
   await expect(f.run()).rejects.toBe(firstSendError);
-  expect(f.owned).toContainEqual({ kind: "issue", name: "Chat with Lead journey-1-deadbeef", journeyId: "hire-delegate-reuse",
+  expect(f.owned).toContainEqual({ kind: "issue", name: "Chat with Lead journey-1-deadbeef", journeyId: "create-delegate-reuse",
     freshChat: { spaceId: "space", userId: "user", leadAgentId: "lead", absent: true } });
   expect(sendChatMessage).toHaveBeenCalledTimes(1);
 });
@@ -154,20 +154,20 @@ it("validates the real-user fallback without retaining raw credential-choice ref
   }, connectionList: { currentUserId: "user", connections: [{ spaceId: "space", id: "approved", grantId: "grant", provider: "openrouter", method: "api_key",
     ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" }] } });
   await expect(f.run()).rejects.toBe(f.stop);
-  expect(f.evidence.checks).toContainEqual({ id: "one-attributed-native-hire", passed: true });
-  const observed = await readFile(path.join(f.directory, "hire-delegate-observation.json"), "utf8");
+  expect(f.evidence.checks).toContainEqual({ id: "one-attributed-native-create", passed: true });
+  const observed = await readFile(path.join(f.directory, "create-delegate-observation.json"), "utf8");
   expect(observed).not.toMatch(/connectionId|grantId|responsibleUserId|approved/);
 });
 
-it.each(["api_status_503", "api_request_failed"])("retries a transient %s credential observation without replaying hire or ownership", async code => {
+it.each(["api_status_503", "api_request_failed"])("retries a transient %s credential observation without replaying create or ownership", async code => {
   const f = await fixture({ connectionReadError: new ConnectionFailure(code), mutate(agents) {
     agents[0]!.runtimeConfig.aiConnection = { provider: "openrouter", method: "api_key", mode: "delegated", connectionId: "approved", grantId: "grant" };
     agents[1]!.runtimeConfig.aiConnection = { provider: "openrouter", method: "api_key", mode: "responsible_user" };
   }, connectionList: { currentUserId: "user", connections: [{ spaceId: "space", id: "approved", grantId: "grant", provider: "openrouter", method: "api_key",
     ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" }] } });
   await expect(f.run()).rejects.toBe(f.stop);
-  expect(f.runReads()).toBe(2); expect(f.owned.filter(row => row.id === "hired")).toHaveLength(1);
-  expect(vi.mocked(sendChatMessage).mock.calls.filter(([, text]) => text.startsWith("Hire exactly one"))).toHaveLength(1);
+  expect(f.runReads()).toBe(2); expect(f.owned.filter(row => row.id === "created")).toHaveLength(1);
+  expect(vi.mocked(sendChatMessage).mock.calls.filter(([, text]) => text.startsWith("Create exactly one"))).toHaveLength(1);
 });
 
 it.each([new ConnectionFailure("api_status_403"), new JourneyError("failed", "hire_connection_choice_mismatch")])(
@@ -210,8 +210,8 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
     ? { provider: accountProvider, method, mode: "delegated", connectionId: "approved", grantId: "grant" } : { connectionId: "approved" };
   const lead = { id: "lead", spaceId: "space", name: `Lead ${campaignId}`, permissions: { canCreateAgents: true },
     adapterConfig: { model: "fixed-model" }, runtimeConfig: { aiConnection: binding } };
-  const hired = { ...lead, id: "hired", name: names.hire, reportsTo: "lead", adapterType: "outpost_runner" };
-  if (fallback) Object.assign(hired, { runtimeConfig: { aiConnection: { provider: accountProvider, method: "api_key", mode: "responsible_user" } } });
+  const created = { ...lead, id: "created", name: names.create, leadAgentId: "lead", adapterType: "outpost_runner" };
+  if (fallback) Object.assign(created, { runtimeConfig: { aiConnection: { provider: accountProvider, method: "api_key", mode: "responsible_user" } } });
   const chat = { id: "chat", spaceId: "space", title: `Chat with ${lead.name}`, assigneeAgentId: "lead", conversationAgentId: "lead",
     conversationUserId: "user", createdByUserId: "user", status: "in_review", conversationState: "waiting" };
   const runs: Row[] = [], tasks: Row[] = [], comments: Row[] = [], activity: Row[] = [], stages: number[] = [];
@@ -226,20 +226,20 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
     runs.push(value); return value;
   };
   const audit = (action: string, entityId: string) => activity.push({ spaceId: "space", actorType: "agent", actorId: "lead", agentId: "lead", runId: `lead-${sent}`, action, entityId, entityType: action.startsWith("agent.") ? "agent" : "issue",
-    details: { assigneeAgentId: snapshot === "creation-backlog-reassigned" && sent === 2 ? "lead" : "hired", assigneeUserId: null,
+    details: { assigneeAgentId: snapshot === "creation-backlog-reassigned" && sent === 2 ? "lead" : "created", assigneeUserId: null,
       status: snapshot === "creation-backlog-reassigned" && sent === 2 ? "backlog" : "todo" } });
   vi.mocked(sendChatMessage).mockImplementation(async (_page, text) => {
     stages.push(runs.length); sent++; callbackPoll = 0;
     comments.push({ id: `user-${sent}`, spaceId: "space", issueId: "chat", authorUserId: "user", body: text });
     run(`lead-${sent}`, "chat", "lead", { source: "issue.comment", wakeCommentId: `user-${sent}` });
-    if (sent === 1) audit("agent.hire_created", "hired");
+    if (sent === 1) audit("agent.hire_created", "created");
     else {
       const task = { id: `task-${sent}`, identifier: `QA-${sent - 1}`, spaceId: "space", title: sent === 2 ? names.checklist : names.review,
-        assigneeAgentId: "hired", projectId: "project", parentId: null, status: "done" };
+        assigneeAgentId: "created", projectId: "project", parentId: null, status: "done" };
       tasks.push(task); audit("issue.created", task.id);
       if (snapshot === "creation-backlog-reassigned" && sent === 2) activity.push({ spaceId: "space", actorType: "agent", actorId: "lead", agentId: "lead",
-        runId: `lead-${sent}`, action: "issue.reassigned", entityId: task.id, entityType: "issue", details: { previousAssigneeAgentId: "lead", assigneeAgentId: "hired" } });
-      run(`child-${sent}`, task.id, "hired");
+        runId: `lead-${sent}`, action: "issue.reassigned", entityId: task.id, entityType: "issue", details: { previousAssigneeAgentId: "lead", assigneeAgentId: "created" } });
+      run(`child-${sent}`, task.id, "created");
       if (snapshot === "extra-run" && sent === 3) run("extra-native", "chat", "lead", { source: "issue.comment", wakeCommentId: `user-${sent}` });
     }
   });
@@ -247,7 +247,7 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
   const document = (taskId: string) => ({ id: `doc-${taskId}`, issueId: taskId, spaceId: "space", key: "result", updatedAt: "2020-01-01T00:00:00Z", latestRevisionId: `revision-${taskId}`,
     body: `Reference: ${taskId === "task-2" ? marker : `REVIEW${marker}`}` });
   vi.mocked(readChatOutputDocument).mockImplementation(async (_api, taskId) => {
-    if (snapshot === "fallback-changed" && taskId === "task-3") Object.assign(hired, { runtimeConfig: { aiConnection: binding } });
+    if (snapshot === "fallback-changed" && taskId === "task-3") Object.assign(created, { runtimeConfig: { aiConnection: binding } });
     return document(taskId);
   });
   const api = { origin: "https://qa.example.test", async get(route: string) {
@@ -257,9 +257,9 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
     if (route === "/api/spaces/space/chats/lead") return sent ? chat : null;
     if (route === "/api/spaces/space/ai-connections") return { currentUserId: "user", connections: [{ spaceId: "space", id: "approved", grantId: "grant",
       provider: accountProvider, method, ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" }] };
-    if (route.endsWith("/installs")) return { connectionId: "approved", installs: [{ spaceId: "space", targetType: "agent", targetId: "hired" }] };
-    if (route === "/api/agents/hired") return hired;
-    if (route === "/api/spaces/space/agents") return sent ? [lead, hired] : [lead];
+    if (route.endsWith("/installs")) return { connectionId: "approved", installs: [{ spaceId: "space", targetType: "agent", targetId: "created" }] };
+    if (route === "/api/agents/created") return created;
+    if (route === "/api/spaces/space/agents") return sent ? [lead, created] : [lead];
     if (route === "/api/spaces/space/issues" && snapshot === "truncated") return Array.from({ length: 500 }, (_, i) => ({ id: `old-${i}`, spaceId: "space", title: "Higher priority existing work", projectId: "other", status: "backlog" }));
     if (route === "/api/spaces/space/issues") return tasks.map(task => ({ ...task,
       status: runs.some(row => row.id === `completion-${sent}`) && task.id === `task-${sent}` ? "in_progress" : task.status }));
@@ -286,13 +286,13 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
       const row = runs.find(row => route.endsWith(`/${row.id}`))!;
       const read = (nativeReads.get(row.id) ?? 0) + 1; nativeReads.set(row.id, read);
       if (snapshot === "foreign-run" && row.id === "child-2") return { ...row, spaceId: "foreign" };
-      if (snapshot === "contradictory-run" && row.id === "lead-2" && read === 2) return { ...row, agentId: "hired", issueId: "task-2",
+      if (snapshot === "contradictory-run" && row.id === "lead-2" && read === 2) return { ...row, agentId: "created", issueId: "task-2",
         contextSnapshot: { ...row.contextSnapshot, issueId: "task-2" } };
       return row;
     }
     const output = /^\/api\/issues\/([^/]+)\/documents\/result(\/revisions)?$/.exec(route);
     if (output) return output[2] ? [{ id: document(output[1]!).latestRevisionId, body: document(output[1]!).body,
-      createdByAgentId: "hired", createdByRunId: `child-${output[1]!.split("-")[1]}` }] : document(output[1]!);
+      createdByAgentId: "created", createdByRunId: `child-${output[1]!.split("-")[1]}` }] : document(output[1]!);
     if (route.startsWith("/api/issues/")) {
       const task = tasks.find(row => route.endsWith(`/${row.id}`));
       return snapshot === "foreign" && task ? { ...task, projectId: "foreign" } : task;
@@ -313,7 +313,7 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
   const context = { api, page, user: { id: "user" }, space: { id: "space", issuePrefix: "QA" },
     agent: { id: "lead", model: "fixed-model", provider, runtimeMode: "native" }, environmentId: "environment" } as unknown as JourneyContext;
   const evidence = { checks: [] } as unknown as JourneyEvidence, owned: Row[] = [];
-  const directory = await mkdtemp(path.join(os.tmpdir(), "hire-completion-")); directories.push(directory);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "create-completion-")); directories.push(directory);
   const execution = hireDelegateReuse(context, { async own(row: Row) { owned.push(row); } } as unknown as TargetSession, campaignId, evidence,
     { deadlineAt: Date.now() + 10_000, directory, capture: async () => {} });
   if (["foreign", "wrong-author", "foreign-run", "contradictory-run", "extra-run", "fallback-changed", "fallback-subscription-wrong-method", "creation-backlog-reassigned"].includes(snapshot)) {
@@ -324,14 +324,14 @@ it.each(["stale", "foreign", "truncated", "late-reply", "wrong-author", "activit
     expect(sendChatMessage).toHaveBeenCalledTimes(["extra-run", "fallback-changed"].includes(snapshot) ? 3 : 2);
     if (snapshot === "creation-backlog-reassigned") {
       expect(owned.some(row => row.id === "task-2")).toBe(true);
-      expect(runs.filter(run => run.issueId !== "chat").every(run => run.agentId === "hired")).toBe(true);
+      expect(runs.filter(run => run.issueId !== "chat").every(run => run.agentId === "created")).toBe(true);
     }
     if (snapshot === "fallback-changed") { expect(stages).toEqual([0, 1, 4]); expect(runs).toHaveLength(7); }
     return;
   }
   await execution;
   if (snapshot === "stale") for (const [, text] of vi.mocked(sendChatMessage).mock.calls.slice(1)) {
-    expect(handoffTargets(text)).toEqual({ agents: ["hired"], projects: ["project"] });
+    expect(handoffTargets(text)).toEqual({ agents: ["created"], projects: ["project"] });
   }
   expect(stages).toEqual([0, 1, 4]); expect(runs).toHaveLength(7); expect(sendChatMessage).toHaveBeenCalledTimes(3);
   expect(visited).toEqual(["/QA/issues/QA-1", "/QA/issues/QA-2"]);

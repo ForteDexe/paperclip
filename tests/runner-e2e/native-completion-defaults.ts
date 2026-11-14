@@ -45,7 +45,7 @@ export function gradeNativeDefault(receipt: NativeDefaultReceipt, expectedDefaul
     { id: "production-default-bundle", passed: receipt.entryFile === "AGENTS.md"
       && receipt.files.length === 1 && receipt.files[0]?.path === "AGENTS.md"
       && receipt.files[0]?.sha256 === expectedDefaultSha256,
-    detail: "The served public hire bundle matches the declared production default, with no fixture instruction injection." },
+    detail: "The served public create bundle matches the declared production default, with no fixture instruction injection." },
     { id: "bounded-space-and-agent", passed: receipt.budgets.space === NATIVE_COMPLETION_BUDGET_CENTS
       && receipt.budgets.agent === NATIVE_COMPLETION_BUDGET_CENTS,
     detail: "Both public budgets enforce the declared 1,000-cent hard stop." },

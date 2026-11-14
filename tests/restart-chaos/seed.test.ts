@@ -204,8 +204,8 @@ describe("waitForAgentsReady", () => {
   it("fails the wave when an agent fails verification or never becomes ready", async () => {
     const parked = { get: async () => ({ lifecycleState: "verifying", lifecycleError: "hello probe failed" }) } as unknown as ChaosApi;
     await expect(waitForAgentsReady(parked, { claude: { id: "a2" } }, new Timeline(null), 20, 5)).rejects.toThrow(/claude \(last lifecycle error: hello probe failed\)/);
-    const rejected = { get: async () => ({ lifecycleState: "rejected", lifecycleError: "hire rejected" }) } as unknown as ChaosApi;
-    await expect(waitForAgentsReady(rejected, { claude: { id: "a2" } }, new Timeline(null), 5_000, 1)).rejects.toThrow(/hire rejected/);
+    const rejected = { get: async () => ({ lifecycleState: "rejected", lifecycleError: "create rejected" }) } as unknown as ChaosApi;
+    await expect(waitForAgentsReady(rejected, { claude: { id: "a2" } }, new Timeline(null), 5_000, 1)).rejects.toThrow(/create rejected/);
     const stuck = { get: async () => ({ lifecycleState: "verifying" }) } as unknown as ChaosApi;
     await expect(waitForAgentsReady(stuck, { claude: { id: "a3" } }, new Timeline(null), 20, 5)).rejects.toThrow(/never reached lifecycleState ready/);
   });

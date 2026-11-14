@@ -207,7 +207,7 @@ import {
   NativeRuntimeRequestResolutionError,
   resolveNativeRuntimeRequest,
 } from "../services/native-runtime/native-session-executor.js";
-import { renderOrgChartSvg, renderOrgChartPng, type OrgNode, type OrgChartStyle, ORG_CHART_STYLES } from "./org-chart-svg.js";
+import { renderAgentHierarchySvg, renderAgentHierarchyPng, type AgentHierarchyNode, type AgentHierarchyStyle, AGENT_HIERARCHY_STYLES } from "./agent-hierarchy-svg.js";
 import {
   instanceSettingsService,
   isTruthyRuntimeEnvValue,
@@ -292,7 +292,7 @@ import { assertEnvironmentSelectionForSpace } from "./environment-selection.js";
 import { recoveryService } from "../services/recovery/service.js";
 import { resolveCoreTrustPreset } from "../services/trust-preset-resolver.js";
 import { readObject } from "../lib/objects.js";
-import { listInvalidOrgChainDescendantIds } from "../services/agent-invokability.js";
+import { listInvalidCoordinationDescendantIds } from "../services/agent-invokability.js";
 import { logger } from "../middleware/logger.js";
 import {
   AGENT_PROFILE_CHANGE_CONSENT_FIELDS,
@@ -1322,7 +1322,7 @@ export function agentRoutes(
     options?: { restricted?: boolean },
   ) {
     const [chainOfCommand, accessState] = await Promise.all([
-      svc.getChainOfCommand(agent.id),
+      svc.getCoordinationChain(agent.id),
       buildAgentAccessState(agent),
     ]);
 
@@ -2195,9 +2195,9 @@ export function agentRoutes(
     const normalized = normalizeNewAgentRuntimeConfig(runtimeConfig);
     if (normalized.aiConnection) return normalized;
     if (req.actor.type === "agent") {
-      const manager = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
-      if (!manager || manager.spaceId !== spaceId) throw forbidden("Creation agent is unavailable");
-      const binding = defaultAiConnectionForCreate(adapterType, adapterConfig, manager.runtimeConfig?.aiConnection);
+      const creatingAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      if (!creatingAgent || creatingAgent.spaceId !== spaceId) throw forbidden("Creating agent is unavailable");
+      const binding = defaultAiConnectionForCreate(adapterType, adapterConfig, creatingAgent.runtimeConfig?.aiConnection);
       if (binding) normalized.aiConnection = binding;
     }
     // Copilot has no ambient-auth setup path. Omitting a binding still selects
@@ -2504,8 +2504,8 @@ export function agentRoutes(
   }
 
   // Resolve the server-owned instruction bundle for the onboarding first agent.
-  // The marker seeds the chief-of-staff persona (server/src/onboarding-assets/
-  // first-task/chief-of-staff/AGENTS.md, placeholders filled) over the agent's
+  // The marker seeds the default-agent persona (server/src/onboarding-assets/
+  // first-task/default-agent/AGENTS.md, placeholders filled) over the agent's
   // entry file instead of the generic default. Honored only for operator-authored
   // requests — the onboarding wizard runs as the operator — so a client marker
   // alone cannot swap another actor's instructions. Runtime coordination is
@@ -2514,13 +2514,13 @@ export function agentRoutes(
     onboardingFirstAgent: unknown;
     actorType: string;
     agentName: string;
-    organizationName: string | null;
+    spaceName: string | null;
   }): Promise<{ files: Record<string, string>; entryFile: string } | undefined> {
     if (params.onboardingFirstAgent !== true) return undefined;
     if (params.actorType !== "operator") return undefined;
     return buildOnboardingFirstAgentInstructionsBundle({
       agentName: params.agentName,
-      organizationName: params.organizationName,
+      spaceName: params.spaceName,
     });
   }
 
@@ -2980,7 +2980,7 @@ export function agentRoutes(
       role: agent.role,
       title: agent.title,
       status: agent.status,
-      reportsTo: agent.reportsTo,
+      leadAgentId: agent.leadAgentId,
       adapterType: agent.adapterType,
       adapterConfig: redactAgentAdapterConfig(agent.adapterConfig),
       runtimeConfig: redactEventPayload(agent.runtimeConfig),
@@ -3043,9 +3043,9 @@ export function agentRoutes(
     };
   }
 
-  function toLeanOrgNode(node: Record<string, unknown>): Record<string, unknown> {
-    const reports = Array.isArray(node.reports)
-      ? (node.reports as Array<Record<string, unknown>>).map((report) => toLeanOrgNode(report))
+  function toLeanAgentHierarchyNode(node: Record<string, unknown>): Record<string, unknown> {
+    const reports = Array.isArray(node.children)
+      ? (node.children as Array<Record<string, unknown>>).map((report) => toLeanAgentHierarchyNode(report))
       : [];
     return {
       id: String(node.id),
@@ -4077,33 +4077,33 @@ export function agentRoutes(
     res.json(items);
   });
 
-  router.get("/spaces/:spaceId/org", async (req, res) => {
+  router.get("/spaces/:spaceId/agent-hierarchy", async (req, res) => {
     const spaceId = req.params.spaceId as string;
     assertSpaceAccess(req, spaceId);
-    const tree = await filterAgentsForActor(req, await svc.orgForSpace(spaceId), spaceId);
-    const leanTree = tree.map((node) => toLeanOrgNode(node as Record<string, unknown>));
+    const tree = await filterAgentsForActor(req, await svc.hierarchyForSpace(spaceId), spaceId);
+    const leanTree = tree.map((node) => toLeanAgentHierarchyNode(node as Record<string, unknown>));
     res.json(leanTree);
   });
 
-  router.get("/spaces/:spaceId/org.svg", async (req, res) => {
+  router.get("/spaces/:spaceId/agent-hierarchy.svg", async (req, res) => {
     const spaceId = req.params.spaceId as string;
     assertSpaceAccess(req, spaceId);
-    const style = (ORG_CHART_STYLES.includes(req.query.style as OrgChartStyle) ? req.query.style : "warmth") as OrgChartStyle;
-    const tree = await filterAgentsForActor(req, await svc.orgForSpace(spaceId), spaceId);
-    const leanTree = tree.map((node) => toLeanOrgNode(node as Record<string, unknown>));
-    const svg = renderOrgChartSvg(leanTree as unknown as OrgNode[], style);
+    const style = (AGENT_HIERARCHY_STYLES.includes(req.query.style as AgentHierarchyStyle) ? req.query.style : "warmth") as AgentHierarchyStyle;
+    const tree = await filterAgentsForActor(req, await svc.hierarchyForSpace(spaceId), spaceId);
+    const leanTree = tree.map((node) => toLeanAgentHierarchyNode(node as Record<string, unknown>));
+    const svg = renderAgentHierarchySvg(leanTree as unknown as AgentHierarchyNode[], style);
     res.setHeader("Content-Type", "image/svg+xml");
     res.setHeader("Cache-Control", "no-cache");
     res.send(svg);
   });
 
-  router.get("/spaces/:spaceId/org.png", async (req, res) => {
+  router.get("/spaces/:spaceId/agent-hierarchy.png", async (req, res) => {
     const spaceId = req.params.spaceId as string;
     assertSpaceAccess(req, spaceId);
-    const style = (ORG_CHART_STYLES.includes(req.query.style as OrgChartStyle) ? req.query.style : "warmth") as OrgChartStyle;
-    const tree = await filterAgentsForActor(req, await svc.orgForSpace(spaceId), spaceId);
-    const leanTree = tree.map((node) => toLeanOrgNode(node as Record<string, unknown>));
-    const png = await renderOrgChartPng(leanTree as unknown as OrgNode[], style);
+    const style = (AGENT_HIERARCHY_STYLES.includes(req.query.style as AgentHierarchyStyle) ? req.query.style : "warmth") as AgentHierarchyStyle;
+    const tree = await filterAgentsForActor(req, await svc.hierarchyForSpace(spaceId), spaceId);
+    const leanTree = tree.map((node) => toLeanAgentHierarchyNode(node as Record<string, unknown>));
+    const png = await renderAgentHierarchyPng(leanTree as unknown as AgentHierarchyNode[], style);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "no-cache");
     res.send(png);
@@ -4437,7 +4437,7 @@ export function agentRoutes(
   // same run (e.g. an agent that misread the 201 body and re-sent the payload)
   // resolves to the create it already created instead of spawning a "Name 2"
   // duplicate, while a corrected payload (a different adapter config, budget,
-  // manager, skills, instructions, ...) counts as a new create. Hashed, so no
+  // coordination lead, skills, instructions, ...) counts as a new creation. Hashed, so no
   // adapter-config secret lands in the activity log.
   const createFingerprint = (body: unknown): string => sha256Digest(body);
 
@@ -4471,7 +4471,7 @@ export function agentRoutes(
       // fixed reference to the owner stored value with no login round trip.
       applyStoredClaudeLogin: createApplyStoredClaudeLogin,
       // The onboarding marker is not an agent column. The server consumes it to
-      // seed the chief-of-staff persona; it never reaches the insert values.
+      // seed the default-agent persona; it never reaches the insert values.
       onboardingFirstAgent: createOnboardingFirstAgent,
       // This intent flag is consumed below and must never reach agent create.
       inheritRuntimeFrom,
@@ -4501,7 +4501,7 @@ export function agentRoutes(
             type: "create_agent", requestedByAgentId: null, requestedByUserId: req.actor.userId ?? null,
             status: "pending", payload: {
               name: setupAgent.name, role: setupAgent.role, title: setupAgent.title, icon: setupAgent.icon,
-              appearance: setupAgent.appearance, reportsTo: setupAgent.reportsTo, capabilities: setupAgent.capabilities,
+              appearance: setupAgent.appearance, leadAgentId: setupAgent.leadAgentId, capabilities: setupAgent.capabilities,
               adapterType: setupAgent.adapterType, adapterConfig, runtimeConfig, desiredSkills,
               budgetMonthlyCents: setupAgent.budgetMonthlyCents, metadata: redactEventPayload(setupAgent.metadata ?? {}) ?? {},
               agentId: setupAgent.id, requestedByAgentId: null,
@@ -4704,7 +4704,7 @@ export function agentRoutes(
         onboardingFirstAgent: createOnboardingFirstAgent,
         actorType: req.actor.type,
         agentName: createdAgent.name,
-        organizationName: space.name ?? null,
+        spaceName: space.name ?? null,
       });
       const agent = await materializeDefaultInstructionsBundleForNewAgent(
         createdAgent,
@@ -4739,7 +4739,7 @@ export function agentRoutes(
             title: normalizedCreateInput.title ?? null,
             icon: normalizedCreateInput.icon ?? null,
             appearance: agent.appearance,
-            reportsTo: normalizedCreateInput.reportsTo ?? null,
+            leadAgentId: normalizedCreateInput.leadAgentId ?? null,
             capabilities: normalizedCreateInput.capabilities ?? null,
             adapterType: requestedAdapterType,
             adapterConfig: requestedAdapterConfig,
@@ -4855,7 +4855,7 @@ export function agentRoutes(
     }
     if (space.requireOperatorApprovalForNewAgents && !req.body.setupId) {
       throw conflict(
-        "Direct agent creation requires operator approval. Use POST /api/spaces/:spaceId/agent-creations to create a pending create approval.",
+        "Direct creation requires operator approval. Use POST /api/spaces/:spaceId/agent-creations to create a pending create approval.",
       );
     }
 
@@ -4870,7 +4870,7 @@ export function agentRoutes(
       // fixed reference to the owner stored value with no login round trip.
       applyStoredClaudeLogin: createApplyStoredClaudeLogin,
       // The onboarding marker is not an agent column. The server consumes it to
-      // seed the chief-of-staff persona; it never reaches the insert values.
+      // seed the default-agent persona; it never reaches the insert values.
       onboardingFirstAgent: createOnboardingFirstAgent,
       setupId,
       runner: createRunner,
@@ -4992,7 +4992,7 @@ export function agentRoutes(
       onboardingFirstAgent: createOnboardingFirstAgent,
       actorType: req.actor.type,
       agentName: createdAgent.name,
-      organizationName: space.name ?? null,
+      spaceName: space.name ?? null,
     });
     const agent = await materializeDefaultInstructionsBundleForNewAgent(
       createdAgent,
@@ -5070,7 +5070,7 @@ export function agentRoutes(
 
     const effectiveCanAssignTasks = Boolean(req.body.canAssignTasks);
     await access.ensureMembership(agent.spaceId, "agent", agent.id, "member", "active");
-    // Agent creation authority is an explicit grant. The compatibility field
+    // Creation authority is an explicit grant. The compatibility field
     // remains in the agent payload for older clients, but is never an authority
     // source on its own.
     if (typeof req.body.canCreateAgents === "boolean") {
@@ -5577,8 +5577,8 @@ export function agentRoutes(
     if (requestedStatus === "paused") assertOperator(req);
     if (requestedStatus === "idle") {
       await assertCanResumeAgent(req, existing);
-      if (existing.orgChainHealth?.status === "invalid_org_chain") {
-        throw conflict(existing.orgChainHealth.repairGuidance ?? "Repair this agent's reporting chain before resuming it");
+      if (existing.coordinationHealth?.status === "invalid_coordination_chain") {
+        throw conflict(existing.coordinationHealth.repairGuidance ?? "Repair this agent's coordination chain before resuming it");
       }
     }
     const replaceAdapterConfig = patchData.replaceAdapterConfig === true;
@@ -5921,9 +5921,9 @@ export function agentRoutes(
       return;
     }
     await assertCanResumeAgent(req, existing);
-    if (existing.orgChainHealth?.status === "invalid_org_chain") {
+    if (existing.coordinationHealth?.status === "invalid_coordination_chain") {
       res.status(409).json({
-        error: existing.orgChainHealth?.repairGuidance ?? "Repair this agent's reporting chain before resuming it",
+        error: existing.coordinationHealth?.repairGuidance ?? "Repair this agent's coordination chain before resuming it",
       });
       return;
     }
@@ -5956,9 +5956,9 @@ export function agentRoutes(
     if (!existing) {
       return;
     }
-    if (existing.orgChainHealth?.status === "invalid_org_chain") {
+    if (existing.coordinationHealth?.status === "invalid_coordination_chain") {
       res.status(409).json({
-        error: existing.orgChainHealth?.repairGuidance ?? "Repair this agent's reporting chain before clearing its error",
+        error: existing.coordinationHealth?.repairGuidance ?? "Repair this agent's coordination chain before clearing its error",
       });
       return;
     }
@@ -6038,15 +6038,15 @@ export function agentRoutes(
         id: agentsTable.id,
         spaceId: agentsTable.spaceId,
         name: agentsTable.name,
-        reportsTo: agentsTable.reportsTo,
+        leadAgentId: agentsTable.leadAgentId,
         status: agentsTable.status,
       })
       .from(agentsTable)
       .where(eq(agentsTable.spaceId, agent.spaceId));
-    const invalidOrgChainDescendantIds = listInvalidOrgChainDescendantIds(id, spaceAgentRows);
+    const invalidCoordinationChainDescendantIds = listInvalidCoordinationDescendantIds(id, spaceAgentRows);
     const cancellation = await heartbeat.cancelInvocationsForAgents(
-      [id, ...invalidOrgChainDescendantIds],
-      "Cancelled because the agent was terminated or became invalid-org-chain under a terminated manager",
+      [id, ...invalidCoordinationChainDescendantIds],
+      "Cancelled because the agent was terminated or became invalid-coordination-chain under a terminated lead agent",
     );
 
     await logActivity(db, {
@@ -6057,10 +6057,10 @@ export function agentRoutes(
       entityType: "agent",
       entityId: agent.id,
       details: {
-        invalidOrgChain: {
-          descendantCount: invalidOrgChainDescendantIds.length,
-          descendantIds: invalidOrgChainDescendantIds,
-          state: invalidOrgChainDescendantIds.length > 0 ? "descendants_invalid_under_terminated_manager" : "none",
+        invalidCoordinationChain: {
+          descendantCount: invalidCoordinationChainDescendantIds.length,
+          descendantIds: invalidCoordinationChainDescendantIds,
+          state: invalidCoordinationChainDescendantIds.length > 0 ? "descendants_invalid_under_terminated_lead" : "none",
         },
         cancellation: {
           agentIds: cancellation.agentIds,
@@ -6205,9 +6205,9 @@ export function agentRoutes(
     if (req.body.debug?.providerTrace === "raw") {
       assertInstanceAdmin(req);
     }
-    if (agent.orgChainHealth?.status === "invalid_org_chain") {
+    if (agent.coordinationHealth?.status === "invalid_coordination_chain") {
       res.status(409).json({
-        error: agent.orgChainHealth?.repairGuidance ?? "Repair this agent's reporting chain before starting runs",
+        error: agent.coordinationHealth?.repairGuidance ?? "Repair this agent's coordination chain before starting runs",
       });
       return;
     }
@@ -6483,9 +6483,9 @@ export function agentRoutes(
     if (providerTraceRequested) {
       assertInstanceAdmin(req);
     }
-    if (agent.orgChainHealth?.status === "invalid_org_chain") {
+    if (agent.coordinationHealth?.status === "invalid_coordination_chain") {
       res.status(409).json({
-        error: agent.orgChainHealth?.repairGuidance ?? "Repair this agent's reporting chain before starting runs",
+        error: agent.coordinationHealth?.repairGuidance ?? "Repair this agent's coordination chain before starting runs",
       });
       return;
     }

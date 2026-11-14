@@ -662,8 +662,8 @@ describe("pi remote execution", () => {
     const args = call?.[2] ?? [];
     const systemPrompt = args[args.indexOf("--append-system-prompt") + 1] ?? "";
     const userPrompt = args.at(-1) ?? "";
-    expect(systemPrompt).toContain("You are agent agent-1 (Pi Builder).");
-    expect(userPrompt).not.toContain("You are agent agent-1 (Pi Builder).");
+    expect(systemPrompt).toContain("You are agent-1 (Pi Builder).");
+    expect(userPrompt).not.toContain("You are agent-1 (Pi Builder).");
   });
 
   it("preserves custom prompt templates in both configured carriers", async () => {
@@ -728,7 +728,7 @@ describe("pi remote execution", () => {
     const args = call?.[2] ?? [];
     const systemPrompt = args[args.indexOf("--append-system-prompt") + 1] ?? "";
     const userPrompt = args.at(-1) ?? "";
-    expect(systemPrompt).toContain("You are agent agent-1 (Pi Builder).");
+    expect(systemPrompt).toContain("You are agent-1 (Pi Builder).");
     expect(systemPrompt).toContain("Connection tools:");
     expect(systemPrompt).not.toContain("Execution contract:");
     expect(userPrompt).not.toContain("Execution contract:");
@@ -773,7 +773,7 @@ describe("pi remote execution", () => {
     const systemPrompt = args[args.indexOf("--append-system-prompt") + 1] ?? "";
     const userPrompt = args.at(-1) ?? "";
     expect(systemPrompt).toContain("Loaded instructions for this run.");
-    expect(systemPrompt).toContain("You are agent agent-1 (Pi Builder).");
+    expect(systemPrompt).toContain("You are agent-1 (Pi Builder).");
     expect(systemPrompt).toContain("Connection tools:");
     expect(systemPrompt).not.toContain("Execution contract:");
     expect(userPrompt).not.toContain("CUSTOM POLICY run-instructions-policy");

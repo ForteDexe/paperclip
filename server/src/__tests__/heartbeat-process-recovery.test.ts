@@ -8564,11 +8564,11 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         retryReason: "issue_continuation_needed",
         runErrorCode: "issue_continuation_waiting_on_review",
       });
-    const managerId = randomUUID();
-    await db.insert(agents).values(recoveryAgentRow(managerId, spaceId, "Recovery Engineering Lead", "engineering_lead", "idle"));
+    const leadAgentId = randomUUID();
+    await db.insert(agents).values(recoveryAgentRow(leadAgentId, spaceId, "Recovery Engineering Lead", "engineering_lead", "idle"));
     await db
       .update(agents)
-      .set({ reportsTo: managerId })
+      .set({ leadAgentId: leadAgentId })
       .where(eq(agents.id, agentId));
 
     const sourceIssue = await db
@@ -8610,7 +8610,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
           .where(
             and(
               eq(agentWakeupRequests.spaceId, spaceId),
-              eq(agentWakeupRequests.agentId, managerId),
+              eq(agentWakeupRequests.agentId, leadAgentId),
             ),
           ),
         db

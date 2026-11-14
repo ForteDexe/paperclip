@@ -12,7 +12,7 @@ function Components(_args: PrimaryScenario) {
   </div></main>;
 }
 export default { id: "default-agent-01-components",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/01 Components", component: Components, decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/01 Components", component: Components, decorators: [primaryDecorator], parameters: { ...primaryParameters, outpost: {
       "capabilities": [
         "agents/default-agent",
         "tasks/create",

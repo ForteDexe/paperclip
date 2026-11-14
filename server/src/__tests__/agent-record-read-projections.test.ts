@@ -32,20 +32,20 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
 
   async function fixture() {
     const spaceId = randomUUID(), foreignSpaceId = randomUUID();
-    const managerId = randomUUID(), workerId = randomUUID(), unrelatedId = randomUUID(), archivedId = randomUUID(), foreignId = randomUUID();
+    const leadAgentId = randomUUID(), workerId = randomUUID(), unrelatedId = randomUUID(), archivedId = randomUUID(), foreignId = randomUUID();
     await db.insert(spaces).values([
       { id: spaceId, name: "Roster fixture", issuePrefix: `R${spaceId.slice(0, 7).toUpperCase()}` },
       { id: foreignSpaceId, name: "Foreign roster", issuePrefix: `F${foreignSpaceId.slice(0, 7).toUpperCase()}` },
     ]);
     const bulk = "retained-other-agent-configuration🙂".repeat(32_768);
     await db.insert(agents).values([
-      { id: managerId, spaceId, name: "Manager", status: "terminated", adapterType: "process", adapterConfig: { instructions: bulk } },
+      { id: leadAgentId, spaceId, name: "Manager", status: "terminated", adapterType: "process", adapterConfig: { instructions: bulk } },
       { id: unrelatedId, spaceId, name: "Other worker", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
       { id: archivedId, spaceId, name: "Archived worker", status: "terminated", adapterType: "process", runtimeConfig: { retained: bulk } },
       { id: foreignId, spaceId: foreignSpaceId, name: "Foreign manager", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
     ]);
     const [worker] = await db.insert(agents).values({ id: workerId, spaceId, name: "Selected worker", status: "idle",
-      reportsTo: managerId, adapterType: "process", adapterConfig: { instructions: "selected instructions", model: "fixture-model" },
+      leadAgentId: leadAgentId, adapterType: "process", adapterConfig: { instructions: "selected instructions", model: "fixture-model" },
       runtimeConfig: { heartbeat: { enabled: false } }, metadata: { retained: "selected metadata" },
       permissions: { canCreateAgents: true }, spentMonthlyCents: 999,
     }).returning();
@@ -56,7 +56,7 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
         occurredAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15)) },
       { spaceId: foreignSpaceId, agentId: foreignId, provider: "fixture", model: "fixture-model", costCents: 100, occurredAt: now },
     ]);
-    return { spaceId, foreignSpaceId, managerId, workerId, unrelatedId, archivedId, foreignId, worker, bulk };
+    return { spaceId, foreignSpaceId, leadAgentId, workerId, unrelatedId, archivedId, foreignId, worker, bulk };
   }
 
   async function observe<T>(run: (observed: ReturnType<typeof createDb>) => Promise<T>) {
@@ -80,11 +80,11 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
     const captured = await observe(observed => agentService(observed).list(f.spaceId, { includeTerminated }));
     expect(captured.calls).toBe(1);
     expect(captured.result.map(row => row.id).sort()).toEqual((includeTerminated
-      ? [f.workerId, f.managerId, f.archivedId, f.unrelatedId] : [f.workerId, f.unrelatedId]).sort());
+      ? [f.workerId, f.leadAgentId, f.archivedId, f.unrelatedId] : [f.workerId, f.unrelatedId]).sort());
     const selected = captured.result.find(row => row.id === f.workerId)!;
     expect(selected).toMatchObject({ adapterConfig: f.worker.adapterConfig, runtimeConfig: f.worker.runtimeConfig,
       metadata: f.worker.metadata, permissions: { canCreateAgents: true }, spentMonthlyCents: 19.5,
-      orgChainHealth: { status: "invalid_org_chain", reason: "terminated_ancestor", firstInvalidAncestor: { id: f.managerId } } });
+      coordinationHealth: { status: "invalid_coordination_chain", reason: "terminated_ancestor", firstInvalidAncestor: { id: f.leadAgentId } } });
     expect(captured.result.find(row => row.id === f.unrelatedId)?.adapterConfig.instructions).toBe(f.bulk);
     if (includeTerminated) expect(captured.result.find(row => row.id === f.archivedId)?.runtimeConfig.retained).toBe(f.bulk);
     expect((await db.select().from(agents).where(eq(agents.id, f.workerId)))[0]).toEqual(f.worker);
@@ -98,7 +98,7 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
     expect(captured.bytes).toBeLessThan(8192);
     expect(captured.result).toMatchObject({ id: f.workerId, spaceId: f.spaceId, adapterConfig: f.worker.adapterConfig,
       runtimeConfig: f.worker.runtimeConfig, metadata: f.worker.metadata, permissions: { canCreateAgents: true }, spentMonthlyCents: 19.5,
-      orgChainHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.managerId, name: "Manager" } } });
+      coordinationHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.leadAgentId, name: "Manager" } } });
     expect((await db.select().from(agents).where(eq(agents.id, f.workerId)))[0]).toEqual(f.worker);
   });
 
@@ -107,26 +107,26 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
     const captured = await observe(observed => agentRecordQueries(observed).listSpaceAgentEligibilityRows(f.spaceId));
     expect(captured.calls).toBe(1);
     expect(captured.bytes).toBeLessThan(4096);
-    expect(captured.result.map(row => row.id).sort()).toEqual([f.workerId, f.managerId, f.unrelatedId, f.archivedId].sort());
-    for (const row of captured.result) expect(Object.keys(row).sort()).toEqual(["spaceId", "id", "name", "reportsTo", "status"]);
+    expect(captured.result.map(row => row.id).sort()).toEqual([f.workerId, f.leadAgentId, f.unrelatedId, f.archivedId].sort());
+    for (const row of captured.result) expect(Object.keys(row).sort()).toEqual(["spaceId", "id", "name", "leadAgentId", "status"].sort());
     const normalized = agentRecordQueries(db).normalizeAgentRow(f.worker, captured.result);
     expect(normalized).toMatchObject({ adapterConfig: f.worker.adapterConfig, metadata: f.worker.metadata,
-      orgChainHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.managerId } } });
+      coordinationHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.leadAgentId } } });
     expect(await agentRecordQueries(db).listSpaceAgentEligibilityRows(randomUUID())).toEqual([]);
     expect(await agentRecordQueries(db).getById(randomUUID())).toBeNull();
   });
 
   it("rechecks manager status, name, selected configuration, missing managers, and cycles on later reads", async () => {
     const f = await fixture(), records = agentRecordQueries(db);
-    expect((await records.getById(f.workerId))?.orgChainHealth.reason).toBe("terminated_ancestor");
-    await db.update(agents).set({ status: "paused", name: "Current manager" }).where(eq(agents.id, f.managerId));
+    expect((await records.getById(f.workerId))?.coordinationHealth.reason).toBe("terminated_ancestor");
+    await db.update(agents).set({ status: "paused", name: "Current manager" }).where(eq(agents.id, f.leadAgentId));
     await db.update(agents).set({ adapterConfig: { instructions: "changed instructions" } }).where(eq(agents.id, f.workerId));
     expect(await records.getById(f.workerId)).toMatchObject({ adapterConfig: { instructions: "changed instructions" },
-      orgChainHealth: { status: "healthy", pausedAncestors: [{ id: f.managerId, name: "Current manager", status: "paused" }] } });
-    await db.update(agents).set({ reportsTo: f.foreignId }).where(eq(agents.id, f.workerId));
-    expect((await records.getById(f.workerId))?.orgChainHealth.reason).toBe("missing_manager");
-    await db.update(agents).set({ reportsTo: f.managerId }).where(eq(agents.id, f.workerId));
-    await db.update(agents).set({ reportsTo: f.workerId }).where(eq(agents.id, f.managerId));
-    expect((await records.getById(f.workerId))?.orgChainHealth.reason).toBe("cycle");
+      coordinationHealth: { status: "healthy", pausedAncestors: [{ id: f.leadAgentId, name: "Current manager", status: "paused" }] } });
+    await db.update(agents).set({ leadAgentId: f.foreignId }).where(eq(agents.id, f.workerId));
+    expect((await records.getById(f.workerId))?.coordinationHealth.reason).toBe("missing_lead_agent");
+    await db.update(agents).set({ leadAgentId: f.leadAgentId }).where(eq(agents.id, f.workerId));
+    await db.update(agents).set({ leadAgentId: f.workerId }).where(eq(agents.id, f.leadAgentId));
+    expect((await records.getById(f.workerId))?.coordinationHealth.reason).toBe("cycle");
   });
 });

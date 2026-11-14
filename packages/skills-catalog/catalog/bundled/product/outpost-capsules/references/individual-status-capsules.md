@@ -76,7 +76,7 @@ The website palette extends the app's first 10 gradients with two more presets:
 
 Marketing capsule rules:
 
-- Capsule visuals are reserved for agent representation: capsule fields, org-chart nodes, status indicators, avatars.
+- Capsule visuals are reserved for agent representation: capsule fields, agent-hierarchy nodes, status indicators, avatars.
 - Never use capsules on chrome, buttons, or generic pills.
 - Use a `1 : >= 2` proportion and a top-to-bottom gradient for gradient capsules.
 - Flat single-color capsules are allowed only where a solid mark is needed.

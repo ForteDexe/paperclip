@@ -115,7 +115,7 @@ function WizardArc() {
 /**
  * Every wait here is given an explicit timeout because the library's default is
  * one second, and every wait in this file outlasts it: the wizard does not mount
- * until the spaces query settles, the hire runs four requests end to end. A
+ * until the spaces query settles, the create runs four requests end to end. A
  * default-timeout wait gives up, the play function fails, and the story renders
  * the step it started on — which looks exactly like a story that was written to
  * open there. That is the failure this whole file exists to avoid, so it is
@@ -249,7 +249,7 @@ export const ConnectAModel: StoryObj = {
     await userEvent.clear(name);
     await userEvent.type(name, " {Enter}");
     await expect(screen.getByRole("button", { name: PRIMARY })).toBeDisabled();
-    await userEvent.type(name, "Chief of staff{Enter}");
+    await userEvent.type(name, "Default agent{Enter}");
     await screen.findByRole("heading", { name: "Connect a model" }, { timeout: STEP_TIMEOUT_MS });
   },
 };
@@ -288,7 +288,7 @@ export const ConnectAModelNoSandbox: StoryObj = {
 };
 
 /**
- * The review step, reached by hiring rather than by claiming a hire happened.
+ * The review step, reached by creation rather than by claiming a create happened.
  *
  * Walking the whole arc is what makes this an honest preview of the step: the
  * Back button is offered because the run genuinely walked forward into it, and
@@ -323,7 +323,7 @@ export const ProgressStrip: StoryObj = {
 
 /**
  * The agent's two states, side by side. `dormant` waits to be configured;
- * `alive` is the hired agent on the review step.
+ * `alive` is the created agent on the review step.
  */
 export const PillStates: StoryObj = {
   render: () => (
@@ -664,7 +664,7 @@ function installCodexPlatformFixture(outcome: CodexPlatformFixtureOutcome) {
       return Response.json({ ...result, adapterType: outcome === "native" && qualified ? "outpost_runner" : "codex_local" });
     }
     if (url.pathname === `/api/spaces/${STORYBOOK_SPACE_ID}/agent-hires` && method === "POST") {
-      receipt.calls.push("hire");
+      receipt.calls.push("create");
       const request = await payload();
       receipt.hireRequests.push(request);
       const native = outcome === "native" && qualified;
@@ -710,7 +710,7 @@ function managedCodexQualificationStory(outcome: CodexPlatformFixtureOutcome): S
       if (success) {
         await expect(receipt.calls.indexOf("discovery-after")).toBeGreaterThan(receipt.calls.indexOf("platform"));
         await expect(receipt.calls.indexOf("adapter")).toBeGreaterThan(receipt.calls.indexOf("discovery-after"));
-        await expect(receipt.calls.indexOf("hire")).toBeGreaterThan(receipt.calls.indexOf("adapter"));
+        await expect(receipt.calls.indexOf("create")).toBeGreaterThan(receipt.calls.indexOf("adapter"));
         await expect(receipt.testRequests[0]).not.toHaveProperty("runner");
         await expect(receipt.testRequests[0]).toHaveProperty("environmentId", "environment-storybook-sandbox");
         await expect(receipt.hireRequests[0]).not.toHaveProperty("runner");

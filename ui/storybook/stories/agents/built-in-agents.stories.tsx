@@ -32,7 +32,7 @@ const briefsAgent: Agent = {
   title: null,
   icon: "sparkles",
   status: "idle",
-  reportsTo: null,
+  leadAgentId: null,
   capabilities: "Prepares concise operational briefs for the board and agent space.",
   adapterType: "codex_local",
   adapterConfig: { model: "gpt-5" },
@@ -112,7 +112,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 const meta: Meta = {
   id: "product-built-in-agents",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Product/Built-in Agents",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Product/Built-in Agents",
   parameters: { layout: "fullscreen",
     outpost: {
       "capabilities": [
@@ -177,7 +177,7 @@ export const SurfaceGallery: Story = {
           <EmptyState
             icon={Clock3}
             title="Briefs Agent is pending approval"
-            message="Briefs will be available after the board approves this built-in agent hire."
+            message="Briefs will be available after the board approves this built-in agent create."
           />
         </div>
       </div>

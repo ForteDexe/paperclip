@@ -205,7 +205,7 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   // Subtasks / delegation
   { method: "POST", path: /^\/api\/spaces\/[^/]+\/issues$/ },
 
-  // Agent creation: adapter/icon discovery, comparing existing configurations,
+  // Creation: adapter/icon discovery, comparing existing configurations,
   // submitting the request, and linking its approval to the source task. Direct
   // creation (POST /api/spaces/:id/agents) stays denied; the server still
   // permission-checks the approval-gated endpoint.

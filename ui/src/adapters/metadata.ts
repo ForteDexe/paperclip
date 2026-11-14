@@ -45,7 +45,7 @@ export function isEnabledAdapterType(type: string): boolean {
 }
 
 /**
- * Check whether an adapter type is a valid choice for new agent creation.
+ * Check whether an adapter type is a valid choice for new creation.
  * Includes all registered UI adapters (built-in + external) and
  * any non-"coming soon" adapter from the display registry.
  */

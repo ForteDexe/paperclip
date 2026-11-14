@@ -204,7 +204,7 @@ function AgentDetailScenario(options: AgentDetailScenarioOptions) {
 
 const meta: Meta = {
   id: "pages-agent-detail",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Pages/Agent Detail",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Pages/Agent Detail",
   parameters: { layout: "fullscreen", a11y: { test: "off" },
     outpost: {
       "capabilities": [

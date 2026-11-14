@@ -6,7 +6,7 @@ export function buildNewAgentCreatePayload(input: {
   name: string;
   effectiveRole: string;
   title?: string;
-  reportsTo?: string | null;
+  leadAgentId?: string | null;
   selectedSkillKeys?: string[];
   configValues: CreateConfigValues;
   adapterConfig: Record<string, unknown>;
@@ -16,7 +16,7 @@ export function buildNewAgentCreatePayload(input: {
     name,
     effectiveRole,
     title,
-    reportsTo,
+    leadAgentId,
     selectedSkillKeys = [],
     configValues,
     adapterConfig,
@@ -27,7 +27,7 @@ export function buildNewAgentCreatePayload(input: {
     name: name.trim(),
     role: effectiveRole,
     ...(title?.trim() ? { title: title.trim() } : {}),
-    ...(reportsTo ? { reportsTo } : {}),
+    ...(leadAgentId ? { leadAgentId } : {}),
     ...(selectedSkillKeys.length > 0 ? { desiredSkills: selectedSkillKeys } : {}),
     adapterType: configValues.adapterType,
     ...(configValues.runner ? { runner: configValues.runner } : {}),

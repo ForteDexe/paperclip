@@ -25,6 +25,8 @@ export const PRODUCT_VOCABULARY = Object.freeze({
   space: term("Space", "Spaces"),
   agent: term("Agent", "Agents"),
   defaultAgent: term("Default agent", "Default agents"),
+  coordinationLead: term("Coordination lead", "Coordination leads"),
+  agentHierarchy: term("Agent hierarchy", "Agent hierarchies"),
   northStar: term("North Star", "North Stars"),
   campfire: term("Campfire", "Campfires"),
   room: term("Room", "Rooms"),

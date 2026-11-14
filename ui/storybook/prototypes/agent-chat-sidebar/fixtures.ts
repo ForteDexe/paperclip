@@ -14,7 +14,7 @@ export const sidebarAgents: Agent[] = [
   ...agent,
   role: "general",
   status: "idle",
-  reportsTo: null,
+  leadAgentId: null,
   appearance: appearanceForPalette(palette as Parameters<typeof appearanceForPalette>[0]),
 }));
 

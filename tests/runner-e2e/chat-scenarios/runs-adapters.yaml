@@ -17,10 +17,10 @@ scenarios:
       account or environment restriction. It separates model availability from a valid account
       binding. It does not promise every public vendor model is installed or ready, nor expose
       hidden account credentials.
-  - id: runs-adapters.validate-hire
+  - id: runs-adapters.validate-create
     capabilities:
       - runs-adapters/validation
-      - agents/hire
+      - agents/create
     context: >-
       Morgan was created with an eligible account, but the target runtime returns an
       authentication failure during validation.

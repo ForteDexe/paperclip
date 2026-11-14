@@ -56,9 +56,9 @@ const definitions = [
     3,
   ],
   [
-    "hire-reuse",
-    "Hire one teammate, then reuse that agent",
-    `Hire exactly one agent named Morgan QA, reporting to you, using the same available AI connection and native runner configuration as you. Have Morgan implement the following in one child task, then review the result. ${SLUGIFY_REQUIREMENTS}`,
+    "create-reuse",
+    "Create one teammate, then reuse that agent",
+    `Create exactly one agent named Morgan QA, reporting to you, using the same available AI connection and native runner configuration as you. Have Morgan implement the following in one child task, then review the result. ${SLUGIFY_REQUIREMENTS}`,
     6,
   ],
   [
@@ -118,5 +118,5 @@ export const everydayTasks: readonly RunnerTaskFixture[] = definitions.map(
 
 /** Only these stories execute downloaded Python ZIPs in the pinned oracle. */
 export function requiresEverydayArtifactOracle(caseId: string): boolean {
-  return ["build-revise", "delegate-feedback", "agent-review-handoff", "hire-reuse", "recover-controller", "stop-redirect"].includes(caseId);
+  return ["build-revise", "delegate-feedback", "agent-review-handoff", "create-reuse", "recover-controller", "stop-redirect"].includes(caseId);
 }

@@ -17,7 +17,7 @@ work. All three reuse the same capability IDs.
 
 ## Start with these requests
 
-- [Hire a Claude Code engineer](agents.yaml): `agents.hire-claude-code`, with
+- [Create a Claude Code engineer](agents.yaml): `agents.create-claude-code`, with
   missing-account, approval-required, denied-permission and ambiguous-wording cases.
 - [Create a website task](tasks.yaml): `tasks.website-task`, with missing-project,
   attached-brief, ambiguous-task, privacy and ownership-conflict cases.
@@ -89,7 +89,7 @@ execution requires a separate product change and updated access contract.
 | Condition | Representative scenarios |
 | --- | --- |
 | Account ready / missing / wrong / expired / not assigned | `connection-setup.notion-*` |
-| Allowed / human approval / denied / wrong resolver | `agents.hire-*`, `questions-and-approvals.wrong-reviewer` |
+| Allowed / human approval / denied / wrong resolver | `agents.create-*`, `questions-and-approvals.wrong-reviewer` |
 | Unambiguous / missing required detail / ambiguous reference | `tasks.website-task`, `questions-and-approvals.necessary-question`, `tasks.ambiguous-task` |
 | Complete list / partial mutation / undo | `tasks.organize-open-work`, `inbox-search.archive-partial-failure`, `inbox-search.restore-archive` |
 | Same space / other space / private resource | `access.other-space`, `access.private-resource`, `tasks.private-task` |
@@ -97,7 +97,7 @@ execution requires a separate product change and updated access contract.
 | Idle / busy / steering / stop / saved continuation | `steering.*`, `recovery.post-stop-message` |
 | Known result / uncertain side effect / failed accounting | `recovery.unknown-email-outcome`, `budgets-costs.repair-cost-recording` |
 | Feature enabled / disabled / different surface | `cases.cases-disabled`, `agent-chat.chat-disabled`, `developer-labs.gated-lab` |
-| Saved record / actually ready / independently usable output | `runs-adapters.validate-hire`, `workspaces.preview-service`, `documents-artifacts.produce-download` |
+| Saved record / actually ready / independently usable output | `runs-adapters.validate-create`, `workspaces.preview-service`, `documents-artifacts.produce-download` |
 
 Different starting conditions should usually be separate scenarios with the same
 query, so one favorable fixture cannot satisfy all branches. Outcomes can mention
@@ -112,7 +112,7 @@ traceability metadata.
    actual admitted agent surface and permission rules; keep current gaps visible.
    Decide whether this is an Agent Chat journey or a named companion boundary.
 2. Reuse or extend the existing Product E2E fixture, catalog and report paths.
-   [Everyday Workflows](../EVERYDAY-WORKFLOWS.md) already cover hiring/reuse,
+   [Everyday Workflows](../EVERYDAY-WORKFLOWS.md) already cover creation/reuse,
    delegation, connection decisions and delivered work. Existing chat-hardening,
    chat-qualification, completion-update and confirmation suites are also
    documented in the [E2E guide](../README.md). Overlap is a reuse opportunity,

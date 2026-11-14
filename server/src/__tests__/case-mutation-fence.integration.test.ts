@@ -45,7 +45,7 @@ describePostgres("case REST mutation fencing", () => {
     await db.insert(spaces).values({ id: spaceId, name: "Case mutation fence", issuePrefix: prefix });
     await db.insert(agents).values([
       { id: agentId, spaceId, name: "Case author", role: "lead", status: "active", adapterType: "process" },
-      { id: recipientId, spaceId, name: "Successor", role: "engineer", reportsTo: agentId, status: "active", adapterType: "process" },
+      { id: recipientId, spaceId, name: "Successor", role: "engineer", leadAgentId: agentId, status: "active", adapterType: "process" },
     ]);
     const [source] = await db.insert(issues).values({ spaceId, title: "Workflow source", assigneeAgentId: agentId, status: "in_progress" }).returning();
     const [reference] = await db.insert(issues).values({ spaceId, title: "Unchanged reference task", status: "todo" }).returning();

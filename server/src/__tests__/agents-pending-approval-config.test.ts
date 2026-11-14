@@ -120,7 +120,7 @@ describeEmbeddedPostgres("pending approval agent config integrity", () => {
         role: "engineer",
         title: "Software Engineer",
         icon: "code",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Writes code",
         adapterType: "process",
         adapterConfig: { command: "echo safe" },
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("pending approval agent config integrity", () => {
     });
   });
 
-  it("keeps agent creation authority explicit and removes legacy Default agent metadata", async () => {
+  it("keeps creation authority explicit and removes legacy Default agent metadata", async () => {
     const spaceId = await seedSpace();
     const service = agentService(db);
     const insertDefaultAgent = (permissions: Record<string, unknown>) => db.insert(agents).values({

@@ -25,7 +25,7 @@ function createAgent(
     title: null,
     icon,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

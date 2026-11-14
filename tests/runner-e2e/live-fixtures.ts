@@ -224,7 +224,7 @@ export async function setupLiveFixtures(input: {
         budgetMonthlyCents: [CHAT_FEATURE_SUITE, CHAT_SETUP_HEALTH_SUITE].includes(execution.suite.id) ? CHAT_FEATURE_BUDGET_CENTS
           : receiptSmoke ? CASE_RECEIPT_BUDGET_CENTS
           : ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
-          || (execution.suite.id === "everyday-workflows" && (["hire-reuse", "delegate-feedback"].includes(execution.task.id)
+          || (execution.suite.id === "everyday-workflows" && (["create-reuse", "delegate-feedback"].includes(execution.task.id)
             || isEverydayReliabilityCase(execution.task.id))) ? NATIVE_COMPLETION_BUDGET_CENTS
           : execution.suite.id === "task-titles" ? TASK_TITLE_BUDGET_CENTS
           : ["cursor-cloud", "stock-harness", "task-workspaces", "case-handoffs", "feedback-persistence", "daytona-restart-continuity", "remote-workspace-storage", "rolling-web-deployment"].includes(execution.suite.id) ? 1_000 : 0,
@@ -349,7 +349,7 @@ export async function setupLiveFixtures(input: {
         const provider = savedCopilot ? "github" : key === "ANTHROPIC_API_KEY" ? "anthropic"
           : key === "OPENROUTER_API_KEY" ? "openrouter"
           : key === "OPENAI_API_KEY" ? "openai" : null;
-        if (!provider) throw new Error(`Unsupported managed hiring credential ${key}`);
+        if (!provider) throw new Error(`Unsupported managed creation credential ${key}`);
         const apiKey = input.credentials[key];
         if (!apiKey) throw new Error(`Missing credential ${key}`);
         const account = await api.postSensitive<{ connectionId: string; grantId: string }>(
@@ -410,7 +410,7 @@ export async function setupLiveFixtures(input: {
           {}, { timeout: 330_000 },
         );
         if (probe.ok !== true || probe.details?.platformQualificationRecorded !== true || !probe.details.leaseId) {
-          throw new Error("Native Codex image qualification was not recorded; agent creation was not attempted.");
+          throw new Error("Native Codex image qualification was not recorded; creation was not attempted.");
         }
         setupProbe = { leaseId: probe.details.leaseId, durationMs: Date.now() - startedAt };
         if (autoCodex) {
@@ -425,7 +425,7 @@ export async function setupLiveFixtures(input: {
         }
       }
       if (["stock-harness", "native-connection-guidance", "feedback-persistence", "daytona-restart-continuity", "remote-workspace-storage", "rolling-web-deployment"].includes(execution.suite.id)
-        || (execution.suite.id === "everyday-workflows" && (["hire-reuse", "delegate-feedback"].includes(execution.task.id)
+        || (execution.suite.id === "everyday-workflows" && (["create-reuse", "delegate-feedback"].includes(execution.task.id)
           || isEverydayReliabilityCase(execution.task.id)))) {
         agent.budgetMonthlyCents = 1_000;
       }

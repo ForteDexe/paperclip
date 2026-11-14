@@ -145,14 +145,14 @@ describe("SidebarNavItem", () => {
         to="/agents/codexcoder"
         label="CodexCoder"
         icon={Inbox}
-        trailing={<span aria-label="Invalid reporting chain" />}
-        trailingLabel="Invalid reporting chain"
+        trailing={<span aria-label="Invalid coordination chain" />}
+        trailingLabel="Invalid coordination chain"
       />,
     );
 
     // The trailing warning is hidden in the rail, so its text equivalent must
     // ride on the link's accessible name.
-    expect(link().getAttribute("aria-label")).toBe("CodexCoder, Invalid reporting chain");
+    expect(link().getAttribute("aria-label")).toBe("CodexCoder, Invalid coordination chain");
   });
 
   it("keeps the full presentation while peeking even when collapsed", () => {

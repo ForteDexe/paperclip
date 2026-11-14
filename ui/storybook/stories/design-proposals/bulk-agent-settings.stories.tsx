@@ -11,7 +11,7 @@ const meta = {
     initialEntries: ["/PAP/agents/all"],
     docs: { description: { component: "Start in Playground: filter by harness, select rows, then Edit connection & model. Mixed selections offer a separate action for each harness. Each field is opt-in, with a per-agent before/after preview and a count excluding agents already at the target value. Connection selection uses the production AiConnectionSelect; ModelDropdown offers the intersection of fixture model availability. Incompatible models block saving without silently replacing them. Save updates local roster state, and Partial failure allows retry of only the unsuccessful agent. All accounts, catalogs, saves and failures are synthetic. Future-run timing and preserving task overrides are proposed behavior, not production acceptance. Reload/reset the story to restore its fixtures." } },
     outpost: {
-      capabilities: ["agents/instructions", "agents/organization"],
+      capabilities: ["agents/instructions", "agents/coordination"],
       home: "design-proposals", status: "proposed",
       exception: "Requested interactive bulk-settings design for review before production implementation.",
       implementation: "prototype", boundary: "fixtures",

@@ -17,11 +17,11 @@ interface Submission {
   takingLonger: boolean;
 }
 
-type SubmissionAgent = Partial<Pick<Agent, "status" | "orgChainHealth">>;
+type SubmissionAgent = Partial<Pick<Agent, "status" | "coordinationHealth">>;
 
 function agentBlocksStartup(agent: SubmissionAgent | undefined) {
   return (agent?.status !== undefined && !isAgentStatusInvokable(agent.status)) ||
-    agent?.orgChainHealth?.status === "invalid_org_chain";
+    agent?.coordinationHealth?.status === "invalid_coordination_chain";
 }
 
 export function useRunnerSubmission({

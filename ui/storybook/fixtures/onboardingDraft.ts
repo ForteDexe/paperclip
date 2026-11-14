@@ -28,7 +28,7 @@ export const ONBOARDING_ARC_ENTRY_STEP = 3;
  * seeds step 4 or 5 directly renders those steps permanently without their Back
  * button. Stories that want a later step click their way to it instead.
  *
- * `createdAgentId` is therefore absent rather than seeded: the hire happens for
+ * `createdAgentId` is therefore absent rather than seeded: the create happens for
  * real, through the fixtured route, which is also what keeps step 5's
  * `launchStateIncomplete` guard honest instead of painted over.
  */
@@ -47,7 +47,7 @@ export function seedOnboardingDraft(): void {
       // doing. Stories that need a source pick one, the way a customer does.
       //
       // (It read `claude_code` before that, which is no adapter at all: the step
-      // recovered by falling back, and the hire would have posted a type the
+      // recovered by falling back, and the create would have posted a type the
       // server does not know.)
       createdSpaceId: STORYBOOK_SPACE_ID,
       createdSpacePrefix: "PAP",

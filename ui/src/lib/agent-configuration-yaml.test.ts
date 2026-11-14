@@ -4,7 +4,7 @@ import { agentConfigurationPatch, parseAgentConfigurationYaml, serializeAgentCon
 
 export const configuration: AgentConfigurationSource = {
   id: "11111111-1111-4111-8111-111111111111", name: "Codie", role: "engineer", title: null,
-  icon: null, appearance: appearanceForPalette("bubblegum-sky"), reportsTo: null,
+  icon: null, appearance: appearanceForPalette("bubblegum-sky"), leadAgentId: null,
   capabilities: "Write code\nReview changes\n", adapterType: "codex_local",
   adapterConfig: { model: "gpt-5", env: { API_KEY: { type: "plain", value: "***REDACTED***" } }, extra: { enabled: true } },
   runtimeConfig: { heartbeat: { enabled: false, intervalSec: 3600 }, custom: { nested: [1, "on", false] } },

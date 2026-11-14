@@ -214,40 +214,40 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       return rows[0] ?? null;
     },
 
-    orgForSpace: async (spaceId: string) => {
+    hierarchyForSpace: async (spaceId: string) => {
       const allSpaceRows = await listSpaceAgentRows(spaceId);
       const rows = allSpaceRows.filter((row) => row.status !== "terminated");
       const normalizedRows = normalizeAgentRows(rows, allSpaceRows);
-      const byManager = new Map<string | null, typeof normalizedRows>();
+      const byLead = new Map<string | null, typeof normalizedRows>();
       for (const row of normalizedRows) {
-        const key = row.reportsTo && rows.some((candidate) => candidate.id === row.reportsTo) ? row.reportsTo : null;
-        const group = byManager.get(key) ?? [];
+        const key = row.leadAgentId && rows.some((candidate) => candidate.id === row.leadAgentId) ? row.leadAgentId : null;
+        const group = byLead.get(key) ?? [];
         group.push(row);
-        byManager.set(key, group);
+        byLead.set(key, group);
       }
 
-      const build = (managerId: string | null): Array<Record<string, unknown>> => {
-        const members = byManager.get(managerId) ?? [];
+      const build = (leadId: string | null): Array<Record<string, unknown>> => {
+        const members = byLead.get(leadId) ?? [];
         return members.map((member) => ({
           ...member,
-          reports: build(member.id),
+          children: build(member.id),
         }));
       };
 
       return build(null);
     },
 
-    getChainOfCommand: async (agentId: string) => {
+    getCoordinationChain: async (agentId: string) => {
       const chain: { id: string; name: string; role: string; title: string | null }[] = [];
       const visited = new Set<string>([agentId]);
       const start = await getById(agentId);
-      let currentId = start?.reportsTo ?? null;
+      let currentId = start?.leadAgentId ?? null;
       while (currentId && !visited.has(currentId) && chain.length < 50) {
         visited.add(currentId);
-        const mgr = await getById(currentId);
-        if (!mgr) break;
-        chain.push({ id: mgr.id, name: mgr.name, role: mgr.role, title: mgr.title ?? null });
-        currentId = mgr.reportsTo ?? null;
+        const lead = await getById(currentId);
+        if (!lead) break;
+        chain.push({ id: lead.id, name: lead.name, role: lead.role, title: lead.title ?? null });
+        currentId = lead.leadAgentId ?? null;
       }
       return chain;
     },

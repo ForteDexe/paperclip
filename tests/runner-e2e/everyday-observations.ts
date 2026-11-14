@@ -149,14 +149,14 @@ export type StoryArtifactGradeMode = "base" | "separator" | "max-length";
 /** Select the artifact oracle variant required by each workflow's actual case. */
 export function artifactGradeModeForPhase(
   phase:
-    | "hired-delivery"
+    | "created-delivery"
     | "reused-delivery"
     | "delegated-delivery"
     | "reviewed-delivery"
     | "recovered-delivery",
 ): StoryArtifactGradeMode {
   switch (phase) {
-    case "hired-delivery":
+    case "created-delivery":
     case "reviewed-delivery":
       return "base";
     case "reused-delivery":

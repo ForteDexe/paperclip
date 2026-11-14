@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Generate org chart images and READMEs for agent space packages.
+ * Generate agent hierarchy images and READMEs for agent space packages.
  *
  * Reads space packages from a directory, builds manifest-like data,
  * then uses the existing server-side SVG renderer (sharp, no browser)
@@ -13,7 +13,7 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { renderOrgChartPng, type OrgNode, type OrgChartOverlay } from "../server/src/routes/org-chart-svg.js";
+import { renderAgentHierarchyPng, type AgentHierarchyNode, type AgentHierarchyOverlay } from "../server/src/routes/agent-hierarchy-svg.js";
 import { generateReadme } from "../server/src/services/space-export-readme.js";
 import type { SpacePortabilityManifest } from "@outpost/shared";
 
@@ -100,22 +100,19 @@ const SLUG_TO_ROLE: Record<string, string> = {
   engineering_lead: "engineering_lead",
   product: "product",
   operations: "operations",
-  coo: "coo",
+  operations_coordinator: "operations",
 };
 
 function inferRole(slug: string, title: string | null): string {
   // Check direct slug match first
   if (SLUG_TO_ROLE[slug]) return SLUG_TO_ROLE[slug];
 
-  // Check title for C-suite
+  // Check neutral role titles.
   const t = (title || "").toLowerCase();
   if (t.includes("default agent")) return "lead";
-  if (t.includes("chief technology")) return "engineering_lead";
-  if (t.includes("chief marketing")) return "product";
-  if (t.includes("chief financial")) return "operations";
-  if (t.includes("chief operating")) return "coo";
-  if (t.includes("vp") || t.includes("vice president")) return "vp";
-  if (t.includes("manager")) return "manager";
+  if (t.includes("engineering lead") || t.includes("technology lead")) return "engineering_lead";
+  if (t.includes("product lead") || t.includes("marketing lead")) return "product";
+  if (t.includes("operations") || t.includes("finance")) return "operations";
   if (t.includes("qa") || t.includes("quality")) return "engineer";
 
   // Default to engineer
@@ -162,7 +159,7 @@ function parseSpacePackage(spaceDir: string): SpacePackage | null {
 
       const agentName = (agentData.name as string) || agentSlug;
       const title = (agentData.title as string) || null;
-      const reportsTo = agentData.reportsTo as string | null;
+      const leadAgentId = agentData.leadAgentId as string | null;
       const skills = (agentData.skills as string[]) || [];
       const role = inferRole(agentSlug, title);
 
@@ -175,7 +172,7 @@ function parseSpacePackage(spaceDir: string): SpacePackage | null {
         title,
         icon: null,
         capabilities: null,
-        reportsToSlug: reportsTo || null,
+        leadAgentSlug: leadAgentId || null,
         adapterType: "claude_local",
         adapterConfig: {},
         runtimeConfig: {},
@@ -237,30 +234,28 @@ function parseSpacePackage(spaceDir: string): SpacePackage | null {
   return { dir: spaceDir, name, description, slug, agents, skills };
 }
 
-// ── Build OrgNode tree from agents ───────────────────────────────
+// ── Build AgentHierarchyNode tree from agents ───────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
   lead: "Default agent",
   engineering_lead: "Technology",
   product: "Marketing",
   operations: "Finance",
-  coo: "Operations",
-  vp: "VP",
-  manager: "Manager",
+  operations_coordinator: "Operations Coordinator",
   engineer: "Engineer",
   agent: "Agent",
 };
 
-function buildOrgTree(agents: SpacePortabilityManifest["agents"]): OrgNode[] {
+function buildAgentTree(agents: SpacePortabilityManifest["agents"]): AgentHierarchyNode[] {
   const bySlug = new Map(agents.map((a) => [a.slug, a]));
   const childrenOf = new Map<string | null, typeof agents>();
   for (const a of agents) {
-    const parent = a.reportsToSlug ?? null;
+    const parent = a.leadAgentSlug ?? null;
     const list = childrenOf.get(parent) ?? [];
     list.push(a);
     childrenOf.set(parent, list);
   }
-  const build = (parentSlug: string | null): OrgNode[] => {
+  const build = (parentSlug: string | null): AgentHierarchyNode[] => {
     const members = childrenOf.get(parentSlug) ?? [];
     return members.map((m) => ({
       id: m.slug,
@@ -270,10 +265,10 @@ function buildOrgTree(agents: SpacePortabilityManifest["agents"]): OrgNode[] {
       reports: build(m.slug),
     }));
   };
-  const roots = agents.filter((a) => !a.reportsToSlug || !bySlug.has(a.reportsToSlug));
+  const roots = agents.filter((a) => !a.leadAgentSlug || !bySlug.has(a.leadAgentSlug));
   const tree = build(null);
   for (const root of roots) {
-    if (root.reportsToSlug && !bySlug.has(root.reportsToSlug)) {
+    if (root.leadAgentSlug && !bySlug.has(root.leadAgentSlug)) {
       tree.push({
         id: root.slug,
         name: root.name,
@@ -313,19 +308,19 @@ async function main() {
     console.log(`\n── ${pkg.name} (${pkg.slug}) ──`);
     console.log(`   ${pkg.agents.length} agents, ${pkg.skills.length} skills`);
 
-    // Generate org chart PNG
+    // Generate agent hierarchy PNG
     if (pkg.agents.length > 0) {
-      const orgTree = buildOrgTree(pkg.agents);
-      console.log(`   Org tree roots: ${orgTree.map((n) => n.name).join(", ")}`);
+      const agentHierarchy = buildAgentTree(pkg.agents);
+      console.log(`   Org tree roots: ${agentHierarchy.map((n) => n.name).join(", ")}`);
 
-      const overlay: OrgChartOverlay = {
+      const overlay: AgentHierarchyOverlay = {
         spaceName: pkg.name,
         stats: `Agents: ${pkg.agents.length}, Skills: ${pkg.skills.length}`,
       };
-      const pngBuffer = await renderOrgChartPng(orgTree, "warmth", overlay);
+      const pngBuffer = await renderAgentHierarchyPng(agentHierarchy, "warmth", overlay);
       const imagesDir = path.join(spaceDir, "images");
       fs.mkdirSync(imagesDir, { recursive: true });
-      const pngPath = path.join(imagesDir, "org-chart.png");
+      const pngPath = path.join(imagesDir, "agent-hierarchy.png");
       fs.writeFileSync(pngPath, pngBuffer);
       console.log(`   ✓ ${path.relative(resolvedDir, pngPath)} (${(pngBuffer.length / 1024).toFixed(1)}kb)`);
     }

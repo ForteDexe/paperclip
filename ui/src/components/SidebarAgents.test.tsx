@@ -138,7 +138,7 @@ function makeAgent(overrides: Partial<Agent>): Agent {
     title: null,
     icon: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "process",
     adapterConfig: {},
@@ -510,7 +510,7 @@ describe("SidebarAgents", () => {
     expect(agentLinkLabels(container)).toEqual(["Bravo", "Alpha", "Charlie"]);
   });
 
-  it("uses the heading for section menu and the plus button for agent creation", async () => {
+  it("uses the heading for section menu and the plus button for creation", async () => {
     await renderSidebarAgents();
 
     const sectionMenuTrigger = container.querySelector('button[aria-label="Agents section actions"]');

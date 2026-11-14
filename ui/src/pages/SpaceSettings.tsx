@@ -342,7 +342,7 @@ export function SpaceSettings() {
         <div>
           <ToggleField
             label="Require operator approval for new creations"
-            hint="New agent creations stay pending until approved by operator."
+            hint="New creations stay pending until approved by operator."
             checked={!!selectedSpace.requireOperatorApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
             toggleTestId="outpost-settings-team-approval-toggle"

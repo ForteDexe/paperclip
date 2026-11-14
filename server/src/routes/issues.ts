@@ -7972,10 +7972,10 @@ export function issueRoutes(
     if (resolved.agent.status === "terminated") {
       throw conflict("Cannot assign work to terminated agents");
     }
-    // Agents must not route work to a paused peer/manager: the assignment is
+    // Agents must not route work to a paused peer or lead agent: the assignment is
     // accepted silently, nothing will ever run it, and the issue becomes an
     // invisible dead letter (e.g. escalation issues assigned to a paused
-    // manager via the org chart). Humans may still assign to paused agents
+    // manager via the agent hierarchy). Humans may still assign to paused agents
     // deliberately — the pause state is visible in the UI and staging work
     // for a later unpause is a legitimate workflow.
     if (options.actorType === "agent" && resolved.agent.status === "paused") {
@@ -7984,10 +7984,10 @@ export function issueRoutes(
         { assigneeAgentId: resolved.agent.id, assigneeStatus: "paused" },
       );
     }
-    if (resolved.agent.orgChainHealth?.status === "invalid_org_chain") {
+    if (resolved.agent.coordinationHealth?.status === "invalid_coordination_chain") {
       throw conflict(
-        resolved.agent.orgChainHealth?.repairGuidance ??
-          "Cannot assign work to agents with invalid org chains",
+        resolved.agent.coordinationHealth?.repairGuidance ??
+          "Cannot assign work to agents with invalid coordination chains",
       );
     }
     return resolved.agent.id;
@@ -13547,7 +13547,7 @@ export function issueRoutes(
           ]);
           const greetingBody = await renderOnboardingGreeting({
             agentName: assigneeAgent?.name ?? null,
-            organizationName: space?.name ?? null,
+            spaceName: space?.name ?? null,
           });
           await svc.addComment(
             issue.id,

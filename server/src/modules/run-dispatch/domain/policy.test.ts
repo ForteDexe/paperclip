@@ -28,7 +28,7 @@ function baseGateFacts(): ScheduledRetryFacts {
     budgetBlock: null,
     agentInvokable: true,
     agentInvokabilityDetails: {},
-    agentInvokabilityInvalidOrgChain: false,
+    agentInvokabilityInvalidCoordinationChain: false,
     heartbeatWakeOnDemandEnabled: true,
     issueFound: true,
     issueStatus: "in_progress",

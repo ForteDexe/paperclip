@@ -741,7 +741,7 @@ export async function runChatFlow(input: ChatFlowInput) {
       }
       expect(issue!.id).toBe(initialId);
       await noTasks();
-    } else if (["hire-delegate-reuse", "blocked-status-review", "committed-send-retry"].includes(caseId)) {
+    } else if (["create-delegate-reuse", "blocked-status-review", "committed-send-retry"].includes(caseId)) {
       await runChatHardeningFlow({ input, marker, issue: () => issue!, turn, idle, tasks, allRuns, comments });
     } else if (caseId === "create-backlog") {
       const project = await api.post<{ id: string }>(`/api/spaces/${f.space.id}/projects`, {
@@ -773,7 +773,7 @@ export async function runChatFlow(input: ChatFlowInput) {
         workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce,
       });
       const teammate = await api.post<{ id: string }>(`/api/spaces/${f.space.id}/agents`, {
-        ...config, name: "Riley Reassignment", role: "engineer", reportsTo: f.agent.id,
+        ...config, name: "Riley Reassignment", role: "engineer", leadAgentId: f.agent.id,
         instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": "Complete the assigned work and save the requested Outpost document." } },
       });
       const queued = await api.post<ChatIssue>(`/api/spaces/${f.space.id}/issues`, {

@@ -19,7 +19,7 @@ import { bytesContainSecret,privateScanJson,scanReachableSecretOutputs } from ".
 import { collectRunEvents } from "../run-observations.js";
 import { sendChatMessage } from "../chat-flow.js";
 import type { SecretReferenceMap } from "../types.js";
-const agentConfigurationMetadata=(agent:Record<string,unknown>)=>Object.fromEntries(["adapterType","runtimeConfig","permissions","runner","reportsTo","name","role","title","capabilities"].map(key=>[key,agent[key]??null]));
+const agentConfigurationMetadata=(agent:Record<string,unknown>)=>Object.fromEntries(["adapterType","runtimeConfig","permissions","runner","leadAgentId","name","role","title","capabilities"].map(key=>[key,agent[key]??null]));
 const values=new WeakMap<ChatCatalogContext,string>();
 const controllerFields = ["id", "spaceId", "scope", "ownerUserId", "userSecretDefinitionId", "key", "name", "provider", "status", "managedMode", "latestVersion"] as const;
 type ControllerSecret = Pick<SpaceSecret, typeof controllerFields[number]>;

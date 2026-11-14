@@ -81,7 +81,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
     sameRunTerminalEvidence?: boolean;
   }) {
     const spaceId = randomUUID();
-    const managerId = randomUUID();
+    const leadAgentId = randomUUID();
     const coderId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
@@ -100,7 +100,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
     });
     await db.insert(agents).values([
       {
-        id: managerId,
+        id: leadAgentId,
         spaceId,
         name: "Engineering Lead",
         role: "engineering_lead",
@@ -116,7 +116,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
         name: "Coder",
         role: "engineer",
         status: "running",
-        reportsTo: managerId,
+        leadAgentId: leadAgentId,
         adapterType: "codex_local",
         adapterConfig: {},
         runtimeConfig: {},
@@ -174,7 +174,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       });
     }
 
-    return { spaceId, managerId, coderId, issueId, runId, issuePrefix, startedAt };
+    return { spaceId, leadAgentId, coderId, issueId, runId, issuePrefix, startedAt };
   }
 
   function createRecovery() {
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
     spaceId: string;
     issueId: string;
     coderId: string;
-    managerId: string;
+    leadAgentId: string;
   }) {
     const [evaluations, comments, relations, actions, wakes, source, coder, manager] = await Promise.all([
       db.select().from(issues).where(and(
@@ -205,7 +205,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, input.spaceId)),
       db.select().from(issues).where(eq(issues.id, input.issueId)).then((rows) => rows[0]),
       db.select().from(agents).where(eq(agents.id, input.coderId)).then((rows) => rows[0]),
-      db.select().from(agents).where(eq(agents.id, input.managerId)).then((rows) => rows[0]),
+      db.select().from(agents).where(eq(agents.id, input.leadAgentId)).then((rows) => rows[0]),
     ]);
 
     expect(evaluations).toHaveLength(0);
@@ -303,7 +303,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       title: "Evaluation issue in the other space",
       status: "todo",
       priority: "medium",
-      assigneeAgentId: spaceB.managerId,
+      assigneeAgentId: spaceB.leadAgentId,
       issueNumber: 2,
       identifier: `${spaceB.issuePrefix}-2`,
       originKind: "stale_active_run_evaluation",
@@ -314,7 +314,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
 
     await expect(recovery.recordWatchdogDecision({
       runId: spaceA.runId,
-      actor: { type: "agent", agentId: spaceA.managerId },
+      actor: { type: "agent", agentId: spaceA.leadAgentId },
       decision: "continue",
       evaluationIssueId: evaluationIssueIdInSpaceB,
       reason: "Cross-space evaluation issue must be rejected",
@@ -346,7 +346,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       title: "Existing stale evaluation",
       status: "todo",
       priority: "high",
-      assigneeAgentId: seeded.managerId,
+      assigneeAgentId: seeded.leadAgentId,
       issueNumber: 2,
       identifier: `${seeded.issuePrefix}-2`,
       originKind: "stale_active_run_evaluation",
@@ -361,7 +361,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       kind: "active_run_watchdog",
       status: "active",
       ownerType: "agent",
-      ownerAgentId: seeded.managerId,
+      ownerAgentId: seeded.leadAgentId,
       cause: "active_run_watchdog",
       fingerprint: `active-run-watchdog:${seeded.spaceId}:${seeded.runId}:${seeded.issueId}`,
       evidence: { runId: seeded.runId },
@@ -537,7 +537,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       title: "Existing stale evaluation",
       status: "todo",
       priority: "high",
-      assigneeAgentId: seeded.managerId,
+      assigneeAgentId: seeded.leadAgentId,
       issueNumber: 2,
       identifier: `${seeded.issuePrefix}-2`,
       originKind: "stale_active_run_evaluation",
@@ -558,7 +558,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       kind: "active_run_watchdog",
       status: "active",
       ownerType: "agent",
-      ownerAgentId: seeded.managerId,
+      ownerAgentId: seeded.leadAgentId,
       cause: "active_run_watchdog",
       fingerprint: `active-run-watchdog:${seeded.spaceId}:${seeded.runId}:${seeded.issueId}`,
       evidence: { runId: seeded.runId },
@@ -595,7 +595,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       title: "Legacy silent-run evaluation",
       status: "todo",
       priority: "medium",
-      assigneeAgentId: seeded.managerId,
+      assigneeAgentId: seeded.leadAgentId,
       issueNumber: 2,
       identifier: `${seeded.issuePrefix}-2`,
       originKind: "stale_active_run_evaluation",
@@ -610,12 +610,12 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       level: "critical",
       evaluationIssueId,
       evaluationIssueIdentifier: `${seeded.issuePrefix}-2`,
-      evaluationIssueAssigneeAgentId: seeded.managerId,
+      evaluationIssueAssigneeAgentId: seeded.leadAgentId,
     });
     await expect(recovery.scanSilentActiveRuns({ now, spaceId: seeded.spaceId }))
       .resolves.toMatchObject({ created: 0, existing: 1, escalated: 0 });
     const [evaluation] = await db.select().from(issues).where(eq(issues.id, evaluationIssueId));
-    expect(evaluation).toMatchObject({ status: "todo", priority: "medium", assigneeAgentId: seeded.managerId });
+    expect(evaluation).toMatchObject({ status: "todo", priority: "medium", assigneeAgentId: seeded.leadAgentId });
     expect(evaluation?.updatedAt.toISOString()).toBe(evaluationUpdatedAt.toISOString());
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, evaluationIssueId))).toHaveLength(0);
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, seeded.spaceId))).toHaveLength(0);
@@ -623,12 +623,12 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
 
     await expect(recovery.recordWatchdogDecision({
       runId: seeded.runId,
-      actor: { type: "agent", agentId: seeded.managerId },
+      actor: { type: "agent", agentId: seeded.leadAgentId },
       decision: "continue",
       evaluationIssueId,
       reason: "Resolve through the legacy review",
       now,
-    })).resolves.toMatchObject({ evaluationIssueId, createdByAgentId: seeded.managerId });
+    })).resolves.toMatchObject({ evaluationIssueId, createdByAgentId: seeded.leadAgentId });
     await expect(recovery.recordWatchdogDecision({
       runId: seeded.runId,
       actor: { type: "agent", agentId: randomUUID() },
@@ -652,7 +652,7 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
       title: "Closed legacy evaluation",
       status: "done",
       priority: "medium",
-      assigneeAgentId: seeded.managerId,
+      assigneeAgentId: seeded.leadAgentId,
       issueNumber: 2,
       identifier: `${seeded.issuePrefix}-2`,
       originKind: "stale_active_run_evaluation",

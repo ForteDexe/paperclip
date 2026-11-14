@@ -57,8 +57,9 @@ export const TERMINOLOGY_ALLOWLIST = Object.freeze([
 
 export const FORBIDDEN_PRESENTATION_TERMS = Object.freeze([
   { id: "paperclip-product", pattern: /\bPaperclip\b/i },
-  { id: "executive-rank", pattern: /\b(?:CEO|CTO|chief executive)\b/i },
-  { id: "employment-language", pattern: /\b(?:hire|hired|hiring|recruit|recruited|recruiting|employee|employees|workforce)\b/i },
+  { id: "executive-rank", pattern: /\b(?:CEO|CTO|COO|chief executive|chief technology officer|chief operating officer|chief of staff)\b/i },
+  { id: "employment-language", pattern: /\b(?:employee|employees|employer|employment|hire|hired|hiring|recruit|recruited|recruiting|workforce)\b/i },
+  { id: "corporate-hierarchy", pattern: /\b(?:reports to|direct reports|organizational hierarchy|org chart)\b/i },
   { id: "corporate-boundary", pattern: /\b(?:company|corporation)\b/i },
   { id: "corporate-authority", pattern: /\b(?:board member|board user|governance|governed)\b/i },
 ]);

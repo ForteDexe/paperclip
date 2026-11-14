@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { agentsApi, type OrgNode } from "../api/agents";
+import { agentsApi, type AgentHierarchyNode } from "../api/agents";
 import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -13,35 +13,35 @@ import { ChevronRight, GitBranch } from "lucide-react";
 import { cn } from "../lib/utils";
 import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
 
-function OrgTree({
+function AgentTree({
   nodes,
   depth = 0,
   hrefFn,
 }: {
-  nodes: OrgNode[];
+  nodes: AgentHierarchyNode[];
   depth?: number;
   hrefFn: (id: string) => string;
 }) {
   return (
     <div>
       {nodes.map((node) => (
-        <OrgTreeNode key={node.id} node={node} depth={depth} hrefFn={hrefFn} />
+        <HierarchyNode key={node.id} node={node} depth={depth} hrefFn={hrefFn} />
       ))}
     </div>
   );
 }
 
-function OrgTreeNode({
+function HierarchyNode({
   node,
   depth,
   hrefFn,
 }: {
-  node: OrgNode;
+  node: AgentHierarchyNode;
   depth: number;
   hrefFn: (id: string) => string;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.reports.length > 0;
+  const hasChildren = node.children.length > 0;
 
   return (
     <div>
@@ -79,13 +79,13 @@ function OrgTreeNode({
         <StatusBadge status={node.status} />
       </Link>
       {hasChildren && expanded && (
-        <OrgTree nodes={node.reports} depth={depth + 1} hrefFn={hrefFn} />
+        <AgentTree nodes={node.children} depth={depth + 1} hrefFn={hrefFn} />
       )}
     </div>
   );
 }
 
-export function Org() {
+export function AgentDirectory() {
   const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
 
@@ -94,8 +94,8 @@ export function Org() {
   }, [setBreadcrumbs]);
 
   const orgQuery = useQuery({
-    queryKey: queryKeys.org(selectedSpaceId!),
-    queryFn: () => agentsApi.org(selectedSpaceId!),
+    queryKey: queryKeys.agentHierarchy(selectedSpaceId!),
+    queryFn: () => agentsApi.hierarchy(selectedSpaceId!),
     enabled: !!selectedSpaceId,
   });
   const { data, isLoading } = orgQuery;
@@ -133,7 +133,7 @@ export function Org() {
 
       {data && data.length > 0 && (
         <div className="border border-border py-1">
-          <OrgTree nodes={data} hrefFn={(id) => `/agents/${id}`} />
+          <AgentTree nodes={data} hrefFn={(id) => `/agents/${id}`} />
         </div>
       )}
     </div>

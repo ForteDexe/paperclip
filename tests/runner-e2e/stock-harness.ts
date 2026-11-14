@@ -57,7 +57,7 @@ export function gradeStockHire(evidence: Pick<StockHarnessEvidence, "bundle" | "
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
   check("budget-hard-stops", evidence.budgets.spaceMonthlyCents === 1_000 && evidence.budgets.agentMonthlyCents === 1_000,
     "Public space and agent records must both retain the 1,000-cent monthly hard stops.");
-  check("default-hire-bundle", evidence.bundle.entryFile === "AGENTS.md" &&
+  check("default-create-bundle", evidence.bundle.entryFile === "AGENTS.md" &&
     evidence.bundle.files.length === 1 && evidence.bundle.files[0]?.path === "AGENTS.md" &&
     evidence.bundle.files[0]?.content === instructionVariant.content,
   instructionVariant.variant === "reduced"

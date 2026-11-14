@@ -73,7 +73,7 @@ export function gradeSshComputer(value: unknown) {
   c.add("transport-versus-runtime-qualification", !!r && r.environmentId === s.environmentId && r.savedIdentityMatched === true && (kind === "test" || r.login === true && r.runtimeStatus === "pass"), "A saved SSH name or successful host login never substitutes for actual remote harness qualification.");
   c.add("phase-bound-actual-probe-report", kind === "choose" ? s.incompatibleActuallyUnsupported === true && s.incompatibleSelected === false : !!r && s.reportAttributed === true && computerProbeReply(String(s.reportReply), r), "The distinct actual result phase is attributed; capability selection never chooses an independently incompatible target.");
   c.add("no-private-key-in-model-output", s.secretScanComplete === true && s.secretLeaked === false, "Private source/document/attachment/artifact/native event bytes are scanned before redaction; harmless outputs are allowed.");
-  c.add("no-unrequested-execution", o.tasks.length === 0 && o.runs.length === (kind === "choose" ? 1 : 2) && o.runs.every(x => x.status === "succeeded"), "Only declared source chat runs occur; no host provisioning or employee task is admitted.");
+  c.add("no-unrequested-execution", o.tasks.length === 0 && o.runs.length === (kind === "choose" ? 1 : 2) && o.runs.every(x => x.status === "succeeded"), "Only declared source chat runs occur; no host provisioning or agent task is admitted.");
   return c.result();
 }
 const sshCases = ids.map(id => runtimeDefinition(id, async ctx => {

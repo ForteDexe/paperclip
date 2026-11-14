@@ -106,7 +106,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
 
   async function seedAgent(
     spaceId: string,
-    input: { role?: string; reportsTo?: string | null; name?: string } = {},
+    input: { role?: string; leadAgentId?: string | null; name?: string } = {},
   ) {
     const agentId = randomUUID();
     await db.insert(agents).values({
@@ -114,7 +114,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
       spaceId,
       name: input.name ?? "Agent",
       role: input.role ?? "engineer",
-      reportsTo: input.reportsTo ?? null,
+      leadAgentId: input.leadAgentId ?? null,
     });
     return agentId;
   }
@@ -335,8 +335,8 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     const spaceId = await seedSpace();
     const { projectId, projectWorkspaceId } = await seedProjectWorkspace(spaceId);
     const executionWorkspaceId = await seedExecutionWorkspace(spaceId, projectId, projectWorkspaceId);
-    const managerId = await seedAgent(spaceId, { role: "engineering_lead", name: "Manager" });
-    const reportId = await seedAgent(spaceId, { reportsTo: managerId, name: "Report" });
+    const leadAgentId = await seedAgent(spaceId, { role: "engineering_lead", name: "Manager" });
+    const reportId = await seedAgent(spaceId, { leadAgentId: leadAgentId, name: "Report" });
 
     await db.insert(issues).values({
       id: randomUUID(),
@@ -353,7 +353,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
     await expect(assertCanManageExecutionWorkspaceRuntimeServices(db, {
       actor: {
         type: "agent",
-        agentId: managerId,
+        agentId: leadAgentId,
         spaceId,
         source: "agent_key",
       },
@@ -362,7 +362,7 @@ describeEmbeddedPostgres("workspace runtime service authz helper", () => {
       executionWorkspaceId,
     })).resolves.toMatchObject({
       actorType: "agent",
-      agentId: managerId,
+      agentId: leadAgentId,
       issueId: null,
     });
   });

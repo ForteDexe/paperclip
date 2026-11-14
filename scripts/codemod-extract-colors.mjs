@@ -50,12 +50,12 @@ const NEW_TOKENS = [
   { name: "hex-959596", value: "#959596", comment: "Muted feed actor/verb/title text (ActivityFeed.tsx, FeedCard.tsx) — PRIOR-ART-flagged gap cluster, no existing token match." },
   { name: "hex-1d1d1d", value: "#1d1d1d", comment: "OnboardingWizard.tsx dark decorative panel background, singleton." },
 
-  // --- OrgChart.tsx status dot colors (independent from --status-agent-* hues) ---
-  { name: "hex-22d3ee", value: "#22d3ee", comment: "OrgChart.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2)." },
-  { name: "hex-4ade80", value: "#4ade80", comment: "OrgChart.tsx agent status dot — 'active'." },
-  { name: "hex-facc15", value: "#facc15", comment: "OrgChart.tsx agent status dot — 'paused' / 'idle' (shared value)." },
-  { name: "hex-f87171", value: "#f87171", comment: "OrgChart.tsx agent status dot — 'error'." },
-  { name: "hex-a3a3a3", value: "#a3a3a3", comment: "OrgChart.tsx agent status dot — 'terminated' + defaultDotColor fallback." },
+  // --- AgentHierarchy.tsx status dot colors (independent from --status-agent-* hues) ---
+  { name: "hex-22d3ee", value: "#22d3ee", comment: "AgentHierarchy.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2)." },
+  { name: "hex-4ade80", value: "#4ade80", comment: "AgentHierarchy.tsx agent status dot — 'active'." },
+  { name: "hex-facc15", value: "#facc15", comment: "AgentHierarchy.tsx agent status dot — 'paused' / 'idle' (shared value)." },
+  { name: "hex-f87171", value: "#f87171", comment: "AgentHierarchy.tsx agent status dot — 'error'." },
+  { name: "hex-a3a3a3", value: "#a3a3a3", comment: "AgentHierarchy.tsx agent status dot — 'terminated' + defaultDotColor fallback." },
 
   // --- ActivityCharts.tsx priority + status color maps (independent palette, see TOKEN-AUDIT.md 1.2) ---
   { name: "hex-ef4444", value: "#ef4444", comment: "ActivityCharts.tsx — priority 'critical' + status 'blocked' (shared value); also the <0.5 success-rate bar tint." },
@@ -153,9 +153,9 @@ const SITES = [
     ],
   },
 
-  // ── OrgChart.tsx status dot color map (pure style render) ─────────
+  // ── AgentHierarchy.tsx status dot color map (pure style render) ─────────
   {
-    file: "pages/OrgChart.tsx",
+    file: "pages/AgentHierarchy.tsx",
     replaceAll: [
       ['running: "#22d3ee",', 'running: "var(--hex-22d3ee)",'],
       ['active: "#4ade80",', 'active: "var(--hex-4ade80)",'],

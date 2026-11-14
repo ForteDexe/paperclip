@@ -5,10 +5,10 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queryKeys";
-import { OrgChart } from "./OrgChart";
+import { AgentHierarchy } from "./AgentHierarchy";
 
 const navigateMock = vi.fn();
-const orgMock = vi.fn();
+const hierarchyMock = vi.fn();
 const listMock = vi.fn();
 
 vi.mock("@/lib/router", () => ({
@@ -26,7 +26,7 @@ vi.mock("../context/BreadcrumbContext", () => ({
 
 vi.mock("../api/agents", () => ({
   agentsApi: {
-    org: () => orgMock(),
+    hierarchy: () => hierarchyMock(),
     list: () => listMock(),
   },
 }));
@@ -38,19 +38,19 @@ vi.mock("../components/AgentIconPicker", () => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const orgTree = [
+const agentHierarchy = [
   {
     id: "agent-1",
     name: "Lead",
     role: "lead",
     status: "active",
-    reports: [
+    children: [
       {
         id: "agent-2",
         name: "Engineer",
         role: "engineer",
         status: "active",
-        reports: [],
+        children: [],
       },
     ],
   },
@@ -64,7 +64,7 @@ const agents = [
     role: "lead",
     title: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},
@@ -88,7 +88,7 @@ const agents = [
     role: "engineer",
     title: null,
     status: "active",
-    reportsTo: "agent-1",
+    leadAgentId: "agent-1",
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},
@@ -125,7 +125,7 @@ async function flushReact() {
   });
 }
 
-describe("OrgChart mobile gestures", () => {
+describe("AgentHierarchy mobile gestures", () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   let queryClient: QueryClient;
@@ -140,23 +140,23 @@ describe("OrgChart mobile gestures", () => {
     });
     viewportWidth = 360;
     viewportHeight = 520;
-    orgMock.mockResolvedValue(orgTree);
+    hierarchyMock.mockResolvedValue(agentHierarchy);
     listMock.mockResolvedValue(agents);
 
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
       get() {
-        return this.getAttribute("data-testid") === "org-chart-viewport" ? viewportWidth : 0;
+        return this.getAttribute("data-testid") === "agent-hierarchy-viewport" ? viewportWidth : 0;
       },
     });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", {
       configurable: true,
       get() {
-        return this.getAttribute("data-testid") === "org-chart-viewport" ? viewportHeight : 0;
+        return this.getAttribute("data-testid") === "agent-hierarchy-viewport" ? viewportHeight : 0;
       },
     });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getRect(this: HTMLElement) {
-      if (this.getAttribute("data-testid") === "org-chart-viewport") {
+      if (this.getAttribute("data-testid") === "agent-hierarchy-viewport") {
         return {
           x: 0,
           y: 0,
@@ -195,25 +195,25 @@ describe("OrgChart mobile gestures", () => {
     vi.clearAllMocks();
   });
 
-  async function renderOrgChart() {
+  async function renderAgentHierarchy() {
     root = createRoot(container);
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OrgChart />
+          <AgentHierarchy />
         </QueryClientProvider>,
       );
     });
     await flushReact();
     await flushReact();
     return {
-      viewport: container.querySelector('[data-testid="org-chart-viewport"]') as HTMLDivElement,
-      layer: container.querySelector('[data-testid="org-chart-card-layer"]') as HTMLDivElement,
+      viewport: container.querySelector('[data-testid="agent-hierarchy-viewport"]') as HTMLDivElement,
+      layer: container.querySelector('[data-testid="agent-hierarchy-card-layer"]') as HTMLDivElement,
     };
   }
 
   it("pans the chart with one-finger touch drag", async () => {
-    const { viewport, layer } = await renderOrgChart();
+    const { viewport, layer } = await renderAgentHierarchy();
 
     await act(async () => {
       viewport.dispatchEvent(createTouchEvent("touchstart", [{ clientX: 100, clientY: 100 }]));
@@ -225,7 +225,7 @@ describe("OrgChart mobile gestures", () => {
   });
 
   it("suppresses card navigation after a touch pan", async () => {
-    const { viewport } = await renderOrgChart();
+    const { viewport } = await renderAgentHierarchy();
     const card = container.querySelector("[data-org-card]") as HTMLDivElement;
 
     await act(async () => {
@@ -239,7 +239,7 @@ describe("OrgChart mobile gestures", () => {
   });
 
   it("allows card navigation after a touch tap without movement", async () => {
-    const { viewport } = await renderOrgChart();
+    const { viewport } = await renderAgentHierarchy();
     const card = container.querySelector("[data-org-card]") as HTMLDivElement;
 
     await act(async () => {
@@ -251,7 +251,7 @@ describe("OrgChart mobile gestures", () => {
     expect(navigateMock).toHaveBeenCalledWith("/agents/lead");
   });
   it("pinch-zooms toward the touch center", async () => {
-    const { viewport, layer } = await renderOrgChart();
+    const { viewport, layer } = await renderAgentHierarchy();
 
     await act(async () => {
       viewport.dispatchEvent(createTouchEvent("touchstart", [
@@ -270,7 +270,7 @@ describe("OrgChart mobile gestures", () => {
 
   it("does not produce a negative zoom while the viewport has no usable height", async () => {
     viewportHeight = 2;
-    const { layer } = await renderOrgChart();
+    const { layer } = await renderAgentHierarchy();
 
     expect(layer.style.transform).toBe("translate(0px, 0px) scale(1)");
 
@@ -282,7 +282,7 @@ describe("OrgChart mobile gestures", () => {
   });
 
   it("shows both portability buttons on self-hosted instances", async () => {
-    await renderOrgChart();
+    await renderAgentHierarchy();
 
     expect(container.textContent).toContain("Import outpost");
     expect(container.textContent).toContain("Export outpost");
@@ -290,7 +290,7 @@ describe("OrgChart mobile gestures", () => {
 
   it("hides the Import button but keeps Export on a Cloud-managed instance", async () => {
     queryClient.setQueryData(queryKeys.health, { status: "ok", cloud: { managed: true } });
-    await renderOrgChart();
+    await renderAgentHierarchy();
 
     expect(container.textContent).not.toContain("Import outpost");
     expect(container.textContent).toContain("Export outpost");

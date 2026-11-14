@@ -265,7 +265,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               label={sidebarVocabulary.space}
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
-              <SidebarNavItem to="/org" label="Crew map" icon={Network} />
+              <SidebarNavItem to="/agent-hierarchy" label="Crew map" icon={Network} />
               <SidebarNavItem to="/space/settings" label="Settings" icon={Settings} />
             </SidebarSection>
           </>

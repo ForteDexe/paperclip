@@ -120,7 +120,7 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
     await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
     await db.insert(agents).values([
       { id: triage, spaceId, name: "Triage process", role: "lead", status: "idle", adapterType: "process" },
-      { id: engineer, spaceId, name: "Implementation process", role: "engineer", reportsTo: triage, status: "idle", adapterType: "process" },
+      { id: engineer, spaceId, name: "Implementation process", role: "engineer", leadAgentId: triage, status: "idle", adapterType: "process" },
     ]);
     let accepted: { receipt: { handoffId: string; taskId: string; state: string }; pid: number } | undefined;
     let observed: { taskId: string; caseId: string; phase: string; handoffVersion: number; runId: string } | undefined;

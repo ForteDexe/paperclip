@@ -249,7 +249,7 @@ function makeAgent(adapterType: string) {
     role: "engineer",
     title: "Engineer",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType,
     adapterConfig: {},
@@ -998,7 +998,7 @@ describe("agent skill routes", () => {
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
 
-  it("accepts the security role on direct agent creation and preserves it in telemetry", async () => {
+  it("accepts the security role on direct creation and preserves it in telemetry", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/spaces/space-1/agents")
       .send({
@@ -1152,7 +1152,7 @@ describe("agent skill routes", () => {
     expect(returnedAgent.adapterConfig).not.toHaveProperty("promptTemplate");
   });
 
-  it("materializes minimal default instructions for non-Default agent agents with no prompt template", async () => {
+  it("materializes minimal default instructions for non-Default agents with no prompt template", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/spaces/space-1/agents")
       .send({
@@ -1180,7 +1180,7 @@ describe("agent skill routes", () => {
     });
   });
 
-  it("seeds the chief-of-staff persona for the onboarding first agent", async () => {
+  it("seeds the default-agent persona for the onboarding first agent", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/spaces/space-1/agents")
       .send({
@@ -1198,7 +1198,7 @@ describe("agent skill routes", () => {
       expect(mockAgentInstructionsService.materializeManagedBundle).toHaveBeenCalledWith(
         expect.objectContaining({ id: createdAgentId, role: "general" }),
         expect.objectContaining({
-          "AGENTS.md": expect.stringContaining("You are Ada, chief of staff for"),
+          "AGENTS.md": expect.stringContaining("You are Ada, default agent for"),
         }),
         { entryFile: "AGENTS.md", replaceExisting: false },
       );
@@ -1206,7 +1206,7 @@ describe("agent skill routes", () => {
     // The generic default persona must NOT be what was seeded over the entry file.
     const seededCalls = mockAgentInstructionsService.materializeManagedBundle.mock.calls;
     const entrySeed = seededCalls.at(-1)?.[1] as Record<string, string> | undefined;
-    expect(entrySeed?.["AGENTS.md"]).toContain("chief of staff");
+    expect(entrySeed?.["AGENTS.md"]).toContain("default agent");
     // Onboarding uses the same minimal operational skill set as any lead agent.
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.outpostSkillSync.desiredSkills)
       .toEqual(["outpost/outpost/outpost"]);
@@ -1283,7 +1283,7 @@ describe("agent skill routes", () => {
     expect(desiredSkills).toHaveLength(expected.length);
   });
 
-  it("does not trust an agent-supplied onboarding marker to select chief-of-staff defaults", async () => {
+  it("does not trust an agent-supplied onboarding marker to select default-agent defaults", async () => {
     mockAgentService.getById.mockResolvedValue(makeAgent("claude_local"));
     const res = await request(await createApp(createDb(), {
       type: "agent", agentId: "11111111-1111-4111-8111-111111111111", spaceId: "space-1",
@@ -1295,7 +1295,7 @@ describe("agent skill routes", () => {
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.outpostSkillSync).toBeUndefined();
     await vi.waitFor(() => expect(mockAgentInstructionsService.materializeManagedBundle).toHaveBeenCalled());
     expect(mockAgentInstructionsService.materializeManagedBundle.mock.calls[0][1]["AGENTS.md"])
-      .not.toContain("chief of staff");
+      .not.toContain("default agent");
   });
 
   it("creates nothing for rejected Biff payloads and exactly one approval-gated create after correction", async () => {
@@ -1387,7 +1387,7 @@ describe("agent skill routes", () => {
     expect(desired).toContain("outpost/outpost/outpost");
   });
 
-  it("does not add default skills to non-Default agent creations", async () => {
+  it("does not add default skills to non-Default creations", async () => {
     const res = await request(await createApp(createDb(true)))
       .post("/api/spaces/space-1/agent-creations")
       .send({
@@ -1405,7 +1405,7 @@ describe("agent skill routes", () => {
     expect(createInput.adapterConfig.outpostSkillSync).toBeUndefined();
   });
 
-  it("rejects version pins in agent creations while beta skills are disabled", async () => {
+  it("rejects version pins in creations while beta skills are disabled", async () => {
     const res = await request(await createApp(createDb(true)))
       .post("/api/spaces/space-1/agent-creations")
       .send({

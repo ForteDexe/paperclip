@@ -45,7 +45,7 @@ never start a server or depend on a tenant filesystem.
 | `create-skill-studio` | Native agent with skill-write permission; one work run | Create a uniquely named space skill, open its activity card, edit in Studio, reload and verify task-card readback |
 | `stop-redirect` | Native agent; three work runs; qualified Docker oracle | Download a verified checkpoint, observe an active native command with current-turn usage, Stop it, verify cancellation and settled accounting, then send one new direction and complete without original-run activity |
 | `followup-while-running` | Native agent; a maximum of two work runs | Save a follow-up while an independently observed native shell command is still active, then require one attributed final reply with the late requirement after reload; in-turn steering and one normal successor are accepted |
-| `hire-delegate-reuse` | Native lead with a fresh user chat and scoped hiring permission; Agent Chat enabled; direct hiring policy; seven work runs | Hire one teammate, delegate a saved checklist, reuse the same teammate for a saved review, verify native run and revision authorship, preserve the original, and follow the lead's saved result link after reload |
+| `create-delegate-reuse` | Native lead with a fresh user chat and scoped creation permission; Agent Chat enabled; direct creation policy; seven work runs | Create one teammate, delegate a saved checklist, reuse the same teammate for a saved review, verify native run and revision authorship, preserve the original, and follow the lead's saved result link after reload |
 | `agent-settings-persistence` | Fresh dedicated native agent with the campaign ID in its name; `agent-settings-write`; no previous runs/proof block; sole paid journey; one work run | Save and reload an instruction edit through the browser, verify a task uses the instruction-only reference, reopen its run-authored document, then restore the original bytes. See [AGENT-SETTINGS.md](product-journeys/AGENT-SETTINGS.md) |
 | `cloud-onboarding` | Signed-in admitted Cloud account; fresh workspace; qualified bounded provider route | Create workspace in the portal, connect API key and native Codex agent in the wizard, complete a task, download and independently check its artifact |
 
@@ -98,13 +98,13 @@ The shared Studio helper waits for the original saved file body before typing.
 An editor control can mount before the file query completes; editing that empty
 draft can otherwise lose the original content when the file arrives.
 
-The hiring journey uses the existing Agent Chat prompts and native hiring oracle.
+The creation journey uses the existing Agent Chat prompts and native creation oracle.
 It gives each disposable project, agent, and task a campaign name. The first
 turn only hires. The target provider can then verify the native creation audit
 and prepare that exact teammate's budget before the next turn delegates work.
 Both handoffs ask for the task to be created already assigned to that teammate.
 They use the normal composer agent and project mention formats, with the exact
-IDs from the independently verified hire and owned project. Missing, foreign or
+IDs from the independently verified create and owned project. Missing, foreign or
 mismatched context fails before constructing the handoff. The mentions provide
 the intended resources without prescribing a tool call or bypassing normal delegation.
 The handoff selects these references through the normal rich-editor mention menu
@@ -113,21 +113,21 @@ as plain rich-editor text escapes it and is not a mention. The saved user body
 must still match the requested body exactly.
 Creating work for the lead and later reassigning it starts additional native work
 and fails the existing assignee and run checks.
-When the lead uses a delegated personal connection, normal hiring selects the
+When the lead uses a delegated personal connection, normal creation selects the
 responsible user's default rather than copying the manager's identity. Before
 registering any chat or child-creation intent or sending the first turn, the
 journey reads the actual signed-in workflow user's provider default and requires
 the exact approved connection and grant, connected and owned by that user.
-After hiring it independently checks the exact child installation. The underlying
+After creation it independently checks the exact child installation. The underlying
 connection's creator is not the owner of the user's default selection. Missing,
 different or ambiguous authority fails closed; no credential, default or grant is
-changed. A responsible-user hire stores the canonical `api_key` placeholder even
+changed. A responsible-user create stores the canonical `api_key` placeholder even
 when the approved default uses a subscription. The resolved native method must
 still match that independently approved default. Every successful native run must also retain the approved connection,
 grant and responsible-user attribution in its canonical execution metadata.
 Those references are compared privately and omitted from observation evidence.
 The first independently approved child binding becomes an immutable expected
-snapshot for the final shared hiring oracle; later binding changes fail. Only
+snapshot for the final shared creation oracle; later binding changes fail. Only
 typed transient observation GET failures may poll again within the original
 deadline. Approval, authentication and ownership failures are never replayed.
 The checklist and review each require one successful child run and a current
@@ -143,8 +143,8 @@ The lead has a maximum of five work runs and the teammate has two.
 A 500-cent case allowance is split into 300 cents for the lead and 200 for the
 teammate; the allocation must not duplicate the declared case allowance.
 Setup probes and unpriced usage remain separate accounting
-uncertainties. The journey does not change space hiring policy or instance
-features. The provider must own and clean up the hired agent, both child tasks,
+uncertainties. The journey does not change space creation policy or instance
+features. The provider must own and clean up the created agent, both child tasks,
 the chat, and the project. Before the first send, a fresh-chat intent records the
 space, user and owned lead after a normal GET confirms no existing chat.
 Recovery can attach only that exact fresh conversation. Saved replies and links
@@ -304,7 +304,7 @@ commits the blocked decision and `statusVersionAfter` into the run's `resultJson
 The attached `ask-question` recipe requires a prepared native general agent and
 an explicit execution environment. Legacy execution is unsupported until its
 saved model/provider identity can be verified. A registered
-agent avoids a new setup probe; a disposable QA agent uses the existing native
+agent avoids a new setup probe; a disposable QAn agent uses the existing native
 fixture defaults and its setup remains separately unpriced. A restricted review
 bot is not a general-work fixture.
 The private provider supplies its exact execution identity through the `agent`

@@ -403,7 +403,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableFirstTaskPlanProposal: {
     title: "First task: propose with a plan document",
     description:
-      "When the user's first request is a single task, the chief of staff writes a short plan document and a checkbox card instead of a one-card confirmation. Applies to organizations created after the toggle is flipped.",
+      "When the user's first request is a single task, the default agent writes a short plan document and a checkbox card instead of a one-card confirmation. Applies to organizations created after the toggle is flipped.",
     tier: "preference",
     cloudDefault: false,
     selfHostedDefault: false,

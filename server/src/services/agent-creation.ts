@@ -35,11 +35,11 @@ export async function prepareAgentCreation(db: Db, spaceId: string, input: Creat
       });
   data.adapterType = selection.adapterType;
   data.adapterConfig = selection.adapterConfig;
-  const { ensureManager, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
+  const { ensureLeadAgent, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
   if (data.appearance?.customAvatarAssetId) throw unprocessable("Create the agent before uploading its avatar");
   assertBuiltInAgentMetadataMutationAllowed(null, data.metadata, options);
-  if (data.reportsTo) {
-    await ensureManager(spaceId, data.reportsTo);
+  if (data.leadAgentId) {
+    await ensureLeadAgent(spaceId, data.leadAgentId);
   }
 
   const existingAgents = await db
@@ -136,7 +136,7 @@ export async function prepareAgentCreationApproval(txDb: Db, existing: AgentCrea
   }
   if (patch.permissions !== undefined) {
     // The pending-approval activation replays the original create
-    // request, so the new-agent creation default applies.
+    // request, so the new-creation default applies.
     patch.permissions = normalizeAgentPermissions(preserveAgentInteractionPermissions(existing.permissions, patch.permissions), { context: "create" });
   }
   if (hasApprovedAdapterConfig) {

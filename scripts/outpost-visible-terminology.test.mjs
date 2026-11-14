@@ -4,8 +4,8 @@ import test from "node:test";
 import { excludedTerminologyPath, findForbiddenInText } from "./outpost-visible-terminology.mjs";
 
 test("terminology checker catches forbidden active presentation copy", () => {
-  const hits = findForbiddenInText("ui/src/Fake.tsx", "Ask the CEO to hire an employee");
-  assert.deepEqual(hits.map((hit) => hit.rule), ["executive-rank", "employment-language"]);
+  const hits = findForbiddenInText("ui/src/Fake.tsx", "Ask the CEO to hire an employee who reports to the CTO");
+  assert.deepEqual(hits.map((hit) => hit.rule), ["executive-rank", "employment-language", "corporate-hierarchy"]);
 });
 
 test("terminology checker respects reviewed external attribution", () => {

@@ -2,8 +2,8 @@
 
 The explicit `onboarding-approval-history` suite uses only synthetic garden-club
 facts in an owned disposable onboarding space. The human selects drafting and
-clears publishing; the scenario forbids external publication. The hired writer
-must use the lead's existing provider/AI connection through normal hiring.
+clears publishing; the scenario forbids external publication. The created writer
+must use the lead's existing provider/AI connection through normal creation.
 Credentials remain in the existing encrypted fixture path. It makes no direct
 database writes and changes no shared space. Public first-task projection
 retains synthetic checkbox option IDs/labels, selected IDs, plan document/revision
@@ -821,7 +821,7 @@ The isolated `onboarding.new-space` native1017 candidate keeps its original
 source-space chat and ordinary human space creation. Only its credential
 setup runs in the existing standalone private child. It uses the real saved
 space's public `agents/new` route, same first-agent setup ID, personal
-OpenRouter account grant, exact local environment, native hello and public hire.
+OpenRouter account grant, exact local environment, native hello and public create.
 No draft/localStorage write, legacy CLI fallback or source-space account
 substitution is allowed. Partial created connection IDs are retained privately
 for public cleanup before the new space is removed. Native probe usage stays

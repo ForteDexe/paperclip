@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CHAT_OPENCODE_MODEL } from "../chat-runtime-profile.js";
-import { HIRE_MODEL_METADATA_URL, HIRE_ORIGINAL_MODEL, proveHireModelChoice, readHireModelChoice, validHireModelChoice } from "./identity-hire-model-choice.js";
+import { HIRE_MODEL_METADATA_URL, HIRE_ORIGINAL_MODEL, proveHireModelChoice, readHireModelChoice, validHireModelChoice } from "./identity-create-model-choice.js";
 
 function fixture() {
   const original = { id: HIRE_ORIGINAL_MODEL.replace(/^openrouter\//, ""), pricing: { prompt: "0.00000066", completion: "0.00000198", input_cache_read: "0.000000022" } as Record<string, unknown> };

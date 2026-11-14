@@ -12,7 +12,7 @@ it("loads all 242 actual lazy declarations through the admission loaders without
   expect(await validateChatCatalogConsistency()).toEqual({ descriptorCount: 242, fixtureCallbacksInvoked: 0 });
 });
 it("rejects actual declaration drift before any fixture callback executes", async () => {
-  const descriptor = chatCatalogCases.find(row => row.scenarioId === "agents.hire-denied")!;
+  const descriptor = chatCatalogCases.find(row => row.scenarioId === "agents.create-denied")!;
   const callback = vi.fn(() => { throw new Error("Fixture must not execute during preflight"); });
   const runtime = { ...descriptor, setup: callback, observe: callback, grade: callback, verifyResult: callback };
   const importer = async () => ({ [descriptor.exportName]: [runtime] });

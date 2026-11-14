@@ -29,13 +29,13 @@ associate(["product-journeys"], {
   "question-answer-resume": ["questions-and-approvals/questions", "questions-and-approvals/continuation"],
   "followup-while-running": ["steering/queue"],
   "chat-continuity": ["agent-chat/history", "runs-adapters/session"],
-  "hire-delegate-reuse": ["agents/hire", "documents-artifacts/documents"],
+  "create-delegate-reuse": ["agents/create", "documents-artifacts/documents"],
   "agent-settings-persistence": ["agents/instructions", "tasks/completion"],
   "project-task-context": ["projects/lifecycle", "projects/task-context", "tasks/create"],
   "task-edit-lifecycle": ["tasks/properties", "tasks/completion"],
   "task-properties": ["tasks/properties"], "task-document-persistence": ["documents-artifacts/documents"], "task-search-filter": ["tasks/organize"], "cloud-onboarding": ["onboarding/first-task"] });
 associate(["antigravity-agent-journey"], {
-  "saved-subscription-two-turn": ["agents/hire", "agents/instructions", "runs-adapters/validation", "runs-adapters/session",
+  "saved-subscription-two-turn": ["agents/create", "agents/instructions", "runs-adapters/validation", "runs-adapters/session",
     "tasks/create", "tasks/completion", "documents-artifacts/attachments", "documents-artifacts/work-products"],
 });
 associate(["core-compatibility", "openrouter-model-breadth", "extended-harnesses", "grok-qualification", "grok-subscription-qualification", "kimi-qualification"], {
@@ -71,7 +71,7 @@ associate(["first-task", "confirmation-replies", "completion-updates"], Object.f
   "revise-accept", "reject-no-execution",
 ].map((id) => [id, ["onboarding/first-task"]])));
 associate(["first-task"], { "ordinary-task-control": ["tasks/completion"] });
-associate(["onboarding-approval-history"], { "interview-hire-execute": ["onboarding/first-task", "questions-and-approvals/continuation", "tasks/completion"] });
+associate(["onboarding-approval-history"], { "interview-create-execute": ["onboarding/first-task", "questions-and-approvals/continuation", "tasks/completion"] });
 associate(["confirmation-replies"], {
   "confirmation-ambiguous": ["questions-and-approvals/confirmations", "questions-and-approvals/audience"],
   "unanswered-question-return": ["questions-and-approvals/dismiss-and-reopen", "questions-and-approvals/continuation"],
@@ -86,7 +86,7 @@ associate(["agent-chat", "agent-chat-hardening", "grok-qualification", "grok-sub
   "plan-handoff": ["agent-chat/handoff", "questions-and-approvals/plan-review"],
   "clarify-reuse": ["projects/task-context"],
   "multi-repository": ["projects/repositories"],
-  "hire-delegate-reuse": ["agents/hire", "task-coordination/delegation"],
+  "create-delegate-reuse": ["agents/create", "task-coordination/delegation"],
   "committed-send-retry": ["recovery/unknown-outcome"],
 });
 associate(["agent-chat-qualification"], {
@@ -105,7 +105,7 @@ associate(["everyday-workflows", "native-connection-guidance", "grok-qualificati
   "build-revise": ["documents-artifacts/work-products"],
   "delegate-feedback": ["task-coordination/delegation", "steering/steer"],
   "agent-review-handoff": ["task-coordination/signoff"],
-  "hire-reuse": ["agents/hire", "task-coordination/delegation"],
+  "create-reuse": ["agents/create", "task-coordination/delegation"],
   "service-approve": ["questions-and-approvals/tool-review", "app-permissions/action-policy"],
   "service-decline": ["questions-and-approvals/tool-review", "app-permissions/action-policy"],
   "connection-decline": ["connection-setup/task-request"],

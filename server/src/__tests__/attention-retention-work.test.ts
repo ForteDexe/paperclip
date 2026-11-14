@@ -1024,7 +1024,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
       { spaceId, name: "Terminated", role: "manager", status: "terminated" },
       { spaceId, name: "Unhealthy", role: "engineer", status: "active" },
     ]).returning();
-    await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, unhealthy.id));
+    await db.update(agents).set({ leadAgentId: manager.id }).where(eq(agents.id, unhealthy.id));
     const common = { spaceId, issueId: origin.id, kind: "request_confirmation", payload: { version: 1, prompt: "Approve?" }, createdAt: old(), updatedAt: old() };
     const [older, newest, independent] = await db.insert(issueThreadInteractions).values([
       common, { ...common, createdAt: new Date(old().getTime() + 1000) },

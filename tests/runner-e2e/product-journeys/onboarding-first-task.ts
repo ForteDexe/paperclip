@@ -186,7 +186,7 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
     '3. Publish connection-proof.json on this child using register_deliverable with filename "connection-proof.json", workspace-relative contentRef "connection-proof.json", and correct byteSize and SHA-256 for that file.',
     "4. Use write_document to save a connection-proof document on this child including the filename connection-proof.json, input nonce, result, and the file link returned by register_deliverable. A Markdown workspace note is not a Outpost task document and does not replace this step.",
     "5. Report completion with outpost_finish using the current completion contract. Include verification for checks actually run and omit optional schema. Use deliverable:<attachmentId> from register_deliverable in evidence and any file artifacts. Keep local input paths in verification details, not completion evidence or artifacts. Correct rejected arguments using the tool feedback and retry before declaring a blocker.",
-    "Do not hire agents, create additional tasks, or access credentials or unrelated files.",
+    "Do not create agents, create additional tasks, or access credentials or unrelated files.",
   ].join("\n");
   await page.getByTestId("question-other-answer-composer").last().locator('[contenteditable="true"],textarea').first().fill([
     `I have one task in mind. Propose exactly one child task named "${title}" and wait for my approval before creating it or doing its work.`,

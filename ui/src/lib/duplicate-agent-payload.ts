@@ -21,7 +21,7 @@ type DuplicateAgentSource = Pick<
   | "role"
   | "title"
   | "icon"
-  | "reportsTo"
+  | "leadAgentId"
   | "capabilities"
   | "adapterType"
   | "adapterConfig"
@@ -67,7 +67,7 @@ export function buildDuplicateAgentPayload(
 
   if (agent.title) payload.title = agent.title;
   if (agent.icon) payload.icon = agent.icon;
-  if (agent.reportsTo) payload.reportsTo = agent.reportsTo;
+  if (agent.leadAgentId) payload.leadAgentId = agent.leadAgentId;
   if (agent.capabilities) payload.capabilities = agent.capabilities;
   if (agent.metadata) payload.metadata = cloneRecord(agent.metadata);
 

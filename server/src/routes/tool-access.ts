@@ -106,8 +106,8 @@ function allowlistIds(config: Record<string, unknown> | null | undefined): strin
   return raw.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
-function agentOrgDepths(rows: Array<{ id: string; reportsTo: string | null }>): Map<string, number> {
-  const parentById = new Map(rows.map((row) => [row.id, row.reportsTo]));
+function agentHierarchyDepths(rows: Array<{ id: string; leadAgentId: string | null }>): Map<string, number> {
+  const parentById = new Map(rows.map((row) => [row.id, row.leadAgentId]));
   const depthById = new Map<string, number>();
 
   const depthFor = (agentId: string, path: Set<string>): number => {
@@ -2010,11 +2010,11 @@ function connectorEnrollmentPrincipal(req: Request): string {
         role: agents.role,
         title: agents.title,
         status: agents.status,
-        reportsTo: agents.reportsTo,
+        leadAgentId: agents.leadAgentId,
       })
       .from(agents)
       .where(eq(agents.spaceId, connection.spaceId));
-    const orgDepthByAgentId = agentOrgDepths(rows);
+    const hierarchyDepthByAgentId = agentHierarchyDepths(rows);
     const candidates = [];
     for (const agent of rows) {
       try {
@@ -2028,10 +2028,10 @@ function connectorEnrollmentPrincipal(req: Request): string {
         role: agent.role,
         title: agent.title,
         status: agent.status,
-        orgDepth: orgDepthByAgentId.get(agent.id) ?? 0,
+        hierarchyDepth: hierarchyDepthByAgentId.get(agent.id) ?? 0,
       });
     }
-    candidates.sort((a, b) => a.orgDepth - b.orgDepth || a.name.localeCompare(b.name));
+    candidates.sort((a, b) => a.hierarchyDepth - b.hierarchyDepth || a.name.localeCompare(b.name));
     res.json({ agents: candidates });
   });
 

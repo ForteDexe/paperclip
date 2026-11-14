@@ -1,7 +1,7 @@
 /**
  * Smoke Lab recurring-routine wrapper (PAP-13351 / plan §D5).
  *
- * This is what the daily Smoke Lab routine's woken QA agent runs. It wraps the
+ * This is what the daily Smoke Lab routine's woken QAn agent runs. It wraps the
  * S5 agent-driven browser runner (`smoke-lab-browser-runner.mts`) with the three
  * behaviours the plan asks for:
  *

@@ -5,7 +5,7 @@ import { sortAgentsByDefaultSidebarOrder, sortAgentsByStoredOrder } from "./agen
 function makeAgent(overrides: Partial<Agent> & { id: string; name: string }): Agent {
   return {
     role: "general",
-    reportsTo: null,
+    leadAgentId: null,
     ...overrides,
   } as Agent;
 }
@@ -24,8 +24,8 @@ describe("sortAgentsByDefaultSidebarOrder", () => {
   it("keeps reports grouped after their coordinator while ordering siblings alphabetically", () => {
     const agents = [
       makeAgent({ id: "lead", name: "Sam", role: "general" }),
-      makeAgent({ id: "eng", name: "Zoe", role: "engineer", reportsTo: "lead" }),
-      makeAgent({ id: "tool", name: "Amy", role: "general", reportsTo: "lead" }),
+      makeAgent({ id: "eng", name: "Zoe", role: "engineer", leadAgentId: "lead" }),
+      makeAgent({ id: "tool", name: "Amy", role: "general", leadAgentId: "lead" }),
     ];
     const sorted = sortAgentsByDefaultSidebarOrder(agents);
     expect(sorted.map((a) => a.id)).toEqual(["lead", "tool", "eng"]);

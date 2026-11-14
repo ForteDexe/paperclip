@@ -119,7 +119,7 @@ function createAgent(): Agent {
     role: "engineer",
     title: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "process",
     adapterConfig: {},

@@ -36,17 +36,17 @@ async function listReportingSubtreeAgentIds(db: Db, spaceId: string, actorAgentI
   const spaceAgents = await db
     .select({
       id: agents.id,
-      reportsTo: agents.reportsTo,
+      leadAgentId: agents.leadAgentId,
     })
     .from(agents)
     .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
 
-  const reportsByManager = new Map<string, string[]>();
+  const agentsByLead = new Map<string, string[]>();
   for (const agent of spaceAgents) {
-    if (!agent.reportsTo) continue;
-    const reports = reportsByManager.get(agent.reportsTo) ?? [];
+    if (!agent.leadAgentId) continue;
+    const reports = agentsByLead.get(agent.leadAgentId) ?? [];
     reports.push(agent.id);
-    reportsByManager.set(agent.reportsTo, reports);
+    agentsByLead.set(agent.leadAgentId, reports);
   }
 
   const visited = new Set<string>([actorAgentId]);
@@ -54,7 +54,7 @@ async function listReportingSubtreeAgentIds(db: Db, spaceId: string, actorAgentI
   while (queue.length > 0) {
     const current = queue.shift();
     if (!current) continue;
-    const reports = reportsByManager.get(current) ?? [];
+    const reports = agentsByLead.get(current) ?? [];
     for (const reportId of reports) {
       if (visited.has(reportId)) continue;
       visited.add(reportId);

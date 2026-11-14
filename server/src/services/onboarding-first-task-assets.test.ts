@@ -10,17 +10,17 @@ import {
   buildOnboardingFirstTaskOpeningQuestion,
   buildOnboardingFirstAgentInstructionsBundle,
   fillFirstTaskPlaceholders,
-  renderChiefOfStaffPersona,
+  renderDefaultAgentPersona,
   renderOnboardingFirstTaskGreeting,
 } from "./onboarding-first-task-assets.js";
 
 describe("fillFirstTaskPlaceholders", () => {
   it("fills the name and organization when present", () => {
     const out = fillFirstTaskPlaceholders(
-      "I'm {{agentName}}, chief of staff for {{organizationName}}.",
-      { agentName: "Ada", organizationName: "Acme" },
+      "I'm {{agentName}}, default agent for {{spaceName}}.",
+      { agentName: "Ada", spaceName: "Acme" },
     );
-    expect(out).toBe("I'm Ada, chief of staff for Acme.");
+    expect(out).toBe("I'm Ada, default agent for Acme.");
   });
 
   it("drops the name and its trailing separator when no name is set", () => {
@@ -31,7 +31,7 @@ describe("fillFirstTaskPlaceholders", () => {
   });
 
   it("falls back to a generic organization label when missing", () => {
-    const out = fillFirstTaskPlaceholders("for {{organizationName}}.", {});
+    const out = fillFirstTaskPlaceholders("for {{spaceName}}.", {});
     expect(out).toBe("for your organization.");
   });
 });
@@ -160,25 +160,25 @@ describe("first-task proposal mode policy", () => {
   });
 });
 
-describe("chief-of-staff persona", () => {
+describe("default-agent persona", () => {
   it("renders the persona with placeholders filled", async () => {
-    const persona = await renderChiefOfStaffPersona({
+    const persona = await renderDefaultAgentPersona({
       agentName: "Ada",
-      organizationName: "Acme",
+      spaceName: "Acme",
     });
-    expect(persona).toContain("You are Ada, chief of staff for Acme.");
+    expect(persona).toContain("You are Ada, default agent for Acme.");
     expect(persona).not.toContain("{{agentName}}");
-    expect(persona).not.toContain("{{organizationName}}");
+    expect(persona).not.toContain("{{spaceName}}");
   });
 
   it("returns an AGENTS.md-keyed bundle for the first agent", async () => {
     const bundle = await buildOnboardingFirstAgentInstructionsBundle({
       agentName: "Ada",
-      organizationName: "Acme",
+      spaceName: "Acme",
     });
     expect(bundle.entryFile).toBe("AGENTS.md");
     expect(bundle.files).toEqual({
-      "AGENTS.md": await renderChiefOfStaffPersona({ agentName: "Ada", organizationName: "Acme" }),
+      "AGENTS.md": await renderDefaultAgentPersona({ agentName: "Ada", spaceName: "Acme" }),
     });
   });
 });

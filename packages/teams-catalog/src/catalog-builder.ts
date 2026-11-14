@@ -509,9 +509,9 @@ function validateLocalReferences(
   }
 
   for (const agent of graph.agents) {
-    const reportsTo = asString(agent.frontmatter.reportsTo);
-    if (reportsTo && reportsTo !== "null" && !agentSlugs.includes(reportsTo)) {
-      errors.push(`${agent.relativePath} reportsTo references unknown agent slug "${reportsTo}".`);
+    const leadAgentId = asString(agent.frontmatter.leadAgentId);
+    if (leadAgentId && leadAgentId !== "null" && !agentSlugs.includes(leadAgentId)) {
+      errors.push(`${agent.relativePath} leadAgentId references unknown agent slug "${leadAgentId}".`);
     }
   }
 

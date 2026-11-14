@@ -1552,7 +1552,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   },
   {
     id: "blocker-guidance", label: "Direct blocker handling", manualOnly: true,
-    description: "Human authority, hiring permissions, and requester scope under the production coordination skill.",
+    description: "Human authority, creation permissions, and requester scope under the production coordination skill.",
     groups: ["legacy"], profiles: runnerProfiles.filter(p => ["legacy-codex", "legacy-claude"].includes(p.id)).map(blockerProfile),
     environments: [localEnvironment], tasks: blockerTasks, expectedMatrixSize: 6,
     definitionMetadata: { version: 1, instructions: "production-coordination-skill", grading: "saved-human-decision-ownership-and-resume", scheduling: "explicit-only" },
@@ -1766,7 +1766,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: everydayWorkflowProfiles, environments: [localEnvironment, daytonaWarmEnvironment],
     // The S49 turn-3 failure needed an ephemeral per-turn lease, not the warm one.
     environmentOverrides: { "three-turn-revise": { daytona: runnerEnvironments.find(environment => environment.id === "daytona")! } },
-    tasks: [...everydayTasks.map(task => ["hire-reuse", "delegate-feedback", "recover-controller"].includes(task.id)
+    tasks: [...everydayTasks.map(task => ["create-reuse", "delegate-feedback", "recover-controller"].includes(task.id)
       ? { ...task, automaticRetryPolicy: "single_attempt" as const } : task), ...everydayReliabilityTasks],
     // 52 everyday cells; one native Codex Daytona cell per reliability case, six DeepSeek plan cells (queue-steer needs
     // Codex steering) and released facades for the silent command.
@@ -1776,7 +1776,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
       .map(task => `everyday-workflows.${profile.id}.daytona.${task.id}`)),
       ...everydayTasks.flatMap(task => [
         `everyday-workflows.runner-opencode.daytona.${task.id}`,
-        ...(["hire-reuse", "delegate-feedback"].includes(task.id) ? [] : [`everyday-workflows.runner-opencode.local.${task.id}`]),
+        ...(["create-reuse", "delegate-feedback"].includes(task.id) ? [] : [`everyday-workflows.runner-opencode.local.${task.id}`]),
       ]),
       // ACPX facades and the DeepSeek plan profile join only reliability cells.
       ...[...everydayFacadeProfiles, runnerOpenCodeDeepSeek1017Profile].flatMap(profile => everydayTasks.flatMap(task =>
@@ -1790,7 +1790,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
           cadence: "testops-launch-or-manual-dispatch", extras: "explicit-only-codex-and-acpx-cells" } },
       controllerDowntimeMs: 125_000,
       remoteCodexRestart: "bounded-main-server-outage-receipt-empty-cache-same-active-process-and-finalization",
-      procedureCases: { ids: ["hire-reuse", "delegate-feedback"], maximumAttemptsPerCell: 1, spaceAndLeadBudgetCents: 1_000 } },
+      procedureCases: { ids: ["create-reuse", "delegate-feedback"], maximumAttemptsPerCell: 1, spaceAndLeadBudgetCents: 1_000 } },
   },
   {
     id: NATIVE_INSTRUCTION_SUITE, label: "Native completion instruction consolidation", manualOnly: true,
@@ -1847,7 +1847,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     excludedExecutionIds: ["legacy-codex", "legacy-acp-codex", "legacy-acp-claude", "runner-codex", "runner-acpx-claude", "runner-opencode"]
       .map(profile => `stock-harness.${profile}.local.${outpostDocumentTask.id}`),
     definitionMetadata: {
-      version: 2, instructions: "production-default-hire", scheduling: "explicit-only",
+      version: 2, instructions: "production-default-create", scheduling: "explicit-only",
       automaticRetryPolicy: "single_attempt", maximumAttemptsPerCell: 1,
       sourceDigest: stockHarnessSourceDigest(),
       operationalSkillSources: stockHarnessSkillSources(),
@@ -1858,14 +1858,14 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   },
   {
     id: APPROVAL_HISTORY_SUITE, label: "Onboarding approval history", manualOnly: true,
-    description: "Interview, partial plan approval, approved hiring, a separate execution confirmation, and the writer’s saved result.",
+    description: "Interview, partial plan approval, approved creation, a separate execution confirmation, and the writer’s saved result.",
     groups: ["onboarding", "native"],
     profiles: runnerProfiles.filter(profile => ["runner-codex", "runner-acpx-claude"].includes(profile.id)),
     environments: [localEnvironment], tasks: [onboardingApprovalHistoryTask], expectedMatrixSize: 2,
     definitionMetadata: { version: 1, sourceDigest: approvalHistoryDefinitionDigest(), scheduling: "explicit-only",
       automaticRetryPolicy: "single_attempt", maximumAttemptsPerCell: 1, expectedWorkRuns: 7,
       spaceTaskBudgetCents: 500, maximumSpaceRuns: 12, attemptTimeoutMs: 900_000,
-      instructions: "production-wizard-and-first-task", approvalSequence: "plan-checkbox-subset/hiring-checkbox/execution-confirmation",
+      instructions: "production-wizard-and-first-task", approvalSequence: "plan-checkbox-subset/creation-checkbox/execution-confirmation",
       oracle: "persisted-human-decisions/current-plan-revision/assigned-child/one-worker-execution/saved-document/reload" },
   },
   {
@@ -1914,13 +1914,13 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   },
   {
     id: "agent-chat-hardening", label: "Agent Chat Recovery and Coordination", manualOnly: true,
-    description: "Native chat startup cancellation, committed sends, hiring, grounded status, and remote continuity.",
+    description: "Native chat startup cancellation, committed sends, creation, grounded status, and remote continuity.",
     groups: ["chat", "native"],
     profiles: runnerProfiles.filter(profile => ["runner-codex", "runner-acpx-claude"].includes(profile.id))
       .map(profile => productionStoryProfile(defaultPermissionProfile(profile))),
     environments: [localEnvironment, daytonaWarmEnvironment], tasks: chatHardeningTasks, expectedMatrixSize: 18,
     excludedExecutionIds: ["runner-codex", "runner-acpx-claude"].flatMap(profile =>
-      ["stop-startup-new-resume", "hire-delegate-reuse", "blocked-status-review"].map(task => `agent-chat-hardening.${profile}.daytona.${task}`)),
+      ["stop-startup-new-resume", "create-delegate-reuse", "blocked-status-review"].map(task => `agent-chat-hardening.${profile}.daytona.${task}`)),
     definitionMetadata: { version: 5, permissions: "production-defaults", instructions: "production", grading: "durable-state-and-source-evidence", scheduling: "explicit-only", restartMemory: "required-after-restart", statusEvidence: "structured-current-blocker-and-active-run-count", readOnlyState: "public-mutation-contract-and-relations", hiringReference: "neutral-document-reference-line" },
   },
   {
@@ -2109,7 +2109,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
   buildAntigravityJourneySuite(runnerEnvironments),
   {
     id: "repository-skills", label: "Repository skill packages", manualOnly: true,
-    description: "Live private Poteto import and byte-for-byte delivery to local and Daytona agent runtimes.",
+    description: "Live private Poteto import and byte-for-byte delivery to local and Daytonan agent runtimes.",
     groups: ["native"],
     profiles: runnerProfiles.filter(profile => profile.id === "runner-codex").map(repositorySkillsProfile),
     environments: [localEnvironment, daytonaWarmEnvironment], tasks: [repositorySkillsTask], expectedMatrixSize: 2,

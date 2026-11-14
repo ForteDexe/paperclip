@@ -73,8 +73,8 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     const enqueueWakeup = vi.fn(async () => ({ id: randomUUID() }) as typeof heartbeatRuns.$inferSelect);
     const scheduling = createHeartbeatScheduling(db, {
       getRun: deps.getRun, getAgent: deps.getAgent, getWorktreeExecutionCutoff: deps.getWorktreeExecutionCutoff,
-      getSchedulingSuppression: deps.getSchedulingSuppression, toAgentOrgRow: preparation.toAgentOrgRow,
-      groupAgentOrgRowsBySpace: preparation.groupAgentOrgRowsBySpace, issuesSvc: issueService(db),
+      getSchedulingSuppression: deps.getSchedulingSuppression, toAgentCoordinationRow: preparation.toAgentCoordinationRow,
+      groupAgentCoordinationRowsBySpace: preparation.groupAgentCoordinationRowsBySpace, issuesSvc: issueService(db),
       scheduleBoundedRetryForRun: vi.fn(), enqueueWakeup,
       parseHeartbeatPolicy: queue.parseHeartbeatPolicy, nextTimerHeartbeatAt: queue.nextTimerHeartbeatAt,
       claimDueTimerHeartbeat: queue.claimDueTimerHeartbeat,
@@ -230,7 +230,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     const f = await fixture();
     const [manager] = await db.insert(agents).values({ spaceId: f.space.id, name: "Pending manager",
       status: "pending_approval", lifecycleState: "pending_approval", adapterType: "process" }).returning();
-    await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, f.agent.id));
+    await db.update(agents).set({ leadAgentId: manager.id }).where(eq(agents.id, f.agent.id));
     const [approval] = await db.insert(approvals).values({ spaceId: f.space.id, type: "create_agent",
       payload: { agentId: manager.id }, status: "pending" }).returning();
     await start(f);
@@ -558,11 +558,11 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     await quiet();
   });
 
-  it("reactivates a descendant after its terminated manager is purged", async () => {
+  it("reactivates a descendant after its terminated lead agent is purged", async () => {
     const f = await fixture();
     const [manager] = await db.insert(agents).values({ spaceId: f.space.id, name: "Former manager",
       status: "terminated", lifecycleState: "terminated", adapterType: "process" }).returning();
-    await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, f.agent.id));
+    await db.update(agents).set({ leadAgentId: manager.id }).where(eq(agents.id, f.agent.id));
     await start(f); await quiet();
     await createAgentLifecycle(db).purgeAgent(manager.id);
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });

@@ -177,7 +177,7 @@ function buildAgent(adapterType: string, runtimeConfig: Record<string, unknown> 
     title: null,
     icon: null,
     status: "running",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType,
     adapterConfig: {},

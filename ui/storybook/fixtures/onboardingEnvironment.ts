@@ -118,7 +118,7 @@ export function storybookAuthSignal(): { status: AdapterAuthSignal } {
  * The environment test, answering from the same auth state the sign-in panel
  * reads.
  *
- * This is the hire's gate, not decoration. `blocksAgentCreate` stops the hire on
+ * This is the create's gate, not decoration. `blocksAgentCreate` stops the create on
  * a `fail`, and on any result — `pass` included — carrying a check whose code is
  * `adapter_auth_missing`. Both shipped adapters emit that code when a sandbox
  * target has no ready authentication, so a customer who has not signed in cannot
@@ -145,7 +145,7 @@ export function storybookEnvironmentTest(adapterType: string): unknown {
             code: ADAPTER_AUTH_MISSING_CHECK_CODE,
             status: "warn",
             title: "No working authentication",
-            detail: "Sign in to the provider before hiring this agent.",
+            detail: "Sign in to the provider before creation this agent.",
           },
         ],
     testedAt: new Date(0).toISOString(),

@@ -1177,10 +1177,10 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     },
   );
 
-  it("rejects interaction addressees with an invalid reporting chain", async () => {
+  it("rejects interaction addressees with an invalid coordination chain", async () => {
     const { spaceId, issueId } = await seedConfirmationIssue("Reject uninvokable addressee chain");
     const creatorAgentId = randomUUID();
-    const managerAgentId = randomUUID();
+    const leadAgentId = randomUUID();
     const addresseeAgentId = randomUUID();
     await db.insert(agents).values([
       {
@@ -1191,7 +1191,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
         status: "active",
       },
       {
-        id: managerAgentId,
+        id: leadAgentId,
         spaceId,
         name: "Terminated manager",
         role: "manager",
@@ -1203,7 +1203,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
         name: "Unavailable addressee",
         role: "engineer",
         status: "active",
-        reportsTo: managerAgentId,
+        leadAgentId: leadAgentId,
       },
     ]);
 
@@ -1227,8 +1227,8 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
       status: 422,
       message: expect.stringContaining("invokable agent"),
       details: expect.objectContaining({
-        reason: "manager_terminated",
-        managerId: managerAgentId,
+        reason: "lead_agent_terminated",
+        leadAgentId: leadAgentId,
       }),
     });
   });
@@ -2151,7 +2151,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     const issueId = randomUUID();
     const agentId = randomUUID();
     await db.insert(spaces).values(interactionSpaceRow(spaceId));
-    await db.insert(agents).values(activeCodexAgentRow(agentId, spaceId, "Chief of staff", "chief_of_staff"));
+    await db.insert(agents).values(activeCodexAgentRow(agentId, spaceId, "Default agent", "default_agent"));
     await db.insert(goals).values({
       id: goalId,
       spaceId,

@@ -19,7 +19,7 @@ vi.mock("../context/ToastContext", () => ({ useToastActions: () => ({ pushToast:
 
 const agent = {
   id: "11111111-1111-4111-8111-111111111111", spaceId: "space", urlKey: "codie", name: "Codie",
-  role: "engineer", title: null, icon: null, appearance: appearanceForPalette("bubblegum-sky"), reportsTo: null,
+  role: "engineer", title: null, icon: null, appearance: appearanceForPalette("bubblegum-sky"), leadAgentId: null,
   capabilities: null, adapterType: "process", adapterConfig: { command: "echo" }, runtimeConfig: {},
   defaultEnvironmentId: null, budgetMonthlyCents: 0, metadata: null, configurationRevision: "a".repeat(64),
   status: "idle", spentMonthlyCents: 0, pauseReason: null, pausedAt: null,

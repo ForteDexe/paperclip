@@ -32,7 +32,7 @@ vi.mock("../services/activity-log.js", async (importOriginal) => {
 const SEED = {
   revision: "a".repeat(32),
   mission: "Make robotics boring enough to trust",
-  agent: { name: "Ada", role: "Chief of Staff" },
+  agent: { name: "Ada", role: "Default agent" },
   firstTask: { title: "Draft the one-page strategy", details: "One page, no more" },
 };
 
@@ -91,7 +91,7 @@ describeEmbeddedPostgres("POST /api/spaces/:spaceId/onboarding-seed", () => {
     expect(spaceAgents).toHaveLength(1);
     expect(spaceAgents[0]?.name).toBe("Ada");
     // The seed's free-text role is a job title; the structural role stays `lead`.
-    expect(spaceAgents[0]?.title).toBe("Chief of Staff");
+    expect(spaceAgents[0]?.title).toBe("Default agent");
     expect(spaceAgents[0]?.role).toBe("lead");
     expect(spaceAgents[0]?.adapterConfig).toMatchObject({
       outpostSkillSync: {
@@ -342,7 +342,7 @@ describeEmbeddedPostgres("POST /api/spaces/:spaceId/onboarding-seed", () => {
 
     const overlongAgentName = await post(app, spaceId, {
       revision: "e".repeat(32),
-      agent: { name: "n".repeat(81), role: "Chief of Staff" },
+      agent: { name: "n".repeat(81), role: "Default agent" },
     });
     expect(overlongAgentName.status).toBe(400);
 
@@ -433,7 +433,7 @@ describeEmbeddedPostgres("POST /api/spaces/:spaceId/onboarding-seed", () => {
     const withAgent = await post(app, spaceId, {
       revision: "2".repeat(32),
       mission: "Make robotics boring enough to trust",
-      agent: { name: "Ada", role: "Chief of Staff" },
+      agent: { name: "Ada", role: "Default agent" },
       firstTask: { title: "Draft the strategy" },
     });
     expect(withAgent.status).toBe(200);

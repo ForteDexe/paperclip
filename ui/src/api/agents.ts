@@ -70,12 +70,12 @@ export interface ClaudeLoginResult {
   stderr: string;
 }
 
-export interface OrgNode {
+export interface AgentHierarchyNode {
   id: string;
   name: string;
   role: string;
   status: string;
-  reports: OrgNode[];
+  children: AgentHierarchyNode[];
 }
 
 export interface AgentCreationResponse {
@@ -124,7 +124,7 @@ export const agentsApi = {
     api.post<ConnectionIntentInteraction>(withSpaceScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, spaceId), { connectionId }),
 
   list: (spaceId: string) => api.get<Agent[]>(`/spaces/${spaceId}/agents`),
-  org: (spaceId: string) => api.get<OrgNode[]>(`/spaces/${spaceId}/org`),
+  hierarchy: (spaceId: string) => api.get<AgentHierarchyNode[]>(`/spaces/${spaceId}/agent-hierarchy`),
   listConfigurations: (spaceId: string) =>
     api.get<Record<string, unknown>[]>(`/spaces/${spaceId}/agent-configurations`),
   get: async (id: string, spaceId?: string, options?: RequestOptions) => {

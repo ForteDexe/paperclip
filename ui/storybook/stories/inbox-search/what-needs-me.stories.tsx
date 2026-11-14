@@ -120,11 +120,11 @@ const POPULATED: AttentionItem[] = [
     "appr-1",
     "approval",
     "high",
-    "Hire agent: Research Analyst",
+    "Create agent: Research Analyst",
     "Approval is pending a board decision.",
     {
       inlineResolvable: true,
-      subject: { kind: "approval", id: "approval-1", spaceId, title: "Hire agent: Research Analyst", identifier: null, status: "pending", href: "/PAP/approvals/approval-1", metadata: { type: "create_agent" } },
+      subject: { kind: "approval", id: "approval-1", spaceId, title: "Create agent: Research Analyst", identifier: null, status: "pending", href: "/PAP/approvals/approval-1", metadata: { type: "create_agent" } },
       relatedIssue: null,
       decisionVerbs: [
         { id: "approve", label: "Approve", description: null },
@@ -556,7 +556,7 @@ function DismissUndoDemo() {
     pushToast({
       id: "attention-dismiss-demo",
       title: "Dismissed",
-      body: "Hire agent: Research Analyst",
+      body: "Create agent: Research Analyst",
       tone: "info",
       ttlMs: 15000,
       action: { label: "Undo", onClick: () => {} },

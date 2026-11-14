@@ -69,7 +69,7 @@ export async function runExpandedMcpScenario(input: {
       const saved = await api.get<any>(`/api/agents/${agent.id}`);
       match("configuration-denied", saved.title !== `Forbidden ${nonce}` && /permission|consent|configur|reconnect/i.test(answer.final));
     } else {
-      await converse(`For agent "${agent.name}", set title to "Editor ${nonce}" and monthly budget to 1200 cents. Read its AGENTS.md instructions, then append "INSTRUCTIONS${nonce}" preserving the original text and using the current revision. Do not start, pause, hire or change credentials for any agent.`);
+      await converse(`For agent "${agent.name}", set title to "Editor ${nonce}" and monthly budget to 1200 cents. Read its AGENTS.md instructions, then append "INSTRUCTIONS${nonce}" preserving the original text and using the current revision. Do not start, pause, create or change credentials for any agent.`);
       const saved = await api.get<any>(`/api/agents/${agent.id}`);
       const instructions = await api.get<any>(`/api/agents/${agent.id}/instructions-bundle/file?path=AGENTS.md`);
       match("agent-configured", saved.title === `Editor ${nonce}` && saved.budgetMonthlyCents === 1200);

@@ -3,7 +3,7 @@ import { pollUntil, type RunnerApi } from "./api.js";
 import { DRAFT_OPTION, PUBLISH_OPTION, approvalHistoryWriter } from "./first-task-approval-history.js";
 import type { FirstTaskCheckpoint, Row } from "./first-task-scoring.js";
 
-/** The model produces every proposal and hire; the harness only operates ordinary approval controls. */
+/** The model produces every proposal and create; the harness only operates ordinary approval controls. */
 export async function runApprovalHistoryDecisions(input: {
   page: Page; api: Pick<RunnerApi, "get">; issueId: string; marker: string; deadlineAt: number;
   allRuns: () => Promise<Row[]>;
@@ -33,13 +33,13 @@ export async function runApprovalHistoryDecisions(input: {
   await input.page.getByRole("checkbox", { name: DRAFT_OPTION, exact: true }).last().check();
   await input.page.getByRole("checkbox", { name: PUBLISH_OPTION, exact: true }).last().uncheck();
   await approve(plan, "plan-accepted");
-  await input.snapshot("hiring-proposed");
-  await input.capture("hiring-proposed", "Hiring waits for approval", "hiring-proposed.png");
+  await input.snapshot("creation-proposed");
+  await input.capture("creation-proposed", "Creation waits for approval", "creation-proposed.png");
   const writer = approvalHistoryWriter(input.marker);
-  const hiring = await pending(row => row.kind === "request_checkbox_confirmation" && !row.payload?.target
+  const creation = await pending(row => row.kind === "request_checkbox_confirmation" && !row.payload?.target
     && row.payload?.options?.length === 1 && row.payload.options[0].label.includes(writer));
-  await input.page.getByRole("checkbox", { name: hiring.payload.options[0].label, exact: true }).last().check();
-  await approve(hiring, "hiring-accepted");
+  await input.page.getByRole("checkbox", { name: creation.payload.options[0].label, exact: true }).last().check();
+  await approve(creation, "creation-accepted");
   await input.snapshot("execution-proposed");
   await input.capture("execution-proposed", "Execution waits for Start drafting", "execution-proposed.png");
   const execution = await pending(row => row.kind === "request_confirmation" && !row.payload?.target

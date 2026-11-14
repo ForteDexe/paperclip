@@ -481,7 +481,7 @@ function wikiMaintainerAgent(): Agent {
     title: "LLM Wiki Maintainer",
     icon: "book-open",
     status: "idle",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: "Maintains the wiki",
     adapterType: "claude_local",
     adapterConfig: {},

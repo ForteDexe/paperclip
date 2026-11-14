@@ -87,7 +87,7 @@ function createAgent(id: string, name: string): Agent {
     title: null,
     icon: "code",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

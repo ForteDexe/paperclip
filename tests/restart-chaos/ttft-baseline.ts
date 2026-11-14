@@ -247,7 +247,7 @@ async function main() {
     "midturn-mode": { type: "string", default: "queue" },
     // Fault the control plane right after a steered comment is acknowledged (K1, K2 or K6).
     "midturn-fault": { type: "string" },
-    // verify phase: fault the control plane while a newly hired agent runs harness verification.
+    // verify phase: fault the control plane while a newly created agent runs harness verification.
     "verify-fault": { type: "string" },
     // A real repository (for example a fresh clone of outpost) as the project's
     // primary workspace; every task then runs in its isolated git worktree.
@@ -404,7 +404,7 @@ async function main() {
       }
     }));
 
-    // New agent: hire an agent identical to the seeded one and assign it a task
+    // New agent: create an agent identical to the seeded one and assign it a task
     // at once, so the task waits for harness verification. Optionally restart
     // the control plane while it verifies. TTFT is comment-to-first-token.
     if (phases.has("verify")) for (const adapter of adapters) {
@@ -412,8 +412,8 @@ async function main() {
       if (!source.body) continue;
       for (let index = 0; index < samples; index += 1) {
         const nonce = `${adapter}-v${index}-${Date.now().toString(36)}`;
-        const hired = await api.post<Json>(`/api/spaces/${lab.spaceId}/agents`, { ...source.body, name: `${source.name} verify ${nonce}` });
-        const agentId = String(hired.id);
+        const created = await api.post<Json>(`/api/spaces/${lab.spaceId}/agents`, { ...source.body, name: `${source.name} verify ${nonce}` });
+        const agentId = String(created.id);
         const issue = await api.post<Json>(`/api/spaces/${lab.spaceId}/issues`, {
           title: `TTFT verify ${nonce}`, description: coldTask(nonce), status: "todo", priority: "medium", assigneeAgentId: agentId,
           ...(projectScopedTasks ? { projectId: lab.projectId } : {}) });

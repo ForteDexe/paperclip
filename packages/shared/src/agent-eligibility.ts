@@ -5,7 +5,7 @@ export type AgentEligibilityLifecycleReason =
   | "terminated"
   | "pending_approval"
   | "paused"
-  | "invalid_org_chain"
+  | "invalid_coordination_chain"
   | "unknown_status";
 
 export interface AgentEligibilityAgent {
@@ -13,45 +13,45 @@ export interface AgentEligibilityAgent {
   spaceId: string;
   name: string;
   status: AgentStatus | string;
-  reportsTo?: string | null;
+  leadAgentId?: string | null;
 }
 
-export interface AgentOrgChainEntry {
+export interface AgentCoordinationChainEntry {
   id: string;
   spaceId: string;
   name: string;
   status: AgentStatus | string;
-  reportsTo: string | null;
+  leadAgentId: string | null;
   depth: number;
   relation: "self" | "ancestor";
 }
 
-export interface AgentInvalidOrgChainAncestor {
+export interface AgentInvalidCoordinationAncestor {
   id: string;
   name: string;
   status: AgentStatus | string;
 }
 
-export type AgentOrgChainInvalidReason =
+export type AgentCoordinationInvalidReason =
   | "healthy"
   | "terminated_ancestor"
-  | "missing_manager"
+  | "missing_lead_agent"
   | "cycle";
 
-export interface AgentOrgChainHealth {
-  status: "healthy" | "invalid_org_chain";
-  reason: AgentOrgChainInvalidReason;
-  fullChain: AgentOrgChainEntry[];
-  firstInvalidAncestor: AgentInvalidOrgChainAncestor | null;
-  invalidAncestors: AgentInvalidOrgChainAncestor[];
+export interface AgentCoordinationHealth {
+  status: "healthy" | "invalid_coordination_chain";
+  reason: AgentCoordinationInvalidReason;
+  fullChain: AgentCoordinationChainEntry[];
+  firstInvalidAncestor: AgentInvalidCoordinationAncestor | null;
+  invalidAncestors: AgentInvalidCoordinationAncestor[];
   repairGuidance: string | null;
   /**
-   * Paused ancestors of a non-paused agent. A paused manager does not make
+   * Paused ancestors of a non-paused agent. A paused coordination lead does not make
    * the chain invalid (the agent stays invokable), but escalations routed to
    * it dead-letter: assigned work never runs and nothing surfaces it. This is
    * a warning, not a block.
    */
-  pausedAncestors?: AgentInvalidOrgChainAncestor[];
+  pausedAncestors?: AgentInvalidCoordinationAncestor[];
   /** Human-readable warning when the escalation path routes to a paused agent. */
   escalationWarning?: string | null;
 }
@@ -61,7 +61,7 @@ export interface AgentWorkEligibility {
   invokable: boolean;
   assignabilityReason: AgentEligibilityLifecycleReason;
   invokabilityReason: AgentEligibilityLifecycleReason;
-  orgChainHealth: AgentOrgChainHealth;
+  coordinationHealth: AgentCoordinationHealth;
 }
 
 const NON_ASSIGNABLE_AGENT_STATUSES = new Set<string>(["terminated", "pending_approval"]);
@@ -80,20 +80,20 @@ export function isAgentStatusInvokable(status: AgentStatus | string): boolean {
 function chainEntry(
   agent: AgentEligibilityAgent,
   depth: number,
-  relation: AgentOrgChainEntry["relation"],
-): AgentOrgChainEntry {
+  relation: AgentCoordinationChainEntry["relation"],
+): AgentCoordinationChainEntry {
   return {
     id: agent.id,
     spaceId: agent.spaceId,
     name: agent.name,
     status: agent.status,
-    reportsTo: agent.reportsTo ?? null,
+    leadAgentId: agent.leadAgentId ?? null,
     depth,
     relation,
   };
 }
 
-function invalidAncestor(agent: AgentEligibilityAgent): AgentInvalidOrgChainAncestor {
+function invalidAncestor(agent: AgentEligibilityAgent): AgentInvalidCoordinationAncestor {
   return {
     id: agent.id,
     name: agent.name,
@@ -103,44 +103,44 @@ function invalidAncestor(agent: AgentEligibilityAgent): AgentInvalidOrgChainAnce
 
 function buildRepairGuidance(
   agent: AgentEligibilityAgent,
-  firstInvalidAncestor: AgentInvalidOrgChainAncestor,
+  firstInvalidAncestor: AgentInvalidCoordinationAncestor,
 ): string {
   if (firstInvalidAncestor.status === "missing") {
     return [
-      `${agent.name} reports to missing manager ${firstInvalidAncestor.id}.`,
-      `Reassign ${agent.name} or the nearest affected ancestor under an active manager/root, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
+      `${agent.name} references missing coordination lead ${firstInvalidAncestor.id}.`,
+      `Assign ${agent.name} or the nearest affected ancestor to an active lead or make it a root agent, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
     ].join(" ");
   }
   if (firstInvalidAncestor.status === "cycle") {
     return [
-      `${agent.name} has a cycle in its reporting chain at ${firstInvalidAncestor.name}.`,
-      `Break the cycle by assigning one affected agent to an active manager/root, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
+      `${agent.name} has a cycle in its coordination chain at ${firstInvalidAncestor.name}.`,
+      `Break the cycle by assigning one affected agent to an active lead or making it a root agent, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
     ].join(" ");
   }
   return [
-    `${agent.name} reports through terminated ancestor ${firstInvalidAncestor.name}.`,
-    `Reassign ${agent.name} or the nearest affected ancestor under an active manager/root, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
+    `${agent.name} is coordinated through terminated agent ${firstInvalidAncestor.name}.`,
+    `Assign ${agent.name} or the nearest affected ancestor to an active lead or make it a root agent, or explicitly pause or terminate the invalid subtree before assigning work or starting runs.`,
   ].join(" ");
 }
 
-export function getAgentOrgChainHealth(input: {
+export function getAgentCoordinationHealth(input: {
   agent: AgentEligibilityAgent;
   agents: AgentEligibilityAgent[];
-}): AgentOrgChainHealth {
+}): AgentCoordinationHealth {
   const byId = new Map(input.agents.map((agent) => [agent.id, agent]));
-  const fullChain: AgentOrgChainEntry[] = [chainEntry(input.agent, 0, "self")];
-  const invalidAncestors: AgentInvalidOrgChainAncestor[] = [];
-  const pausedAncestors: AgentInvalidOrgChainAncestor[] = [];
+  const fullChain: AgentCoordinationChainEntry[] = [chainEntry(input.agent, 0, "self")];
+  const invalidAncestors: AgentInvalidCoordinationAncestor[] = [];
+  const pausedAncestors: AgentInvalidCoordinationAncestor[] = [];
   const seen = new Set<string>([input.agent.id]);
 
   let current = input.agent;
   let depth = 1;
-  while (current.reportsTo) {
-    if (seen.has(current.reportsTo)) {
-      const cycleAgent = byId.get(current.reportsTo);
+  while (current.leadAgentId) {
+    if (seen.has(current.leadAgentId)) {
+      const cycleAgent = byId.get(current.leadAgentId);
       const invalid = {
-        id: current.reportsTo,
-        name: cycleAgent?.name ?? current.reportsTo,
+        id: current.leadAgentId,
+        name: cycleAgent?.name ?? current.leadAgentId,
         status: "cycle",
       };
       fullChain.push({
@@ -148,20 +148,20 @@ export function getAgentOrgChainHealth(input: {
         spaceId: input.agent.spaceId,
         name: invalid.name,
         status: invalid.status,
-        reportsTo: cycleAgent?.reportsTo ?? null,
+        leadAgentId: cycleAgent?.leadAgentId ?? null,
         depth,
         relation: "ancestor",
       });
       invalidAncestors.push(invalid);
       break;
     }
-    seen.add(current.reportsTo);
+    seen.add(current.leadAgentId);
 
-    const parent = byId.get(current.reportsTo);
+    const parent = byId.get(current.leadAgentId);
     if (!parent || parent.spaceId !== input.agent.spaceId) {
       const invalid = {
-        id: current.reportsTo,
-        name: current.reportsTo,
+        id: current.leadAgentId,
+        name: current.leadAgentId,
         status: "missing",
       };
       fullChain.push({
@@ -169,7 +169,7 @@ export function getAgentOrgChainHealth(input: {
         spaceId: input.agent.spaceId,
         name: invalid.name,
         status: invalid.status,
-        reportsTo: null,
+        leadAgentId: null,
         depth,
         relation: "ancestor",
       });
@@ -198,13 +198,13 @@ export function getAgentOrgChainHealth(input: {
   const firstPausedAncestor = pausedAncestors[0] ?? null;
   const escalationWarning = agentCanWork && firstPausedAncestor
     ? `Escalations from ${input.agent.name} route to paused agent ${firstPausedAncestor.name}. ` +
-      `Work assigned to a paused agent never runs; unpause ${firstPausedAncestor.name} or change who this agent reports to.`
+      `Work assigned to a paused agent never runs; unpause ${firstPausedAncestor.name} or change this agent's coordination lead.`
     : null;
   return {
-    status: firstInvalidAncestor ? "invalid_org_chain" : "healthy",
+    status: firstInvalidAncestor ? "invalid_coordination_chain" : "healthy",
     reason: firstInvalidAncestor
       ? firstInvalidAncestor.status === "missing"
-        ? "missing_manager"
+        ? "missing_lead_agent"
         : firstInvalidAncestor.status === "cycle"
           ? "cycle"
           : "terminated_ancestor"
@@ -224,15 +224,15 @@ export function getAgentWorkEligibility(input: {
   agent: AgentEligibilityAgent;
   agents: AgentEligibilityAgent[];
 }): AgentWorkEligibility {
-  const orgChainHealth = getAgentOrgChainHealth(input);
+  const coordinationHealth = getAgentCoordinationHealth(input);
   const assignabilityReason: AgentEligibilityLifecycleReason = !isAgentStatusAssignableToWork(input.agent.status)
     ? input.agent.status === "terminated"
       ? "terminated"
       : input.agent.status === "pending_approval"
         ? "pending_approval"
         : "unknown_status"
-    : orgChainHealth.status === "invalid_org_chain"
-      ? "invalid_org_chain"
+    : coordinationHealth.status === "invalid_coordination_chain"
+      ? "invalid_coordination_chain"
       : "eligible";
   const invokabilityReason: AgentEligibilityLifecycleReason = !isAgentStatusInvokable(input.agent.status)
     ? input.agent.status === "terminated"
@@ -242,8 +242,8 @@ export function getAgentWorkEligibility(input: {
         : input.agent.status === "paused"
           ? "paused"
           : "unknown_status"
-    : orgChainHealth.status === "invalid_org_chain"
-      ? "invalid_org_chain"
+    : coordinationHealth.status === "invalid_coordination_chain"
+      ? "invalid_coordination_chain"
       : "eligible";
 
   return {
@@ -251,7 +251,7 @@ export function getAgentWorkEligibility(input: {
     invokable: invokabilityReason === "eligible",
     assignabilityReason,
     invokabilityReason,
-    orgChainHealth,
+    coordinationHealth,
   };
 }
 

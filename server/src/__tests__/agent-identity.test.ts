@@ -79,7 +79,7 @@ describe("agent cryptographic identity", () => {
     expect(await agentIdentityService(db).getPublicIdentity(spaceId, second.id)).toBeNull();
   });
 
-  it("creates identities in the agent creation transaction and rolls both writes back on failure", async () => {
+  it("creates identities in the creation transaction and rolls both writes back on failure", async () => {
     const created = await createAgentLifecycle(db).requestCreation(spaceId, { name: "New identity", role: "engineer", status: "pending_approval" });
     expect(await agentIdentityService(db).getPublicIdentity(spaceId, created.id)).toMatchObject({ algorithm: "Ed25519" });
     const id = randomUUID();

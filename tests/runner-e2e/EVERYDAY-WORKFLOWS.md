@@ -50,7 +50,7 @@ exact execution ID explicitly.
 |---|---|---|
 | Build a small project and revise it | `build-revise` | Download both ZIPs through the UI; independently execute the delivered CLI and import its function; test the revision; retrieve the original bytes again. |
 | Delegate and incorporate late feedback | `delegate-feedback` | One child assigned to Riley; send feedback while the child runs; find it in the child history and independently test `--max-length` in the delivered ZIP. The worker must not execute on the parent. |
-| Hire a teammate and use them again | `hire-reuse` | One Morgan QA reporting to the lead, native runner and the same encrypted connection bindings, real child execution, then a second usable delivery from that same agent. |
+| Create a teammate and use them again | `create-reuse` | One Morgan QA reporting to the lead, native runner and the same encrypted connection bindings, real child execution, then a second usable delivery from that same agent. |
 | Decide on an installed service action | `service-approve`, `service-decline` | Assign an authenticated local MCP fixture with Ask first; match its tool action and connection ID; no provider call before approval; exactly one after approval and a verified document; none after decline. |
 | Decline a new connection | `connection-decline` | Start without service connections; match a Notion connection intent; click Not now; verify the saved rejection, no new connection or repeated request, and an explanation followed by Done. |
 | Request an email address | `agentmail-setup` | Enable Chat connectors, ask for an email address, and require a durable AgentMail card for the requesting agent and user. Reload and verify one password field, the direct API-key link, and no access selectors or modal. Decline and verify no connection or repeated request. |
@@ -224,8 +224,8 @@ cause" contract is checked only if a loss happens naturally.
 The local matrix has fourteen cases on native Codex `gpt-6.1-sol`, native ACPX Claude
 `claude-sonnet-5`, and native Codex `gpt-5.4-mini`: 42 cells. The two core profiles
 also declare build/revise, delegation, controller-restart, and skill-creation cases
-on Daytona: eight cells. OpenCode adds only local hiring/reuse and delegation,
-for 52 cells total. Hiring/reuse and delegation have one attempt and a
+on Daytona: eight cells. OpenCode adds only local creation/reuse and delegation,
+for 52 cells total. Creation/reuse and delegation have one attempt and a
 1,000-cent space and lead-agent hard stop. Remote runner-process killing is not supported. For remote controller
 restart, a verified first download supplies the persistence checkpoint; the
 controller is interrupted during a subsequent revision with another queued
@@ -371,7 +371,7 @@ old public-endpoint attempts remain boundary evidence, not an isolation promise.
 
 Stop now waits for the owned runner to exit, records project file hashes, and
 checks them again after the new response. This proves stability over that interval,
-not indefinite monitoring. Hiring and declined-access policy changes are deferred
+not indefinite monitoring. Creation and declined-access policy changes are deferred
 by user decision; their old results must not be presented as new campaign runs.
 
 ## Decline correction (14 September, third campaign)
@@ -391,7 +391,7 @@ with a screenshot; they are not evidence of an ignored decline. Both decline
 stories check a new explanation after the decision and reject repeated requests.
 
 Historical attempts remain unchanged. This campaign resumes the previously
-deferred decline cases; hiring remains deferred. Notion setup is declined in
+deferred decline cases; creation remains deferred. Notion setup is declined in
 the UI, so this test neither authenticates to nor reads real Notion data.
 
 Decision screenshots are included in the evidence package. Before capturing the

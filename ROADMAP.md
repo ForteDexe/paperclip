@@ -18,9 +18,9 @@ If you want to extend Outpost today, the best path is often the [plugin system](
 
 Outpost should keep a thin core and rich edges. Plugins are the path for optional capabilities like knowledge bases, custom tracing, queues, doc editors, and other product-specific surfaces that do not need to live in the control plane itself.
 
-### ✅ Get OpenClaw / claw-style agent employees
+### ✅ Add OpenClaw / claw-style agents
 
-Outpost should be able to hire and manage real claw-style agent workers, not just a narrow built-in runtime. This is part of the larger "bring your own agent" story and keeps the control plane useful across different agent ecosystems.
+Outpost should be able to add and coordinate real claw-style agents, not just a narrow built-in runtime. This is part of the larger "bring your own agent" story and keeps the control plane useful across different agent ecosystems.
 
 ### ✅ spaces.sh - import and export entire organizations
 
@@ -134,7 +134,7 @@ As spaces grow, agents should be able to propose useful structural changes such 
 
 Outpost should get better at turning completed work into reusable organizational knowledge. That includes capturing playbooks, recurring fixes, and decision patterns so future work starts from what the space has already learned.
 
-### ✅ Agent Chat (including CEO Chat)
+### ✅ Agent Chat (including Default agent chat)
 
 Agent Chat provides persistent conversations with any agent, including leadership. Conversations keep their history and plans, then hand execution off to linked tasks. Agent Chat is available to everyone. Experimental chat and email connectors provide additional entry points through configured external services; they have separate setup and access controls.
 

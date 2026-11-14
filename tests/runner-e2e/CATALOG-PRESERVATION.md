@@ -8,12 +8,12 @@ campaign. The machine-readable inventory is `chat-catalog-preservation.json`.
 
 The production baseline remains `39e811c9c5226979fce42e052a27cfb28301018a`.
 No production, workflow, lockfile or SDK source change is included. The real
-new-space, formal-hire and routine-history definitions retain prerequisites
+new-space, formal-create and routine-history definitions retain prerequisites
 18103, 18105 and 18033 respectively. Those focused fixes are excluded here; their
 candidate outcomes remain separate from frozen-baseline qualification.
 
 Composition preserves the per-scenario descriptor union, both independent SDK
-privacy and new-space security sections, the final formal-hire clock module,
+privacy and new-space security sections, the final formal-create clock module,
 and the stronger shared Notes provider used by status cards and routine history.
 The accepted original-deadline and multipart controls are included, as is the
 new-space successor's original phase deadline and remaining-time wizard clamp.

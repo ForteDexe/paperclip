@@ -514,7 +514,7 @@ export function pluginManagedAgentService(
           role: created.role,
           title: created.title,
           icon: created.icon,
-          reportsTo: created.reportsTo,
+          leadAgentId: created.leadAgentId,
           capabilities: created.capabilities,
           adapterType: created.adapterType,
           adapterConfig: created.adapterConfig,

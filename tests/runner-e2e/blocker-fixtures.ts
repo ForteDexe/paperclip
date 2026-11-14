@@ -19,7 +19,7 @@ export async function setupBlockerFixtures(input: {
       workspacePath: input.workspacePath, secretRefs: fixtures.secretRefs, executionId: input.nonce });
     return api.post(`/api/spaces/${fixtures.space.id}/agents`, { ...payload,
       name: "Morgan Manager", role: "general", title: "Operations Manager",
-      capabilities: "Coordinates staffing and operational work. Has no external administrator access or hiring permission." });
+      capabilities: "Coordinates staffing and operational work. Has no external administrator access or creation permission." });
   } });
   registry.register({ id: "worker-policy", dependencies: ["manager"], async setup(resolved) {
     const manager = resolved.get("manager") as { id: string };
@@ -27,7 +27,7 @@ export async function setupBlockerFixtures(input: {
       await api.patch(`/api/agents/${agentId}/permissions`, { canCreateAgents: false, canAssignTasks: true });
       await prepareLegacyContinuationSkill(api, fixtures.space.id, agentId);
     }
-    await api.patch(`/api/agents/${fixtures.agent.id}`, { reportsTo: manager.id });
+    await api.patch(`/api/agents/${fixtures.agent.id}`, { leadAgentId: manager.id });
     return true;
   } });
   // All agents/runs live in the parent registry's isolated space. The harness

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classifyIssueGraphLiveness } from "../services/issue-liveness.ts";
 
 const spaceId = "space-1";
-const managerId = "manager-1";
+const leadAgentId = "manager-1";
 const coderId = "coder-1";
 const blockerId = "blocker-1";
 const blockedId = "blocked-1";
@@ -31,16 +31,16 @@ function agent(overrides: Record<string, unknown> = {}) {
     role: "engineer",
     title: null,
     status: "idle",
-    reportsTo: managerId,
+    leadAgentId: leadAgentId,
     ...overrides,
   };
 }
 
 const manager = agent({
-  id: managerId,
+  id: leadAgentId,
   name: "Engineering Lead",
   role: "engineering_lead",
-  reportsTo: null,
+  leadAgentId: null,
 });
 
 const blocks = [{ spaceId, blockerIssueId: blockerId, blockedIssueId: blockedId }];
@@ -68,7 +68,7 @@ describe("issue graph liveness classifier", () => {
       identifier: "PAP-1703",
       state: "blocked_by_unassigned_issue",
       recoveryIssueId: blockerId,
-      recommendedOwnerAgentId: managerId,
+      recommendedOwnerAgentId: leadAgentId,
       dependencyPath: [
         expect.objectContaining({ issueId: blockedId }),
         expect.objectContaining({ issueId: blockerId }),
@@ -103,14 +103,14 @@ describe("issue graph liveness classifier", () => {
           name: "Default agent Recovery",
           role: "engineering_lead",
           title: "Default agent",
-          reportsTo: rootAgentId,
+          leadAgentId: rootAgentId,
         }),
         agent({
           id: rootAgentId,
           name: "Root Operator",
           role: "operator",
           title: null,
-          reportsTo: null,
+          leadAgentId: null,
         }),
       ],
     });
@@ -144,7 +144,7 @@ describe("issue graph liveness classifier", () => {
       agents: [
         agent(),
         manager,
-        agent({ id: "blocker-agent", name: "Blocker Agent", reportsTo: managerId }),
+        agent({ id: "blocker-agent", name: "Blocker Agent", leadAgentId: leadAgentId }),
       ],
       queuedWakeRequests: [{ spaceId, issueId: blockerId, agentId: "blocker-agent", status: "queued" }],
     });
@@ -168,7 +168,7 @@ describe("issue graph liveness classifier", () => {
       agents: [
         agent(),
         manager,
-        agent({ id: "blocker-agent", name: "Blocker Agent", reportsTo: managerId }),
+        agent({ id: "blocker-agent", name: "Blocker Agent", leadAgentId: leadAgentId }),
       ],
     });
 
@@ -201,7 +201,7 @@ describe("issue graph liveness classifier", () => {
       agents: [
         agent(),
         manager,
-        agent({ id: "blocker-agent", name: "Blocker Agent", reportsTo: managerId }),
+        agent({ id: "blocker-agent", name: "Blocker Agent", leadAgentId: leadAgentId }),
       ],
     };
 
@@ -333,17 +333,17 @@ describe("issue graph liveness classifier", () => {
       agents: [
         agent(),
         manager,
-        agent({ id: "qa-2", name: "QA 2", status: "active", reportsTo: "engineering_lead-2" }),
-        agent({ id: "engineering_lead-2", name: "Engineering Lead 2", status: "terminated", reportsTo: "lead-2" }),
-        agent({ id: "lead-2", name: "Default agent 2", status: "terminated", reportsTo: null }),
+        agent({ id: "qa-2", name: "QA 2", status: "active", leadAgentId: "engineering_lead-2" }),
+        agent({ id: "engineering_lead-2", name: "Engineering Lead 2", status: "terminated", leadAgentId: "lead-2" }),
+        agent({ id: "lead-2", name: "Default agent 2", status: "terminated", leadAgentId: null }),
       ],
     });
 
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       state: "blocked_by_uninvokable_assignee",
-      reason: "PAP-1703 is blocked by PAP-1704, but its assignee is in an invalid org chain.",
-      recommendedOwnerAgentId: managerId,
+      reason: "PAP-1703 is blocked by PAP-1704, but its assignee is in an invalid coordination chain.",
+      recommendedOwnerAgentId: leadAgentId,
     });
   });
 
@@ -448,11 +448,11 @@ describe("issue graph liveness classifier", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       state: "in_review_without_action_path",
-      recommendedOwnerAgentId: managerId,
+      recommendedOwnerAgentId: leadAgentId,
     });
     expect(findings[0]?.recommendedOwnerCandidates).toEqual([
       {
-        agentId: managerId,
+        agentId: leadAgentId,
         reason: "assignee_reporting_chain",
         sourceIssueId: reviewIssueId,
       },

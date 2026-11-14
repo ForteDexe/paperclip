@@ -66,7 +66,7 @@ export async function identityWorker(ctx: ChatCatalogContext, name = "Morgan") {
   const { api, execution, fixtures, workspacePath, nonce } = ctx.input;
   const base = execution.profile.buildAgent({ environmentId: fixtures.environment.id, environmentFixtureId: execution.environment.id,
     workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
-  const payload = { ...base, name, role: "engineer", title: "Website engineer", reportsTo: fixtures.agent.id,
+  const payload = { ...base, name, role: "engineer", title: "Website engineer", leadAgentId: fixtures.agent.id,
     runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1 } } };
   const { codexSubscriptionAgentConfig } = await import("../codex-subscription-fixture.js");
   return api.post<Entity>(`/api/spaces/${fixtures.space.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"

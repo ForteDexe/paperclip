@@ -291,7 +291,7 @@ export class TaskObserver {
     const assign = options.assign !== false;
     if (this.plan.workload === "H1") await this.lowerBudgetToSpend();
     try {
-      // Q3: connect the harness's app and hire its agent; a failed setup is a failed launch.
+      // Q3: connect the harness's app and create its agent; a failed setup is a failed launch.
       await this.journey?.prepare();
       const issue = await this.api.post<Json>(`/api/spaces/${this.lab.spaceId}/issues`, {
         title: definition.title(this.plan.nonce),

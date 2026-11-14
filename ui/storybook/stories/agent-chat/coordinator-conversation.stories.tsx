@@ -9,9 +9,9 @@ import { expect, userEvent, within, waitFor } from "storybook/test";
 
 function Conversation() {
   return <CoordinatorPresentation.Provider value><div className="coordinator-workspace min-h-dvh bg-background p-6 text-foreground"><div className="mx-auto max-w-3xl space-y-8">
-    <header className="flex items-center justify-between border-b border-border pb-4"><h1 className="text-lg font-medium">Chat</h1><span className="text-sm text-muted-foreground">Chief of Staff</span></header>
+    <header className="flex items-center justify-between border-b border-border pb-4"><h1 className="text-lg font-medium">Chat</h1><span className="text-sm text-muted-foreground">Default agent</span></header>
     <TaskChatBubble animateEntry={false} item={{ id: "review-sample-human", kind: "message", author: "human", authorName: "You", isCurrentUser: true, text: "Can we explain the new connector controls in a blog post?", createdAtIso: new Date(Date.now() - 4 * 60_000).toISOString() }} />
-    <TaskChatBubble animateEntry={false} item={{ id: "review-sample-agent", kind: "message", author: "agent", authorName: "Chief of Staff", text: "Who should this help, and what should they understand after reading it?", createdAtIso: new Date(Date.now() - 3 * 60_000).toISOString() }} />
+    <TaskChatBubble animateEntry={false} item={{ id: "review-sample-agent", kind: "message", author: "agent", authorName: "Default agent", text: "Who should this help, and what should they understand after reading it?", createdAtIso: new Date(Date.now() - 3 * 60_000).toISOString() }} />
     <div className="rounded-xl border border-border bg-card p-4 text-sm"><p className="font-medium">Approved · Blog draft v3</p><p className="mt-1 text-muted-foreground">PAPER-102 · <CoordinatorRelativeTime value={new Date(Date.now() - 60_000)} /></p></div>
   </div></div></CoordinatorPresentation.Provider>;
 }

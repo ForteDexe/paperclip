@@ -23,8 +23,8 @@ import { storybookAgents, storybookAuthSession, storybookSpaces, storybookIssues
 
 export const spaceId = "space-storybook";
 export const mobile = { viewport: { value: "mobile", isRotated: false } };
-export const defaultAgent = { ...storybookAgents[0]!, name: "Maia", urlKey: "maia", title: "Chief of staff", role: "general", status: "idle", reportsTo: null } as Agent;
-export const specialist = { ...storybookAgents[1]!, name: "Alex", urlKey: "alex", title: "Product engineer", role: "engineer", status: "idle", reportsTo: null } as Agent;
+export const defaultAgent = { ...storybookAgents[0]!, name: "Maia", urlKey: "maia", title: "Default agent", role: "general", status: "idle", leadAgentId: null } as Agent;
+export const specialist = { ...storybookAgents[1]!, name: "Alex", urlKey: "alex", title: "Product engineer", role: "engineer", status: "idle", leadAgentId: null } as Agent;
 export const designer = { ...storybookAgents[2]!, name: "Jules", urlKey: "jules", title: "Designer", role: "designer", status: "idle" } as Agent;
 
 export interface PrimaryScenario {

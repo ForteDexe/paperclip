@@ -107,10 +107,10 @@ export async function runIdentityWizardInPrivateBrowser(input: WizardInput & { r
   const onResponse = (response: Response) => {
     const url = new URL(response.url()); if (url.origin !== origin || response.request().method() !== "POST") return;
     const test = url.pathname === `/api/spaces/${space.id}/adapters/${input.harness}/test-environment`;
-    const hire = url.pathname === `/api/spaces/${space.id}/agent-hires`;
-    if (!test && !hire) return;
+    const create = url.pathname === `/api/spaces/${space.id}/agent-hires`;
+    if (!test && !create) return;
     const pending = (async () => {
-      if (hire) { hiredThroughWizard = response.ok(); return; }
+      if (create) { hiredThroughWizard = response.ok(); return; }
       const request = response.request().postDataJSON() as { environmentId?: unknown };
       actualProbeEnvironmentId = typeof request.environmentId === "string" ? request.environmentId : "";
       const body = await response.json() as { adapterType?: string; status?: string; checks?: Array<{ code?: string; level?: string }> };

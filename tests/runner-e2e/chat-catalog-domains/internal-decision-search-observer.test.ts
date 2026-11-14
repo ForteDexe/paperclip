@@ -9,13 +9,13 @@ import { decisionSearchCases } from "./internal-decision-search.js";
 
 function control() {
   const records = new Map<string, Record<string, unknown>>(); let issueCount = 0, questionCount = 0;
-  const ownerFeed = { spaceId: "space", items: [{ subject: { id: "hire" } }] };
+  const ownerFeed = { spaceId: "space", items: [{ subject: { id: "create" } }] };
   const resolverFeed = { spaceId: "space", items: [{ subject: { id: "question-1" }, relatedIssue: { id: "task-1" }, resolverAudience: { addresseeUserId: "riley", effectiveResolverPolicy: "human_only" } }] };
   const api = {
     baseURL: "https://fixture.test",
     get: vi.fn(async (path: string) => {
       if (path.endsWith("/attention?all=true&includeDismissed=true")) return ownerFeed;
-      if (path === "/api/approvals/hire") return records.get("hire");
+      if (path === "/api/approvals/create") return records.get("create");
       if (path.endsWith("/interactions")) return [...records.values()].filter(row => row.issueId === path.split("/")[3]);
       throw new Error(`Unexpected public read ${path}`);
     }),
@@ -30,7 +30,7 @@ function control() {
         const id = path.split("/")[5]!; const row = { ...records.get(id), status: "answered", result: body, resolvedByUserId: "owner" };
         records.set(id, row); return row;
       }
-      if (path.endsWith("/approvals")) { const row = { id: "hire", spaceId: "space", status: "pending", ...body }; records.set("hire", row); return row; }
+      if (path.endsWith("/approvals")) { const row = { id: "create", spaceId: "space", status: "pending", ...body }; records.set("create", row); return row; }
       throw new Error(`Unexpected public mutation ${path}`);
     }),
     postSensitive: vi.fn(async () => ({ id: "probe", token: "synthetic-attempt-private-probe" })),

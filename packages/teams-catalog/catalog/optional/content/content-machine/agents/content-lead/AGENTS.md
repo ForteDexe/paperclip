@@ -3,7 +3,7 @@ name: Content Lead
 slug: content-lead
 title: Content Lead
 role: content-strategist
-reportsTo: null
+leadAgentId: null
 skills:
   - content-calendar
 ---

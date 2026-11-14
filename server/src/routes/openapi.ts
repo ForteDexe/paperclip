@@ -3575,9 +3575,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/spaces/{spaceId}/org",
+  path: "/api/spaces/{spaceId}/agent-hierarchy",
   tags: ["agents"],
-  summary: "Get org chart data",
+  summary: "Get agent hierarchy data",
   request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -10175,22 +10175,22 @@ registry.registerPath({
   },
 });
 
-// ─── Org chart images ─────────────────────────────────────────────────────────
+// ─── Agent hierarchy images ───────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/spaces/{spaceId}/org.svg",
+  path: "/api/spaces/{spaceId}/agent-hierarchy.svg",
   tags: ["spaces"],
-  summary: "Get org chart as SVG",
+  summary: "Get agent hierarchy as SVG",
   request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "SVG image" }, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/spaces/{spaceId}/org.png",
+  path: "/api/spaces/{spaceId}/agent-hierarchy.png",
   tags: ["spaces"],
-  summary: "Get org chart as PNG",
+  summary: "Get agent hierarchy as PNG",
   request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "PNG image" }, 401: r.unauthorized },
 });

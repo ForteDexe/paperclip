@@ -140,8 +140,8 @@ export interface CatalogTeamSourcePolicy {
 }
 
 export interface CatalogTeamImportOptions {
-  targetManagerAgentId?: string | null;
-  targetManagerSlug?: string | null;
+  targetLeadAgentId?: string | null;
+  targetLeadSlug?: string | null;
   include?: Partial<SpacePortabilityInclude>;
   agents?: SpacePortabilityAgentSelection;
   collisionStrategy?: SpacePortabilityCollisionStrategy;

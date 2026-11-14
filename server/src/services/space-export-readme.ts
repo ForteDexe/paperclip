@@ -1,5 +1,5 @@
 /**
- * Generates README.md with Mermaid org chart for space exports.
+ * Generates README.md with Mermaid agent hierarchy for space exports.
  */
 import type { SpacePortabilityManifest } from "@outpost/shared";
 
@@ -8,18 +8,16 @@ const ROLE_LABELS: Record<string, string> = {
   engineering_lead: "Engineering Lead",
   product: "Product Lead",
   operations: "Operations Lead",
-  coo: "COO",
-  vp: "VP",
-  manager: "Manager",
+  coordination_lead: "Coordination Lead",
   engineer: "Engineer",
   agent: "Agent",
 };
 
 /**
- * Generate a Mermaid flowchart (TD = top-down) representing the org chart.
+ * Generate a Mermaid flowchart (TD = top-down) representing the agent hierarchy.
  * Returns null if there are no agents.
  */
-export function generateOrgChartMermaid(agents: SpacePortabilityManifest["agents"]): string | null {
+export function generateAgentHierarchyMermaid(agents: SpacePortabilityManifest["agents"]): string | null {
   if (agents.length === 0) return null;
 
   const lines: string[] = [];
@@ -36,8 +34,8 @@ export function generateOrgChartMermaid(agents: SpacePortabilityManifest["agents
   // Edges from parent to child
   const slugSet = new Set(agents.map((a) => a.slug));
   for (const agent of agents) {
-    if (agent.reportsToSlug && slugSet.has(agent.reportsToSlug)) {
-      lines.push(`    ${mermaidId(agent.reportsToSlug)} --> ${mermaidId(agent.slug)}`);
+    if (agent.leadAgentSlug && slugSet.has(agent.leadAgentSlug)) {
+      lines.push(`    ${mermaidId(agent.leadAgentSlug)} --> ${mermaidId(agent.slug)}`);
     }
   }
 
@@ -87,9 +85,9 @@ export function generateReadme(
     lines.push("");
   }
 
-  // Org chart image (generated during export as images/org-chart.png)
+  // Agent hierarchy image (generated during export as images/agent-hierarchy.png)
   if (manifest.agents.length > 0) {
-    lines.push("![Org Chart](images/org-chart.png)");
+    lines.push("![Agent hierarchy](images/agent-hierarchy.png)");
     lines.push("");
   }
 
@@ -118,12 +116,12 @@ export function generateReadme(
   if (manifest.agents.length > 0) {
     lines.push("### Agents");
     lines.push("");
-    lines.push("| Agent | Role | Reports To |");
+    lines.push("| Agent | Role | Coordination Lead |");
     lines.push("|-------|------|------------|");
     for (const agent of manifest.agents) {
       const roleLabel = ROLE_LABELS[agent.role] ?? agent.role;
-      const reportsTo = agent.reportsToSlug ?? "\u2014";
-      lines.push(`| ${agent.name} | ${roleLabel} | ${reportsTo} |`);
+      const leadAgentId = agent.leadAgentSlug ?? "\u2014";
+      lines.push(`| ${agent.name} | ${roleLabel} | ${leadAgentId} |`);
     }
     lines.push("");
   }

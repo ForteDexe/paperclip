@@ -3966,7 +3966,7 @@ describeEmbeddedPostgres("tool access service", () => {
     expect(res.body.agents).toHaveLength(1);
     expect(res.body.agents[0]).toMatchObject({
       id: agent.id,
-      orgDepth: 0,
+      hierarchyDepth: 0,
     });
     expect(res.body.agents[0]).not.toHaveProperty("effectiveAccess");
 
@@ -4026,7 +4026,7 @@ describeEmbeddedPostgres("tool access service", () => {
         spaceId: space.id,
         name: "Accessible manager",
         role: "manager",
-        reportsTo: root.id,
+        leadAgentId: root.id,
         status: "active",
         adapterType: "process",
         adapterConfig: {},
@@ -4039,7 +4039,7 @@ describeEmbeddedPostgres("tool access service", () => {
         spaceId: space.id,
         name: "Accessible report",
         role: "engineer",
-        reportsTo: accessibleManager!.id,
+        leadAgentId: accessibleManager!.id,
         status: "active",
         adapterType: "process",
         adapterConfig: {},
@@ -4070,7 +4070,7 @@ describeEmbeddedPostgres("tool access service", () => {
       accessibleReport!.id,
     ]);
     expect(
-      res.body.agents.map((agent: { orgDepth: number }) => agent.orgDepth),
+      res.body.agents.map((agent: { hierarchyDepth: number }) => agent.hierarchyDepth),
     ).toEqual([1, 2]);
     expect(res.body.agents).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: root.id })]),

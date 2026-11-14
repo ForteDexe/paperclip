@@ -24,7 +24,7 @@ type Control = { role: string; name: string; scope?: string; fill?(value: string
 /** Visible control contracts only; no browser, Cloud API, or provider is started. */
 function fixture(entry: Entry, options: { intentFailure?: boolean; qualificationFailure?: boolean; traceFailure?: boolean } = {}) {
   let stage: string = entry, name = "", apiMode = false, source = false, advanced = false, runnerOpen = false;
-  let modelsOpen = false, model = "", runner = "", saved = false, hired = false;
+  let modelsOpen = false, model = "", runner = "", saved = false, created = false;
   const fields: Record<string, string> = {}, events: string[] = [];
   const gateway = { baseUrl: "https://owned-gateway.example.test/v1", model: "gpt-5.4-mini", apiKey: "synthetic-test-key" };
   const connection = { id: "connection", name: "My owned-gateway.example.test", provider: "openai", method: "api_key", status: "connected" };
@@ -45,7 +45,7 @@ function fixture(entry: Entry, options: { intentFailure?: boolean; qualification
       { role: "button", name: "Next", click() { stage = "connect"; } },
     ];
     if (stage === "started") return [];
-    if (hired) return [{ role: "button", name: "Get started", click() { stage = "started"; } }];
+    if (created) return [{ role: "button", name: "Get started", click() { stage = "started"; } }];
     const result: Control[] = [
       { role: "button", name: apiMode ? "Use subscription instead" : "Use API key instead", click() { apiMode = !apiMode; } },
       { role: "radio", name: apiMode ? "OpenAI API key" : "OpenAI Subscription", click() { source = true; } },
@@ -67,7 +67,7 @@ function fixture(entry: Entry, options: { intentFailure?: boolean; qualification
     if (advanced) result.push({ role: "button", name: "Runner", click() { runnerOpen = true; } });
     if (runnerOpen) result.push({ role: "option", name: "Outpost Runner (default)", click() { runner = "outpost"; runnerOpen = false; } });
     if (saved && model && runner) result.push({ role: "button", name: "Connect", click() {
-      expect(events).toContain("qualified"); events.push("paid:connect"); hired = true;
+      expect(events).toContain("qualified"); events.push("paid:connect"); created = true;
     } });
     return result;
   };
@@ -100,7 +100,7 @@ function fixture(entry: Entry, options: { intentFailure?: boolean; qualification
     origin: "https://tenant.example.test",
     async get(route: string) {
       if (route.endsWith("/ai-connections")) return { connections: saved ? [connection] : [] };
-      if (route.endsWith("/agents")) return hired ? [{ id: "agent", name, adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: gateway.model } }] : [];
+      if (route.endsWith("/agents")) return created ? [{ id: "agent", name, adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: gateway.model } }] : [];
       throw new Error("Unexpected API read");
     },
   } };

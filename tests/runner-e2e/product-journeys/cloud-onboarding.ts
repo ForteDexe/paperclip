@@ -26,17 +26,17 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   const { page, evidence, campaignId } = input;
   const name = `Journey QA ${campaignId}`;
   const firstRunName = page.getByLabel("Name", { exact: true });
-  const organizationName = page.getByLabel("Organization name", { exact: true });
+  const spaceName = page.getByLabel("Organization name", { exact: true });
   const createLink = page.getByRole("link", { name: /^(Create (?:a new )?organization|\+ New organization)$/ }).first();
   // The first organization uses the signup Name/Next form. Later organizations
   // use Organization name/Create organization, reached from the managed portfolio.
-  await expect(firstRunName.or(organizationName).or(createLink).first()).toBeVisible();
-  if (!await firstRunName.isVisible() && !await organizationName.isVisible()) {
+  await expect(firstRunName.or(spaceName).or(createLink).first()).toBeVisible();
+  if (!await firstRunName.isVisible() && !await spaceName.isVisible()) {
     await createLink.click();
-    await expect(organizationName).toBeVisible();
+    await expect(spaceName).toBeVisible();
   }
   const firstRun = await firstRunName.isVisible();
-  await (firstRun ? firstRunName : organizationName).fill(name);
+  await (firstRun ? firstRunName : spaceName).fill(name);
   await input.beforeWorkspace(name);
   await page.getByRole("button", { name: firstRun ? "Next" : "Create organization", exact: true }).click();
   const context = await input.workspaceCreated();
@@ -69,7 +69,7 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   await page.getByRole("button", { name: "Runner", exact: true }).click();
   await page.getByRole("option", { name: /^Outpost Runner/ }).click();
   await input.qualify(context, connection.id);
-  // Connect performs the production probe and agent creation. Never press Retry.
+  // Connect performs the production probe and creation. Never press Retry.
   const connect = await onboardingConnect({ page, origin: api.origin, spaceId: space.id, deadlineAt: input.deadlineAt,
     retain: value => { evidence.onboardingConnect = value; } });
   const agents = await api.get<Row[]>(`/api/spaces/${space.id}/agents`);

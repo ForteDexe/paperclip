@@ -75,7 +75,7 @@ export async function runPlanTaskFlow(input: Input) {
         await mkdir(workspacePath, { recursive: true });
         const payload = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: "local",
           workspacePath, secretRefs: f.secretRefs, executionId: input.nonce });
-        return api.post(`${space}/agents`, { ...payload, name, role, title: name, capabilities, reportsTo: f.agent.id,
+        return api.post(`${space}/agents`, { ...payload, name, role, title: name, capabilities, leadAgentId: f.agent.id,
           instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": `You are ${name}. ${capabilities} Deliver accurate work that meets your assignment.` } } });
       } });
     }

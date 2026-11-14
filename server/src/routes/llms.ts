@@ -71,7 +71,7 @@ export function llmRoutes(db: Db) {
     const lines = [
       "# Outpost Agent Icon Names",
       "",
-      "Set the `icon` field on create/create payloads to one of:",
+      "Set the `icon` field on create/add payloads to one of:",
       ...AGENT_ICON_NAMES.map((name) => `- ${name}`),
       "",
       "Example:",

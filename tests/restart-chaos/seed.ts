@@ -17,7 +17,7 @@ export interface ChaosLab {
   environmentKind: EnvironmentKind;
   projectId: string;
   fixtureRepositoryPath: string;
-  /** `body` is the creation request, so a driver can hire an identical agent later. */
+  /** `body` is the creation request, so a driver can create an identical agent later. */
   agents: Record<AdapterId, { id: string; name: string; body?: Record<string, unknown> }>;
 }
 

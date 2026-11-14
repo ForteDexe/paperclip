@@ -2,32 +2,32 @@
 navigation: {"section":"Agents and reusable capabilities","sectionOrder":30,"order":10}
 ---
 
-# Hiring, configuration, and organization
+# Creation, configuration, and organization
 
-Operators hire agents, configure their identity and instructions, assign reporting relationships, and manage their lifecycle. Built-in agents have their own setup and lifecycle constraints.
+Operators create agents, configure their identity and instructions, assign optional coordination leads, and manage their lifecycle. Built-in agents have their own setup and lifecycle constraints.
 
 Feature ID: `agents`.
 
-Implementation: [hiring](../../ui/src/pages/NewAgent.tsx), [configuration](../../ui/src/components/AgentConfigForm.tsx), [organization](../../ui/src/pages/OrgChart.tsx).
+Implementation: [agent creation](../../ui/src/pages/NewAgent.tsx), [configuration](../../ui/src/components/AgentConfigForm.tsx), [agent hierarchy](../../ui/src/pages/AgentHierarchy.tsx).
 
 Agent access: [companion](../agent-access-map/agents.md).
 
 ## Sub-features
 
-- `hire`: `agents/hire` — choose identity, harness, model, and required account settings; edit
-  reporting relationships through the agent configuration afterward.
+- `create`: `agents/create` — choose identity, harness, model, and required account settings; edit
+  coordination relationships through the agent configuration afterward.
 - `grok-bot`: `agents/grok-bot` — experimental existing-Bot agent setup through remote OAuth, routine credentials, and an authenticated two-way challenge; current contact, stop and explicit recovery.
 - `instructions`: `agents/instructions` — edit agent configuration and instruction files with durable revisions.
-- `organization`: `agents/organization` — inspect and change reporting relationships through supported controls.
+- `coordination`: `agents/coordination` — inspect and change coordination relationships through supported controls.
 - `default-agent`: `agents/default-agent` — choose a personal default agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
 - `lifecycle`: `agents/lifecycle` — pause/resume or retire an agent while preserving history.
-- `built-in`: `agents/built-in` — configure required agents without treating them as ordinary removable hires.
+- `built-in`: `agents/built-in` — configure required agents without treating them as ordinary removable agents.
 - `api-keys`: `agents/api-keys` — create and inspect named agent credentials, copy a new token once, and revoke it without changing agent identity.
 - `managed-agent-setup`: `agents/managed-agent-setup` — probe, create, or adopt a qualified Anthropic managed-agent profile with pinned provider resources and retention acknowledgement.
 
 ## How to get to it (user POV)
 
-### `hire-agent`
+### `create-agent`
 
 Use New agent from the roster or `/agents/new`.
 
@@ -64,7 +64,7 @@ Google Antigravity without implying a configured connection or runnable model.
 **Change adapter** returns to the picker with the saved choice selected and allows
 switching that same held draft to another supported adapter.
 Verify discovery, Google-specific setup, draft preservation and the
-disabled actions separately from a successful Antigravity hire or task run.
+disabled actions separately from successful Antigravity setup or a task run.
 
 On an isolated host with a current operator candidate authorization, space-scoped
 adapter inventory can expose **Candidate** with one exact model. That space can
@@ -75,10 +75,10 @@ Verify this scoped path separately from production qualification and real task a
 
 Agent-owned plugin environments prepare the saved draft in the background when
 their driver declares `requiresAgent`. The draft waits in `verifying` with its
-setup hold until hiring finishes. Changing environments keeps the selected
+setup hold until agent creation finishes. Changing environments keeps the selected
 account and Configure step, saves the selection, and invalidates its test.
 Preparation and failed-save retries remain visible without reconnecting.
-Spaces requiring hire approval save the account with pending verification;
+Spaces requiring agent approval save the account with pending verification;
 resource allocation waits for approval.
 
 ### `agent-configuration`
@@ -145,9 +145,9 @@ validation, access checks, revisions and audit logging still apply. Live runs
 retain their existing settings; model changes can reset saved sessions. Connection
 adoption can require an explicit reset of existing sessions.
 
-### `organization`
+### `coordination`
 
-Use the roster’s organization view; `/org` redirects to the roster in the streamlined shell.
+Use the roster’s agent hierarchy view; `/agent-hierarchy` redirects to the roster in the streamlined shell.
 
 ### `personal-default-agent`
 
@@ -169,9 +169,9 @@ Use the operator command `outpost managed-agent setup --space-id <space-id> --pr
 
 ## Driving it with Playwright and the Outpost CLI
 
-Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable space and supported adapter; hiring may require a formal approval.
+Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable space and supported adapter; agent creation may require a formal approval.
 
-### `hire-agent`
+### `create-agent`
 
 Automated: [new agent dialog](../../ui/src/components/NewAgentDialog.test.tsx) and [configuration form](../../ui/src/components/AgentConfigForm.render.test.tsx) cover mocked UI behavior.
 
@@ -183,21 +183,21 @@ The [setup lifecycle tests](../../server/src/modules/agent-lifecycle/__tests__/s
 exercise durable transitions with synthetic plugin resources; they do not prove
 live VM provisioning.
 
-Manual: Hire an agent with a distinct name and role. Complete any required approval, reload the roster, and open its configuration. Confirm manager, adapter, and model persisted; run a small task to prove execution readiness.
+Manual: Create an agent with a distinct name and role. Complete any required approval, reload the roster, and open its configuration. Confirm coordination lead, adapter, and model persisted; run a small task to prove execution readiness.
 
-For a new Codex hire, choose the Codex harness. Automatic selection uses Outpost
-Runner on a qualified selected target. Hiring and configuration do not expose a
+For a new Codex agent, choose the Codex harness. Automatic selection uses Outpost
+Runner on a qualified selected target. Creation and configuration do not expose a
 runner dropdown; omit Advanced when no other settings remain. Record the persisted runner and
 underlying harness, rather than treating the displayed Codex name as execution
 proof. See [runtime selection and validation](./runs-adapters.md#adapter-setup)
 and [target qualification](./execution-environments.md#environment-settings).
 
-Repeat with an explicit Legacy Codex hire through the API or CLI. If approval is required, compare its
+Repeat with an explicit Legacy Codex agent through the API or CLI. If approval is required, compare its
 reviewed execution configuration before and after restart and activation; approval
 must retain the reviewed runner. Test an existing Legacy and native agent through
 an unrelated edit, reload and restart: neither is automatically upgraded.
 
-Creation defaults also apply to API/CLI hires, built-ins, plugins and new team
+Creation defaults also apply to API/CLI agents, built-ins, plugins and new agent-group
 imports. Exports preserve resolved execution choices; a package without a runner
 choice uses the new-agent default, while updating an existing same-harness agent
 preserves its execution. For a native Codex import, edit a model or account binding
@@ -214,10 +214,10 @@ Legacy. Darwin SSH also defaults to Legacy until automatic matching assets are
 qualified; explicit matching native assets and saved native configurations remain
 supported. Linux ARM64 cloud-image production remains deferred.
 
-The current hiring wizard assigns the first hire CEO and subsequent hires
-General reporting to the CEO. Change manager/role afterward through supported
+The creation wizard leaves root agents as peers unless an optional coordination
+lead is selected. Change the coordination lead or role afterward through supported
 configuration. Process/HTTP agents can be created through API/CLI but are excluded
-from the hiring picker; API fixture creation does not prove this UI journey.
+from the creation picker; API fixture creation does not prove this UI journey.
 
 ### `agent-configuration`
 
@@ -276,11 +276,11 @@ pending, failure/retry, incompatible settings, repair, native/unsupported states
 and mobile/light presentation. Fixture success does not establish real migration
 or provider execution.
 
-### `organization`
+### `coordination`
 
-Automated: [org chart](../../ui/src/pages/OrgChart.test.tsx) is component evidence. Built-in setup also has [configuration modal tests](../../ui/src/components/ConfigureBuiltInAgentModal.test.tsx).
+Automated: [agent hierarchy](../../ui/src/pages/AgentHierarchy.test.tsx) is component evidence. Built-in setup also has [configuration modal tests](../../ui/src/components/ConfigureBuiltInAgentModal.test.tsx).
 
-Manual: Inspect a manager and report, change the relationship through the offered controls, and reload both views. Exercise a rejected invalid relationship. Configure a built-in agent and verify it retains its required identity and restrictions.
+Manual: Inspect a coordination lead and coordinated agent, change the relationship through the offered controls, and reload both views. Exercise a rejected invalid relationship. Configure a built-in agent and verify it retains its required identity and restrictions.
 
 ### `personal-default-agent`
 
@@ -318,10 +318,10 @@ Sources: [Managed-agent CLI](../../cli/src/commands/managed-agent.ts), [profile 
 - Agent keys, human CLI tokens, and personal assistant OAuth grants are different credentials. Never include a key’s plaintext token in screenshots, logs, or verification artifacts.
 
 - A roster entry is not proof of an authenticated or invokable adapter.
-- Pending hires may live in approval/task surfaces rather than the active roster.
+- Pending agents may live in approval/task surfaces rather than the active roster.
 - Skill and tool grants are separate: see [skills](./skills.md) and [app permissions](./app-permissions.md).
 - A personal default agent is a per-user/space preference. It does not change
-  reporting lines, stars, permissions, or another person's default agent.
+  coordination relationships, stars, permissions, or another person's default agent.
 
 ### `connect-grok-bot`
 
@@ -330,6 +330,6 @@ Choose **Invite an external agent → Grok Bot**, identify the Bot by its deskto
 Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Outpost authority without confirming remote termination.
 
 Evidence: source implementation and focused protocol tests; real provider assigned/proactive workflows and deployed managed acceptance remain release gates.
-### Documentation scope: Agents, organization, and runtime setup
+### Documentation scope: Agents, coordination, and runtime setup
 
 Per-harness/model/account capabilities, every instruction-file error, and complete built-in-agent lifecycle variants remain separate qualification matrices.

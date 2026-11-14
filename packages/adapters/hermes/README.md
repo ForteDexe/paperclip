@@ -293,7 +293,7 @@ Outpost                          Hermes Agent
 │  Cost Tracking   │               │  Skills          │
 │                  │               │  MCP Client      │
 │  Skill Sync      │◀──snapshot────│  ~/.hermes/skills│
-│  Org Chart       │               │                  │
+│  Agent hierarchy       │               │                  │
 └──────────────────┘               └──────────────────┘
 ```
 

@@ -9,7 +9,7 @@ describe("bounded native procedure comparison", () => {
     expect(suite.manualOnly).toBe(true);
     const selected = selectRunnerExecutions(parseRunnerSelectors(["--suite", suite.id,
       "--profile", "runner-codex", "--profile", "runner-acpx-claude", "--profile", "runner-opencode",
-      "--case", "hire-reuse", "--case", "delegate-feedback", "--environment", "local"]));
+      "--case", "create-reuse", "--case", "delegate-feedback", "--environment", "local"]));
     expect(selected).toHaveLength(6);
     for (const { task } of selected) {
       const original = everydayTasks.find(candidate => candidate.id === task.id)!;

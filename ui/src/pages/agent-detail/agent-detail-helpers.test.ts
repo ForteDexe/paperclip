@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitReports } from "./AgentDirectReports";
+import { fitCoordinatedAgents } from "./AgentCoordinatedAgents";
 import { revisionSummary } from "./AgentHistoryDialog";
 import { checkExternalProfile } from "./InstructionsBundleSettings";
 import { countSince, formatWindowCount } from "./overview-counts";
@@ -58,20 +58,20 @@ describe("countSince", () => {
   });
 });
 
-describe("fitReports", () => {
+describe("fitCoordinatedAgents", () => {
   const widths = [106, 106, 56, 60, 106, 129, 116, 140];
 
   it("shows every report when they fit in two lines", () => {
-    expect(fitReports(widths.slice(0, 4), 406, 16, 56)).toBe(4);
-    expect(fitReports(widths, 900, 16, 56)).toBe(8);
+    expect(fitCoordinatedAgents(widths.slice(0, 4), 406, 16, 56)).toBe(4);
+    expect(fitCoordinatedAgents(widths, 900, 16, 56)).toBe(8);
   });
 
   it("leaves room for the more button on the second line", () => {
-    expect(fitReports(widths, 406, 16, 56)).toBe(6);
-    expect(fitReports(widths, 202, 16, 56)).toBe(2);
+    expect(fitCoordinatedAgents(widths, 406, 16, 56)).toBe(6);
+    expect(fitCoordinatedAgents(widths, 202, 16, 56)).toBe(2);
   });
 
   it("shows every report before the width is known", () => {
-    expect(fitReports(widths, 0, 16, 56)).toBe(8);
+    expect(fitCoordinatedAgents(widths, 0, 16, 56)).toBe(8);
   });
 });

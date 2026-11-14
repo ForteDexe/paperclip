@@ -38,9 +38,9 @@ describe("storybook onboarding draft", () => {
   });
 
   // `createdAgentId` is what `launchStateIncomplete` checks. Filling it in
-  // before the hire would paint over the guard step 5 is supposed to show when
+  // before the create would paint over the guard step 5 is supposed to show when
   // it is reached without an agent.
-  it("does not claim an agent exists before the hire", () => {
+  it("does not claim an agent exists before the create", () => {
     seedOnboardingDraft();
     expect(readOnboardingDraft()?.createdAgentId).toBe("");
   });

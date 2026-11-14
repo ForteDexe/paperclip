@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Agents write task briefs and chat replies that people read. The Nov 2026
  * onboarding walk found raw task UUIDs in an agent-written brief ("on task
- * BRA-2 (id 2b330993-…)") and a Codex chief of staff narrating receipts,
+ * BRA-2 (id 2b330993-…)") and a Codex default agent narrating receipts,
  * execution policies and policy patches to a new user. These checks keep the
  * instructions that shape that text explicit about both.
  */
@@ -45,8 +45,8 @@ describe("chat agents describe outcomes, not internal mechanics", () => {
     expect(skill).toMatch(/what happened, what it means for them, and the next step/);
   });
 
-  it("the chief-of-staff persona carries the same plain-language rule into every chat", async () => {
-    const persona = await read("../onboarding-assets/first-task/chief-of-staff/AGENTS.md");
+  it("the default-agent persona carries the same plain-language rule into every chat", async () => {
+    const persona = await read("../onboarding-assets/first-task/default-agent/AGENTS.md");
     expect(persona).toMatch(/plain language/i);
     expect(persona).toMatch(/never narrate internal mechanics/i);
     expect(persona).toMatch(/raw IDs/);

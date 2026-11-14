@@ -356,7 +356,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                   agent={agent}
                   runs={[]}
                   assignedIssues={storybookIssues.slice(0, 3)}
-                  directReportCount={0}
+                  coordinatedAgents={[]}
                   agentRouteId={REF}
                 />
               )}

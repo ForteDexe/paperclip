@@ -167,7 +167,7 @@ describe("runner E2E catalog", () => {
       "create-skill-studio",
       "stop-redirect",
       "followup-while-running",
-      "hire-delegate-reuse",
+      "create-delegate-reuse",
       "agent-settings-persistence",
       "cloud-onboarding"
     ]);

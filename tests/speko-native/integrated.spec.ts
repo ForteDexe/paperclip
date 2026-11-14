@@ -323,7 +323,7 @@ test("E02: selecting an existing agent preserves its configuration and historica
   expect(agents).toHaveLength(1);
   expect(agents[0].id).toBe(agent.id);
   expect(agents[0].adapterConfig).toEqual(agent.adapterConfig);
-  expect(agents[0].reportsTo).toBe(agent.reportsTo);
+  expect(agents[0].leadAgentId).toBe(agent.leadAgentId);
   expect((await (await page.request.get(`/api/issues/${task.id}`)).json()).assigneeAgentId).toBe(agent.id);
   const endpoints = await (await page.request.get(`/api/spaces/${space.id}/chat-endpoints`)).json();
   expect(endpoints).toHaveLength(1);

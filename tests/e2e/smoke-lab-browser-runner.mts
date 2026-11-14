@@ -2,7 +2,7 @@
  * Smoke Lab agent-driven browser runner (PAP-13350 / plan §D4 item 1).
  *
  * This is the reference implementation the `smoke-lab-browser-runner` runbook
- * points at: a QA agent drives a REAL browser through the P1-P7 Smoke Lab
+ * points at: a QAn agent drives a REAL browser through the P1-P7 Smoke Lab
  * lifecycle against a live local_trusted instance, typing demo credentials into
  * the fake OAuth consent page, and posts every step + a viewable screenshot to
  * the S1 results API so the run lands in the Smoke Lab UI + dashboard card.

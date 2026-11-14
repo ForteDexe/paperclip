@@ -365,7 +365,7 @@ describe("public repository paid workflow security", () => {
       paidExecution,
     );
     expect(everydayOracleStep).toContain(
-      "if: matrix.caseId == 'build-revise' || matrix.caseId == 'delegate-feedback' || matrix.caseId == 'agent-review-handoff' || matrix.caseId == 'hire-reuse' || matrix.caseId == 'recover-controller' || matrix.caseId == 'stop-redirect'\n",
+      "if: matrix.caseId == 'build-revise' || matrix.caseId == 'delegate-feedback' || matrix.caseId == 'agent-review-handoff' || matrix.caseId == 'create-reuse' || matrix.caseId == 'recover-controller' || matrix.caseId == 'stop-redirect'\n",
     );
     expect(everydayOracleStep).toContain(
       `oracle_image='${everydayOracleImage}'`,

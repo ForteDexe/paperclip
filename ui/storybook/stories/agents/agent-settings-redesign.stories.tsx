@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { AgentSettingsPreview } from "../../prototypes/agent-settings/AgentSettingsPreview";
 const meta = {
   id: "agents-configuration-refresh",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Configuration refresh",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Configuration refresh",
   component: AgentSettingsPreview,
   parameters: {
     layout: "fullscreen",

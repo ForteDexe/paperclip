@@ -93,7 +93,7 @@ export const createAgentSchema = z.object({
   title: z.string().optional().nullable(),
   icon: z.enum(AGENT_ICON_NAMES).optional().nullable(),
   appearance: agentAppearanceSchema.optional(),
-  reportsTo: z.string().guid().optional().nullable(),
+  leadAgentId: z.string().guid().optional().nullable(),
   capabilities: z.string().optional().nullable(),
   desiredSkills: z.array(agentDesiredSkillSelectionSchema).optional(),
   adapterType: agentAdapterTypeSchema,
@@ -115,8 +115,8 @@ export const createAgentSchema = z.object({
   // only when that owner already has a stored value. It carries no token.
   applyStoredClaudeLogin: z.boolean().optional(),
   // Narrow intent flag set by the onboarding wizard when it creations the very first
-  // agent (the chief of staff). It is not an agent column: the server consumes
-  // it to seed the server-owned chief-of-staff persona over the agent's entry
+  // agent (the default agent). It is not an agent column: the server consumes
+  // it to seed the server-owned default-agent persona over the agent's entry
   // instruction file instead of the generic default, and honors it only for
   // operator-authored requests. Mirrors onboardingFirstTask on issue create.
   onboardingFirstAgent: z.boolean().optional(),

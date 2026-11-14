@@ -346,7 +346,7 @@ function makeAgent(id: string, overrides: Record<string, unknown> = {}) {
     id,
     spaceId,
     role: "engineer",
-    reportsTo: null,
+    leadAgentId: null,
     permissions: { canCreateAgents: false },
     ...overrides,
   };
@@ -392,7 +392,7 @@ function createRunContextDb(
       const issue = await mockIssueService.getById(issueId);
       return issue ? [issue] : [];
     }
-    return [{ id: runAgentId, spaceId: runAgentSpaceId, permissions: {}, role: "engineer", reportsTo: null }];
+    return [{ id: runAgentId, spaceId: runAgentSpaceId, permissions: {}, role: "engineer", leadAgentId: null }];
   };
   const buildQuery = (selection: Record<string, unknown>, chatBindingQuery = false, settledRecoveryQuery = false,
     policyTable?: "issues" | "agents") => {
@@ -3550,7 +3550,7 @@ describe("agent issue mutation checkout ownership", () => {
         if (keys.includes("parentId")) return ancestryRows;
         if (keys.includes("status")) return [];
         if (keys.includes("agentSpaceId")) return runRows;
-        return [{ id: peerAgentId, spaceId, permissions: {}, role: "engineer", reportsTo: null }];
+        return [{ id: peerAgentId, spaceId, permissions: {}, role: "engineer", leadAgentId: null }];
       };
       const buildQuery = (selection: Record<string, unknown>) => {
         const rows = rowsForSelection(selection);

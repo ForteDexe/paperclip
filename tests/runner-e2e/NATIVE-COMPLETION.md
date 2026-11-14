@@ -14,7 +14,7 @@ document checks. Blocking checks the durable whole-task blocker, exact external
 owner/action, explanatory visible reply, unchanged workspace and absence of
 extra tasks, agents, documents or interactions.
 
-Both use the actual production default hire: no custom QA instructions bundle.
+Both use the actual production default create: no custom QA instructions bundle.
 Before execution, the public bundle receipt must hash to the unchanged master
 AGENTS.md, and space/agent budgets must each be 1,000 cents. Profile model,
 effort, credentials, skills, permissions and provider configuration are inherited.

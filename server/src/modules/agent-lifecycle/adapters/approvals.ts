@@ -56,7 +56,7 @@ export function creationApprovalService(db: Db, effects: LifecycleEffects) {
             appearance: payload.appearance == null ? undefined : agentAppearanceSchema.parse(payload.appearance),
             role: String(payload.role ?? "general"),
             title: typeof payload.title === "string" ? payload.title : null,
-            reportsTo: typeof payload.reportsTo === "string" ? payload.reportsTo : null,
+            leadAgentId: typeof payload.leadAgentId === "string" ? payload.leadAgentId : null,
             capabilities: typeof payload.capabilities === "string" ? payload.capabilities : null,
             adapterType: String(payload.adapterType ?? "process"),
             adapterConfig:

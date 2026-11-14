@@ -806,7 +806,7 @@ export async function routeNativeAttention(input: {
     spaceId: agents.spaceId,
     name: agents.name,
     status: agents.status,
-    reportsTo: agents.reportsTo,
+    leadAgentId: agents.leadAgentId,
   }).from(agents).where(eq(agents.spaceId, binding.spaceId)).orderBy(asc(agents.createdAt), asc(agents.id));
   const targetSuggestion = input.candidate.targetAgentId
     ? await input.db.select({ id: agents.id, spaceId: agents.spaceId })

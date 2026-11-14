@@ -132,7 +132,7 @@ export const storybookAgents: Agent[] = [
     title: "Senior Product Engineer",
     icon: "code",
     status: "running",
-    reportsTo: "agent-cto",
+    leadAgentId: "agent-cto",
     capabilities: "Ships full-stack Outpost product tasks, Storybook coverage, and verification.",
     adapterType: "codex_local",
     adapterConfig: {},
@@ -156,7 +156,7 @@ export const storybookAgents: Agent[] = [
     title: "QA Engineer",
     icon: "shield",
     status: "idle",
-    reportsTo: "agent-cto",
+    leadAgentId: "agent-cto",
     capabilities: "Validates browser flows, acceptance criteria, and release smoke tests.",
     adapterType: "claude_local",
     adapterConfig: {},
@@ -180,7 +180,7 @@ export const storybookAgents: Agent[] = [
     title: "CTO",
     icon: "crown",
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: "Reviews architecture, quality gates, and engineering priority tradeoffs.",
     adapterType: "codex_local",
     adapterConfig: {},
@@ -200,12 +200,12 @@ export const storybookAgents: Agent[] = [
 export const storybookAgentMap = new Map(storybookAgents.map((agent) => [agent.id, agent]));
 
 /**
- * The agent the onboarding hire returns.
+ * The agent the onboarding create returns.
  *
  * Kept out of `storybookAgents` deliberately: that list is what the space
  * already has, and this one does not exist until the wizard's Connect step
  * creates it. Putting it in the list would give the review step an agent it had
- * not yet hired.
+ * not yet created.
  */
 export const storybookHiredAgent: Agent = {
   id: "agent-storybook",
@@ -213,10 +213,10 @@ export const storybookHiredAgent: Agent = {
   name: "Darnold",
   urlKey: "darnold",
   role: "general",
-  title: "Chief of Staff",
+  title: "Default agent",
   icon: "sparkles",
   status: "idle",
-  reportsTo: null,
+  leadAgentId: null,
   capabilities: "Runs the space's first workflows and hires the team behind them.",
   adapterType: "claude_local",
   adapterConfig: {},
@@ -1110,7 +1110,7 @@ export const storybookIssueRuns: RunForIssue[] = [
 
 export const storybookApprovals: Approval[] = [
   {
-    id: "approval-hire-designer",
+    id: "approval-create-designer",
     spaceId: "space-storybook",
     type: "create_agent",
     requestedByAgentId: "agent-cto",

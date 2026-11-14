@@ -3,7 +3,7 @@ name: QA
 slug: qa
 title: QA Engineer
 role: qa
-reportsTo: engineering-lead
+leadAgentId: engineering-lead
 skills:
   - qa-acceptance
 ---

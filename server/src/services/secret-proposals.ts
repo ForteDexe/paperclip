@@ -55,10 +55,10 @@ async function loadRunContext(db: Db, context: Pick<ProposalRunContext, "spaceId
 }
 
 async function ancestorIds(db: Db, spaceId: string, agentId: string, lockForUpdate = false) {
-  const query = db.select({ id: agents.id, reportsTo: agents.reportsTo }).from(agents)
+  const query = db.select({ id: agents.id, leadAgentId: agents.leadAgentId }).from(agents)
     .where(eq(agents.spaceId, spaceId));
   const rows = lockForUpdate ? await query.for("update") : await query;
-  const byId = new Map(rows.map((row) => [row.id, row.reportsTo]));
+  const byId = new Map(rows.map((row) => [row.id, row.leadAgentId]));
   if (!byId.has(agentId)) throw notFound("Agent not found");
   const result: string[] = [];
   const seen = new Set<string>([agentId]);

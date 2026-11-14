@@ -540,7 +540,7 @@ function OnboardingWizardInner({
   const [spaceName, setSpaceName] = useState((saved?.spaceName as string) ?? "");
 
   // Step 2
-  // The name is not defaulted: a pre-filled "Chief of staff" is a choice made
+  // The name is not defaulted: a pre-filled "Default agent" is a choice made
   // on the customer's behalf that they then have to notice and undo. It is the
   // step's only question, and its CTA gates on it.
   const [agentName, setAgentName] = useState((saved?.agentName as string) ?? "");
@@ -2614,13 +2614,13 @@ function OnboardingWizardInner({
         name: creationName,
         appearance: agentAppearance,
         role: agentRole,
-        ...(restoredSetup?.spaceId === createdSpaceId ? { reportsTo: restoredSetup.reportsTo } : {}),
+        ...(restoredSetup?.spaceId === createdSpaceId ? { leadAgentId: restoredSetup.leadAgentId } : {}),
         adapterType,
         adapterConfig: creationAdapterConfig,
         ...(["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && runner !== "auto" ? { runner } : {}),
         ...(shouldApplyStoredClaudeLogin ? { applyStoredClaudeLogin: true } : {}),
         // The server owns what the first agent is told now: this marker seeds
-        // the chief-of-staff persona over the agent's entry instruction file.
+        // the default-agent persona over the agent's entry instruction file.
         // The wizard no longer composes or overwrites it.
         onboardingFirstAgent: true,
         ...(restoredSetup?.spaceId === createdSpaceId && restoredSetup.defaultEnvironmentId ? { defaultEnvironmentId: resolvedLoginEnvironmentId } : {}),
@@ -2641,7 +2641,7 @@ function OnboardingWizardInner({
         queryKey: queryKeys.agents.list(createdSpaceId)
       });
       // The agent's instruction file is seeded server-side from the
-      // `onboardingFirstAgent` marker above (the chief-of-staff persona). The
+      // `onboardingFirstAgent` marker above (the default-agent persona). The
       // wizard no longer composes or overwrites it.
 
       if (!isCurrent()) return;
@@ -3068,7 +3068,7 @@ function OnboardingWizardInner({
                     <Input
                       id="onboarding-agent-name"
                       className="h-(--sz-44px) rounded-lg border-transparent bg-muted shadow-none dark:bg-muted"
-                      placeholder="e.g. Chief of staff"
+                      placeholder="e.g. Default agent"
                       value={agentName}
                       onChange={(e) => setAgentName(e.target.value)}
                       onKeyDown={(e) => {

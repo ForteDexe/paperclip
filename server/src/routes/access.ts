@@ -2272,14 +2272,14 @@ export function agentJoinGrantsFromDefaults(
   return standardAgentJoinGrantsFromDefaults(defaultsPayload, agentId);
 }
 
-type JoinRequestManagerCandidate = {
+type JoinRequestLeadCandidate = {
   id: string;
   role: string;
-  reportsTo: string | null;
+  leadAgentId: string | null;
 };
 
-export function resolveJoinRequestAgentManagerId(
-  candidates: JoinRequestManagerCandidate[],
+export function resolveJoinRequestLeadAgentId(
+  candidates: JoinRequestLeadCandidate[],
   defaultAgentId?: string | null,
 ): string | null {
   const primary = defaultAgentId
@@ -2287,7 +2287,7 @@ export function resolveJoinRequestAgentManagerId(
     : null;
   if (primary) return primary.id;
 
-  const rootPeer = candidates.find((candidate) => candidate.reportsTo === null);
+  const rootPeer = candidates.find((candidate) => candidate.leadAgentId === null);
   return (rootPeer ?? candidates[0] ?? null)?.id ?? null;
 }
 
@@ -4211,11 +4211,11 @@ export function accessRoutes(
         const space = await db.query.spaces.findFirst({
           where: eq(spaces.id, spaceId),
         });
-        const managerId = resolveJoinRequestAgentManagerId(
+        const leadAgentId = resolveJoinRequestLeadAgentId(
           existingAgents,
           space?.defaultAgentId,
         );
-        if (!managerId) {
+        if (!leadAgentId) {
           throw conflict(
             "Join request cannot be approved because this Space has no active agents"
           );
@@ -4235,7 +4235,7 @@ export function accessRoutes(
           role: "general",
           title: null,
           status: "idle",
-          reportsTo: managerId,
+          leadAgentId,
           capabilities: existing.capabilities ?? null,
           adapterType: existing.adapterType ?? "process",
           adapterConfig:

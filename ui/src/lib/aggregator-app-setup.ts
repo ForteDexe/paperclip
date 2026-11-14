@@ -6,16 +6,16 @@ import { isAgentTaskTarget } from "./space-members";
 // Composio resolves the organization placeholder for the signed-in user.
 export const COMPOSIO_APP_MANAGEMENT_URL = "https://dashboard.composio.dev/~/org/connect/apps";
 
-type SetupAgent = Pick<Agent, "id" | "name" | "role" | "reportsTo" | "createdAt" | "status" | "orgChainHealth">;
+type SetupAgent = Pick<Agent, "id" | "name" | "role" | "leadAgentId" | "createdAt" | "status" | "coordinationHealth">;
 
 export function aggregatorSetupAgent(agents: SetupAgent[]) {
   const byId = new Map(agents.map((agent) => [agent.id, agent]));
   const depth = (agent: SetupAgent) => {
     const seen = new Set([agent.id]);
-    let parent = agent.reportsTo;
+    let parent = agent.leadAgentId;
     while (parent && byId.has(parent) && !seen.has(parent)) {
       seen.add(parent);
-      parent = byId.get(parent)!.reportsTo;
+      parent = byId.get(parent)!.leadAgentId;
     }
     return seen.size - 1;
   };
@@ -25,7 +25,7 @@ export function aggregatorSetupAgent(agents: SetupAgent[]) {
     return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
   };
   const isDefault = (agent: SetupAgent) => agent.name.trim().toLowerCase() === "default agent";
-  // Prefer the named default, then organizational rank, then the oldest create.
+  // Prefer the named default, then coordination depth, then the oldest creation.
   return agents.filter(isAgentTaskTarget).sort((a, b) =>
     Number(isDefault(b)) - Number(isDefault(a))
     || depth(a) - depth(b)

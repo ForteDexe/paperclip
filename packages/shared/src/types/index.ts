@@ -324,10 +324,10 @@ export {
 export type {
   AgentEligibilityAgent,
   AgentEligibilityLifecycleReason,
-  AgentInvalidOrgChainAncestor,
-  AgentOrgChainEntry,
-  AgentOrgChainHealth,
-  AgentOrgChainInvalidReason,
+  AgentInvalidCoordinationAncestor,
+  AgentCoordinationChainEntry,
+  AgentCoordinationHealth,
+  AgentCoordinationInvalidReason,
   AgentWorkEligibility,
 } from "../agent-eligibility.js";
 export type { AssetImage } from "./asset.js";

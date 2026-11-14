@@ -16,7 +16,7 @@ import { AGENT_ROLE_LABELS, type AgentRole } from "@outpost/shared";
  */
 export const DEFAULT_AGENT_ROLE = "general" as const;
 
-export const DEFAULT_AGENT_NAME = "Chief of staff";
+export const DEFAULT_AGENT_NAME = "Default agent";
 
 /**
  * Names the wizard put there itself, and may therefore replace. Anything the

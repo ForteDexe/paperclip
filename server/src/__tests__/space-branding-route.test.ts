@@ -144,7 +144,7 @@ describe("PATCH /api/spaces/:spaceId/branding", () => {
       id: "agent-1",
       spaceId: "space-1",
       role: "lead",
-      reportsTo: null,
+      leadAgentId: null,
     });
     const app = await createApp({
       type: "agent",

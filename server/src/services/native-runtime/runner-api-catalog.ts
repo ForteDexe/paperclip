@@ -119,7 +119,7 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
             ? "This records an ordinary conversational confirmation under existing resolver permissions. It cannot decide controlled approvals or impersonate the user."
             : "The HTTP route enforces the same endpoint, payload, space, resource and approval permissions as agent REST access."],
         dedicatedToolGuidance: dedicatedTools(method, path).includes("create_agent")
-          ? "Prefer create_agent for native teammate identity and persona fields. It fixes the reportsTo and source task context and inherits the caller's native runtime. Additional API fields use the route's existing agent permissions."
+          ? "Prefer create_agent for native teammate identity and persona fields. It fixes the leadAgentId and source task context and inherits the caller's native runtime. Additional API fields use the route's existing agent permissions."
           : "Prefer an available dedicated tool for its supported fields. call_api supports the route's other operations and fields under the same agent permissions.",
         allowedModes: operation["x-outpost-connection-management"] ? (method === "GET" ? ["standard", "ask", "planning"] : ["standard"]) : method !== "GET" && (path.endsWith("/case-handoffs") || /\/handoffs\//.test(path)) ? ["standard"]
           : method === "GET" || method === "HEAD" || taskTitleUpdate || readOnlyPreview ? ["standard", "ask", "planning", "skill_test"]

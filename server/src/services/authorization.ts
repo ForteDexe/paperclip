@@ -154,7 +154,7 @@ export type AuthorizationDecision = {
     | "allow_space_agent"
     | "allow_space_member"
     | "allow_simple_space_member"
-    | "allow_manager_chain"
+    | "allow_coordination_chain"
     | "inbox_target_user_unresolved"
     | "inbox_management_disabled"
     | "inbox_agent_not_allowed"
@@ -268,14 +268,14 @@ type AssignmentPolicyEffect =
   | { kind: "blocked"; explanation: string }
   | { kind: "unknown"; explanation: string };
 
-type AgentHierarchyRow = { id: string; reportsTo: string | null };
+type AgentHierarchyRow = { id: string; leadAgentId: string | null };
 type LowTrustBoundaryWithSpace = LowTrustBoundary & { spaceId: string };
 type AgentAuthorizationRow = {
   id: string;
   spaceId: string;
   role: string;
   status: string;
-  reportsTo: string | null;
+  leadAgentId: string | null;
   permissions: Record<string, unknown> | null | undefined;
 };
 type ProjectAuthorizationRow = {
@@ -396,15 +396,15 @@ function agentIsInSubtree(
   for (let depth = 0; cursor && depth < 50; depth += 1) {
     const current = agentsById.get(cursor);
     if (!current) return false;
-    if (current.reportsTo === rootAgentId) return true;
-    cursor = current.reportsTo;
+    if (current.leadAgentId === rootAgentId) return true;
+    cursor = current.leadAgentId;
   }
   return false;
 }
 
 async function loadSpaceAgentHierarchy(db: Db | DbTransaction, spaceId: string) {
   const rows = await db
-    .select({ id: agents.id, reportsTo: agents.reportsTo })
+    .select({ id: agents.id, leadAgentId: agents.leadAgentId })
     .from(agents)
     .where(eq(agents.spaceId, spaceId));
   return new Map(rows.map((agent) => [agent.id, agent]));
@@ -489,8 +489,8 @@ async function scopeAllows(
 
   const subtreeRootAgentIds = [
     ...scopeValuesForKeys(grantScope, [
-      "managerAgentId",
-      "managerAgentIds",
+      "leadAgentId",
+      "leadAgentIds",
       "managedSubtreeAgentId",
       "managedSubtreeAgentIds",
       "subtreeAgentId",
@@ -1068,7 +1068,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
           spaceId: agents.spaceId,
           role: agents.role,
           status: agents.status,
-          reportsTo: agents.reportsTo,
+          leadAgentId: agents.leadAgentId,
           permissions: agents.permissions,
         })
         .from(agents)
@@ -1351,7 +1351,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
     if (
       isConnectionManagementAction(input.action) ||
       input.action === "space_scope:read" ||
-      // Agent creation is a space-wide privileged action. The default-on
+      // Creation is a space-wide privileged action. The default-on
       // canCreateAgents flag must never reach the legacy creator allow when
       // the effective execution context (agent, project, issue, or run
       // policy) resolves to low trust.
@@ -1695,8 +1695,8 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
     );
   }
 
-  async function isManagerOf(spaceId: string, managerAgentId: string, assigneeAgentId: string) {
-    return isAgentInSubtree(db, spaceId, managerAgentId, assigneeAgentId);
+  async function isLeadOf(spaceId: string, leadAgentId: string, assigneeAgentId: string) {
+    return isAgentInSubtree(db, spaceId, leadAgentId, assigneeAgentId);
   }
 
   function commentAuthorCanGrantIssueMention(input: {
@@ -2693,12 +2693,12 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
       input.action === "tasks:manage_active_checkouts" &&
       input.resource.type === "issue" &&
       input.resource.assigneeAgentId &&
-      await isManagerOf(spaceId, actorAgentId, input.resource.assigneeAgentId)
+      await isLeadOf(spaceId, actorAgentId, input.resource.assigneeAgentId)
     ) {
       return allow({
         action: input.action,
-        reason: "allow_manager_chain",
-        explanation: "Allowed because the actor manages the issue assignee in the reporting chain.",
+        reason: "allow_coordination_chain",
+        explanation: "Allowed because the actor is a coordination lead for the issue assignee.",
       });
     }
 
@@ -2879,7 +2879,7 @@ function createAuthorizationService(db: Db | DbTransaction, readSnapshot?: ReadA
         });
         if (denial) return { allowed: false, action: input.action, reason: "deny_agent_interaction",
           code: denial.code, interactionDenial: denial,
-          explanation: `Agent interaction is disabled by ${denial.permission}. A human permission manager can change this setting.` };
+          explanation: `Agent interaction is disabled by ${denial.permission}. An operator with permission authority can change this setting.` };
       }
     }
     if (

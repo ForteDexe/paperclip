@@ -38,7 +38,7 @@ export async function runRepositoryVerificationFlow(input: {
       path: file.path, content: (await api.get<{ content: string }>(`/api/agents/${fixtures.agent.id}/instructions-bundle/file?path=${encodeURIComponent(file.path)}`)).content,
     })));
     if (bundle.entryFile !== "AGENTS.md" || files.length !== 1 || files[0]?.content !== "You are an agent in a Outpost space.\n")
-      throw new Error("Repository proof requires the shipped default hire instructions, without a fixture manual");
+      throw new Error("Repository proof requires the shipped default create instructions, without a fixture manual");
     return createHash("sha256").update(JSON.stringify({ entryFile: bundle.entryFile, files })).digest("hex");
   }
   async function refresh() {

@@ -34,7 +34,7 @@ describe("resolveRouteOnboardingOptions", () => {
     ).toEqual({ initialStep: 1 });
   });
 
-  it("opens agent creation when the prefixed space exists", () => {
+  it("opens creation when the prefixed space exists", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/pap/onboarding",

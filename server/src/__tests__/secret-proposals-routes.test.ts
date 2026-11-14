@@ -1113,7 +1113,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       spaceId: fixture.spaceId,
       name: "Report",
       role: "engineer",
-      reportsTo: fixture.agentId,
+      leadAgentId: fixture.agentId,
       adapterType: "codex_local",
       adapterConfig: {},
       permissions: {},
@@ -1691,7 +1691,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       spaceId: fixture.spaceId,
       name: "Report",
       role: "engineer",
-      reportsTo: fixture.agentId,
+      leadAgentId: fixture.agentId,
       adapterType: "codex_local",
       adapterConfig: {},
       permissions: {},
@@ -1711,7 +1711,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       });
     expect(bindingProposal.status).toBe(201);
 
-    await db.update(agents).set({ reportsTo: null }).where(eq(agents.id, targetAgentId));
+    await db.update(agents).set({ leadAgentId: null }).where(eq(agents.id, targetAgentId));
     const response = await request(createOperatorApp(fixture))
       .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({ cascade: true });
@@ -1892,7 +1892,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       spaceId: fixture.spaceId,
       name: "Concurrent report",
       role: "engineer",
-      reportsTo: fixture.agentId,
+      leadAgentId: fixture.agentId,
       adapterType: "codex_local",
       adapterConfig: {},
       permissions: {},
@@ -1961,7 +1961,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
       let reorgFinished = false;
       const reorgPromise = db.update(agents)
-        .set({ reportsTo: null })
+        .set({ leadAgentId: null })
         .where(eq(agents.id, targetAgentId))
         .then(() => {
           reorgFinished = true;
@@ -1986,7 +1986,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect.objectContaining({ id: secretProposal.body.id, status: "approved", valueCiphertext: null }),
       expect.objectContaining({ id: bindingProposal.body.id, status: "pending" }),
     ]));
-    expect(await db.select({ reportsTo: agents.reportsTo }).from(agents).where(eq(agents.id, targetAgentId)))
-      .toEqual([{ reportsTo: null }]);
+    expect(await db.select({ leadAgentId: agents.leadAgentId }).from(agents).where(eq(agents.id, targetAgentId)))
+      .toEqual([{ leadAgentId: null }]);
   });
 });

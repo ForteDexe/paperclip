@@ -40,7 +40,7 @@
           "mcp"
         ]
       },
-      "guidanceMd": "Choose the US endpoint for the organization’s data plane region. Sign in with the Braintrust account whose data agents should access. No developer app registration is needed. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
+      "guidanceMd": "Choose the US endpoint for the organization’s data plane region. Sign in with the Braintrust account whose datan agents should access. No developer app registration is needed. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
       "consoleLinks": {
         "docs": "https://www.braintrust.dev/docs/integrations/developer-tools/mcp"
       },
@@ -68,7 +68,7 @@
       "defaults": {
         "serverUrl": "https://api.braintrust.dev/mcp"
       },
-      "guidanceMd": "Choose the US endpoint for the organization’s data plane region. Create a key in Braintrust Settings → API keys. Paste the key for the account whose data agents should access. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
+      "guidanceMd": "Choose the US endpoint for the organization’s data plane region. Create a key in Braintrust Settings → API keys. Paste the key for the account whose datan agents should access. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
       "consoleLinks": {
         "docs": "https://www.braintrust.dev/docs/integrations/developer-tools/mcp",
         "keys": "https://www.braintrust.dev/app/~/configuration/org/api-keys"
@@ -87,7 +87,7 @@
           "required": true,
           "placeholder": "Paste your Braintrust API key",
           "secret": true,
-          "helperMd": "Create a Braintrust API key in Settings → API keys for the account and organization whose data agents should access. The key must authorize the reads and writes you intend to allow; Outpost cannot increase or narrow its provider permissions. Evaluations and Topics processing can incur costs. Dataset edits can permanently delete rows; automation activation can enable retention or delivery."
+          "helperMd": "Create a Braintrust API key in Settings → API keys for the account and organization whose datan agents should access. The key must authorize the reads and writes you intend to allow; Outpost cannot increase or narrow its provider permissions. Evaluations and Topics processing can incur costs. Dataset edits can permanently delete rows; automation activation can enable retention or delivery."
         }
       ],
       "keyPlacement": {
@@ -117,7 +117,7 @@
           "mcp"
         ]
       },
-      "guidanceMd": "Choose the EU endpoint for the organization’s data plane region. Sign in with the Braintrust account whose data agents should access. No developer app registration is needed. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
+      "guidanceMd": "Choose the EU endpoint for the organization’s data plane region. Sign in with the Braintrust account whose datan agents should access. No developer app registration is needed. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
       "consoleLinks": {
         "docs": "https://www.braintrust.dev/docs/integrations/developer-tools/mcp"
       },
@@ -145,7 +145,7 @@
       "defaults": {
         "serverUrl": "https://api-eu.braintrust.dev/mcp"
       },
-      "guidanceMd": "Choose the EU endpoint for the organization’s data plane region. Create a key in Braintrust Settings → API keys. Paste the key for the account whose data agents should access. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
+      "guidanceMd": "Choose the EU endpoint for the organization’s data plane region. Create a key in Braintrust Settings → API keys. Paste the key for the account whose datan agents should access. Access follows that account’s Braintrust permissions. Review reads, writes, and destructive actions on Permissions after connecting.",
       "consoleLinks": {
         "docs": "https://www.braintrust.dev/docs/integrations/developer-tools/mcp",
         "keys": "https://www.braintrust.dev/app/~/configuration/org/api-keys"
@@ -164,7 +164,7 @@
           "required": true,
           "placeholder": "Paste your Braintrust API key",
           "secret": true,
-          "helperMd": "Create a Braintrust API key in Settings → API keys for the account and organization whose data agents should access. The key must authorize the reads and writes you intend to allow; Outpost cannot increase or narrow its provider permissions. Evaluations and Topics processing can incur costs. Dataset edits can permanently delete rows; automation activation can enable retention or delivery."
+          "helperMd": "Create a Braintrust API key in Settings → API keys for the account and organization whose datan agents should access. The key must authorize the reads and writes you intend to allow; Outpost cannot increase or narrow its provider permissions. Evaluations and Topics processing can incur costs. Dataset edits can permanently delete rows; automation activation can enable retention or delivery."
         }
       ],
       "keyPlacement": {

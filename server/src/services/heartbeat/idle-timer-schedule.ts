@@ -43,11 +43,11 @@ export async function readIdleAgentTimerSchedule(tx: Pick<Db, "select">, now: nu
       checkBudget();
       seen.add(current.id);
       ancestors.push(current);
-      current = current.reportsTo ? bySpace.get(agent.spaceId)!.get(current.reportsTo) : undefined;
+      current = current.leadAgentId ? bySpace.get(agent.spaceId)!.get(current.leadAgentId) : undefined;
     }
     const invokability = evaluateAgentInvokability(agent, ancestors);
     if (!invokability.invokable) {
-      if (invokability.invalidOrgChain || invokability.reason === "unknown_status") return blocked();
+      if (invokability.invalidCoordinationChain || invokability.reason === "unknown_status") return blocked();
       continue;
     }
     candidates.push(agent);

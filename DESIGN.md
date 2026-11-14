@@ -32,7 +32,7 @@ Existing tiers already in index.css (~80+ tokens) — extraction maps to these o
 4. **Hierarchy through structure, not decoration.** Prefer position, size, and weight over borders, backgrounds, and dividers. Every border, divider, and background fill must justify itself; when in doubt, remove it. A screen should survive the removal of one visual layer.
 5. **Status is systematic.** States like running / paused / blocked / awaiting-approval / over-budget map to a single semantic status token set used identically everywhere (badge, row, chart, log). An operator learns the vocabulary once.
 6. **Machine values look machine-made.** IDs, costs, token counts, timestamps, and log output use the monospace token and consistent formatting helpers. Never format these ad hoc per screen.
-7. **Words are part of the system.** One name per concept across the entire UI — the canonical term is *task* (never *issue* or *ticket* in copy, labels, or empty states). Buttons name the action ("Approve hire," not "Submit"). Errors say what happened and what to do. Empty states say what to do first. **Note:** enforcing the task rename is a visible change and is explicitly OUT of the zero-visual-change extraction run; it happens in its own follow-up run.
+7. **Words are part of the system.** One name per concept across the entire UI — the canonical term is *task* (never *issue* or *ticket* in copy, labels, or empty states). Buttons name the action ("Approve agent," not "Submit"). Errors say what happened and what to do. Empty states say what to do first. **Note:** enforcing the task rename is a visible change and is explicitly OUT of the zero-visual-change extraction run; it happens in its own follow-up run.
 8. **Agent-modifiable by design.** The system must be changeable via instructions: single token source, lint rules that enforce it, and this document kept current. A correct change should be expressible as "edit tokens + run checks," not "visit 40 files."
 
 ## Form and wizard footers
@@ -1025,13 +1025,13 @@ bottom safe area, with the shared border and a soft shadow. The card retains its
 contents during the quintic rise/drop transition; reduced motion removes travel.
 Selection never inserts space above the roster.
 
-Agent Overview's Profile uses the bulk-edit avatar/name chips for reporting
+Agent Overview's Profile uses the bulk-edit avatar/name chips for coordination
 relationships. Within raised modules, their background uses the Skills chip
 surface so they remain distinct from the module. Agent chips have hover/focus
-states and link to the agent's overview. Reports to precedes Direct reports:
-No manager opens the manager picker; an assigned manager has a linked chip and
+states and link to the agent's overview. Coordination lead precedes Coordinated agents:
+No lead opens the coordination-lead picker; an assigned lead has a linked chip and
 an adjacent edit control. The picker disables self/descendant choices to prevent
-reporting loops. The editable heading sizes to its live text so the default-agent
+coordination loops. The editable heading sizes to its live text so the default-agent
 crown stays beside the name throughout editing.
 
 ### Segmented controller comparison
@@ -1091,8 +1091,8 @@ through the offline tokens.
 ### Agent overview and Identity editing
 
 Agent headers lead with the 24px custom title and crown on one line, followed by “harness • name.” The harness logo and label link to the agent’s Harness / Runtime subtab with hover and keyboard-focus feedback. The logo has a 4px gap before its label; Chat and New task share the default 40px button height. Header spacing is reduced by 4px at each vertical edge.
-The character renders in a 102px square (20% smaller than 128px, rounded to a whole pixel) with an 8px gap before the title, without CSS transform scaling. Reporting relationships live in Profile; its creation date shares the
-header metadata position with the Skills count. Empty Direct reports sections
+The character renders in a 102px square (20% smaller than 128px, rounded to a whole pixel) with an 8px gap before the title, without CSS transform scaling. Coordination relationships live in Profile; its creation date shares the
+header metadata position with the Skills count. Empty Coordinated agents sections
 are hidden. The overview character tracks the page cursor, including paused
 agents, while respecting reduced-motion and custom-avatar fallbacks. Chat sits
 beside the text-only New task action. Recent tasks applies its raised surface to

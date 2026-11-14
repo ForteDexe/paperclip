@@ -1,13 +1,13 @@
 import type { Db } from "@outpost/db";
 import { agents } from "@outpost/db";
-import { getAgentWorkEligibility, type AgentEligibilityAgent, type AgentOrgChainHealth } from "@outpost/shared";
+import { getAgentWorkEligibility, type AgentEligibilityAgent, type AgentCoordinationHealth } from "@outpost/shared";
 import { eq } from "drizzle-orm";
 
 type AgentStatus = (typeof agents.$inferSelect)["status"];
 
-export type AgentOrgRow = Pick<
+export type AgentCoordinationRow = Pick<
   typeof agents.$inferSelect,
-  "id" | "spaceId" | "name" | "reportsTo" | "status"
+  "id" | "spaceId" | "name" | "leadAgentId" | "status"
 >;
 
 export type AgentInvokabilityBlockReason =
@@ -16,11 +16,11 @@ export type AgentInvokabilityBlockReason =
   | "terminated"
   | "pending_approval"
   | "unknown_status"
-  | "manager_missing"
-  | "manager_space_mismatch"
-  | "manager_terminated"
-  | "reporting_cycle"
-  | "reporting_chain_too_deep";
+  | "lead_agent_missing"
+  | "lead_agent_space_mismatch"
+  | "lead_agent_terminated"
+  | "coordination_cycle"
+  | "coordination_chain_too_deep";
 
 export type AgentInvokability =
   | { invokable: true }
@@ -29,7 +29,7 @@ export type AgentInvokability =
       reason: AgentInvokabilityBlockReason;
       message: string;
       details: Record<string, unknown>;
-      invalidOrgChain: boolean;
+      invalidCoordinationChain: boolean;
     };
 
 export const DIRECT_NON_INVOKABLE_STATUSES = new Set<AgentStatus>([
@@ -42,9 +42,9 @@ function blocked(
   reason: AgentInvokabilityBlockReason,
   message: string,
   details: Record<string, unknown>,
-  invalidOrgChain = false,
+  invalidCoordinationChain = false,
 ): AgentInvokability {
-  return { invokable: false, reason, message, details, invalidOrgChain };
+  return { invokable: false, reason, message, details, invalidCoordinationChain };
 }
 
 function statusBlockReason(status: AgentStatus): AgentInvokabilityBlockReason | null {
@@ -54,25 +54,25 @@ function statusBlockReason(status: AgentStatus): AgentInvokabilityBlockReason | 
   return null;
 }
 
-function toEligibilityAgent(row: AgentOrgRow): AgentEligibilityAgent {
+function toEligibilityAgent(row: AgentCoordinationRow): AgentEligibilityAgent {
   return {
     id: row.id,
     spaceId: row.spaceId,
     name: row.name,
     status: row.status,
-    reportsTo: row.reportsTo,
+    leadAgentId: row.leadAgentId,
   };
 }
 
-function invalidChainReason(health: AgentOrgChainHealth): AgentInvokabilityBlockReason {
-  if (health.reason === "terminated_ancestor") return "manager_terminated";
-  if (health.reason === "cycle") return "reporting_cycle";
-  return "manager_missing";
+function invalidChainReason(health: AgentCoordinationHealth): AgentInvokabilityBlockReason {
+  if (health.reason === "terminated_ancestor") return "lead_agent_terminated";
+  if (health.reason === "cycle") return "coordination_cycle";
+  return "lead_agent_missing";
 }
 
 export function evaluateAgentInvokability(
-  agent: AgentOrgRow | null | undefined,
-  spaceAgents: AgentOrgRow[],
+  agent: AgentCoordinationRow | null | undefined,
+  spaceAgents: AgentCoordinationRow[],
 ): AgentInvokability {
   if (!agent) {
     return blocked("missing", "Agent no longer exists", {}, false);
@@ -97,19 +97,19 @@ export function evaluateAgentInvokability(
     );
   }
 
-  const health = eligibility.orgChainHealth;
+  const health = eligibility.coordinationHealth;
   const firstInvalidAncestor = health.firstInvalidAncestor;
   return blocked(
     invalidChainReason(health),
-    "Agent is not invokable because its reporting chain is invalid",
+    "Agent is not invokable because its coordination chain is invalid",
     {
       agentId: agent.id,
-      managerId: firstInvalidAncestor?.id ?? null,
-      managerStatus: firstInvalidAncestor?.status ?? null,
-      reportingChainAgentIds: health.fullChain
+      leadAgentId: firstInvalidAncestor?.id ?? null,
+      leadAgentStatus: firstInvalidAncestor?.status ?? null,
+      coordinationChainAgentIds: health.fullChain
         .filter((entry) => entry.relation === "ancestor")
         .map((entry) => entry.id),
-      orgChainHealth: health,
+      coordinationHealth: health,
     },
     true,
   );
@@ -117,7 +117,7 @@ export function evaluateAgentInvokability(
 
 export async function evaluateAgentInvokabilityFromDb(
   db: Db,
-  agent: AgentOrgRow | null | undefined,
+  agent: AgentCoordinationRow | null | undefined,
 ): Promise<AgentInvokability> {
   if (!agent) return evaluateAgentInvokability(agent, []);
   const spaceAgents = await db
@@ -125,7 +125,7 @@ export async function evaluateAgentInvokabilityFromDb(
       id: agents.id,
       spaceId: agents.spaceId,
       name: agents.name,
-      reportsTo: agents.reportsTo,
+      leadAgentId: agents.leadAgentId,
       status: agents.status,
     })
     .from(agents)
@@ -133,19 +133,19 @@ export async function evaluateAgentInvokabilityFromDb(
   return evaluateAgentInvokability(agent, spaceAgents);
 }
 
-export function listInvalidOrgChainDescendantIds(
+export function listInvalidCoordinationDescendantIds(
   terminatedAgentId: string,
-  spaceAgents: AgentOrgRow[],
+  spaceAgents: AgentCoordinationRow[],
 ): string[] {
-  const byManager = new Map<string | null, AgentOrgRow[]>();
+  const byLead = new Map<string | null, AgentCoordinationRow[]>();
   for (const row of spaceAgents) {
-    const siblings = byManager.get(row.reportsTo ?? null) ?? [];
+    const siblings = byLead.get(row.leadAgentId ?? null) ?? [];
     siblings.push(row);
-    byManager.set(row.reportsTo ?? null, siblings);
+    byLead.set(row.leadAgentId ?? null, siblings);
   }
 
   const invalidDescendantIds: string[] = [];
-  const stack = [...(byManager.get(terminatedAgentId) ?? [])];
+  const stack = [...(byLead.get(terminatedAgentId) ?? [])];
   const seen = new Set<string>([terminatedAgentId]);
   while (stack.length > 0) {
     const current = stack.pop();
@@ -154,11 +154,11 @@ export function listInvalidOrgChainDescendantIds(
     if (current.status !== "terminated") {
       invalidDescendantIds.push(current.id);
     }
-    stack.push(...(byManager.get(current.id) ?? []));
+    stack.push(...(byLead.get(current.id) ?? []));
   }
   return invalidDescendantIds;
 }
 
 export function shouldCancelRunsForNonInvokableAgent(result: AgentInvokability) {
-  return !result.invokable && (result.reason === "terminated" || result.invalidOrgChain);
+  return !result.invokable && (result.reason === "terminated" || result.invalidCoordinationChain);
 }

@@ -21,7 +21,7 @@ review skill, agent environment ID, GitHub account handle, App owner, and privat
 reusable repository. The GitHub login identifier may be an email; the handle is
 separate. The agent and its provider connection must already be configured.
 A matching existing GitHub user connection is required; fresh user OAuth and
-agent hiring are outside this variant. App creation and installation remain
+agent creation are outside this variant. App creation and installation remain
 measured UI actions with attended consent/passkey boundaries.
 
 The browser, harness, and review agent need no external MCP tools. The agent uses

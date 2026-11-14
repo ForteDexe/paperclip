@@ -94,7 +94,7 @@ describe("live runner fixtures", () => {
   });
 
   it.each(["runner-codex", "runner-acpx-claude", "runner-opencode"].flatMap(profile =>
-    ["hire-reuse", "delegate-feedback"].map(task => [profile, task]))) (
+    ["create-reuse", "delegate-feedback"].map(task => [profile, task]))) (
     "applies %s %s budget stops in actual setup with a nonce and only its selected credential", async (profile, task) => {
       const execution = runnerMatrix.find(row => row.id === `everyday-workflows.${profile}.local.${task}`)!;
       let agentBody: any;
@@ -139,7 +139,7 @@ describe("live runner fixtures", () => {
   );
 
   it.each(["runner-codex", "legacy-codex", "runner-acpx-claude", "legacy-opencode"])(
-    "creates a production-default %s hire with space and agent budget stops", async (profile) => {
+    "creates a production-default %s create with space and agent budget stops", async (profile) => {
       const execution = runnerMatrix.find(row => row.suite.id === "stock-harness" && row.profile.id === profile)!;
       let agentBody: any;
       const api = {
@@ -181,11 +181,11 @@ describe("live runner fixtures", () => {
   });
 
   it.each([
-    ["runner-codex", "everyday-workflows", "hire-reuse"],
-    ["runner-acpx-claude", "everyday-workflows", "hire-reuse"],
-    ["runner-opencode", "everyday-workflows", "hire-reuse"],
-    ["runner-codex", "agent-chat-hardening", "hire-delegate-reuse"],
-    ["runner-acpx-claude", "agent-chat-hardening", "hire-delegate-reuse"],
+    ["runner-codex", "everyday-workflows", "create-reuse"],
+    ["runner-acpx-claude", "everyday-workflows", "create-reuse"],
+    ["runner-opencode", "everyday-workflows", "create-reuse"],
+    ["runner-codex", "agent-chat-hardening", "create-delegate-reuse"],
+    ["runner-acpx-claude", "agent-chat-hardening", "create-delegate-reuse"],
   ])(
     "gives %s %s/%s a personal managed account without env overrides",
     async (profile, suite, task) => {
@@ -318,7 +318,7 @@ describe("live runner fixtures", () => {
     );
   });
 
-  it.each(["explicit", "auto"])("qualifies the immutable Codex image once before %s agent creation", async mode => {
+  it.each(["explicit", "auto"])("qualifies the immutable Codex image once before %s creation", async mode => {
     const original = runnerMatrix.find(row => row.id === "core-compatibility.runner-codex.daytona.message-marker")!;
     const execution = { ...original, profile: { ...original.profile, buildAgent(input: Parameters<typeof original.profile.buildAgent>[0]) {
       const payload = original.profile.buildAgent(input);

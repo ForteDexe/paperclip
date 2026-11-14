@@ -71,7 +71,7 @@ describe("agent interaction authorization", () => {
 
   it("uses current ownership including conversations, never creator or manager relationships", async () => {
     const f = await seed();
-    await db.update(agents).set({ reportsTo: f.actorAgentId }).where(eq(agents.id, f.targetAgentId));
+    await db.update(agents).set({ leadAgentId: f.actorAgentId }).where(eq(agents.id, f.targetAgentId));
     await db.update(issues).set({ createdByAgentId: f.actorAgentId, parentId: f.own.id }).where(eq(issues.id, f.task.id));
     for (const operation of ["comment", "edit"] as const) {
       await set(f.actorAgentId, operation === "comment" ? "canCommentOnOtherTasks" : "canEditOtherTasks");

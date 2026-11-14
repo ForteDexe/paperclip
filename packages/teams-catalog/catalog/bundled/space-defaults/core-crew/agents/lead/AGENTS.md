@@ -3,7 +3,7 @@ name: Default agent
 slug: lead
 title: Default agent
 role: lead
-reportsTo: null
+leadAgentId: null
 skills:
   - task-planning
   - issue-triage

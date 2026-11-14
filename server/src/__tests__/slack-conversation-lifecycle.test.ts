@@ -111,7 +111,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const state = createHeartbeatRunState(db), preparation = createHeartbeatRunPreparation(db);
     return createHeartbeatScheduling(db, {
       getAgent: state.getAgent, getRun: state.getRun,
-      toAgentOrgRow: preparation.toAgentOrgRow, groupAgentOrgRowsBySpace: preparation.groupAgentOrgRowsBySpace,
+      toAgentCoordinationRow: preparation.toAgentCoordinationRow, groupAgentCoordinationRowsBySpace: preparation.groupAgentCoordinationRowsBySpace,
       issuesSvc: issueService(db), enqueueWakeup,
       getSchedulingSuppression: async () => ({ suppressed: false }), getWorktreeExecutionCutoff: async () => null,
       scheduleBoundedRetryForRun: vi.fn(), claimDueTimerHeartbeat: vi.fn(), parseHeartbeatPolicy: vi.fn(), nextTimerHeartbeatAt: vi.fn(),

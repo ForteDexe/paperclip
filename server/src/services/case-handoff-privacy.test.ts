@@ -35,7 +35,7 @@ describe("case handoff retained private task ancestry", () => {
     await db.insert(spaces).values({ id: spaceId, name: "Private factory", issuePrefix: `P${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
       { id: ownerId, spaceId, name: "Private source owner", role: "lead", status: "active", adapterType: "process" },
-      { id: readerId, spaceId, name: "Target-only reader", role: "engineer", status: "active", adapterType: "process", reportsTo: ownerId },
+      { id: readerId, spaceId, name: "Target-only reader", role: "engineer", status: "active", adapterType: "process", leadAgentId: ownerId },
     ]);
     await db.insert(issues).values({ id: rootId, spaceId, title: "Private root", visibility: "private" });
     await db.insert(issues).values([

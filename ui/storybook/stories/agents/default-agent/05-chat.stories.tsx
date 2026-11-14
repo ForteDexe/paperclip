@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PrimaryPage, mobile, primaryDecorator, primaryParameters } from "../../../support/default-agent/DefaultAgentStory";
 
 export default { id: "default-agent-05-chat",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/05 Chat", decorators: [primaryDecorator], parameters: { ...primaryParameters, initialEntries: ["/PAP/chats"],
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/05 Chat", decorators: [primaryDecorator], parameters: { ...primaryParameters, initialEntries: ["/PAP/chats"],
     outpost: {
       "capabilities": [
         "agents/default-agent",

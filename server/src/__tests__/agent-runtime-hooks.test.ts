@@ -300,10 +300,10 @@ describeDatabase("agent runtime synchronization hooks", () => {
 
   it("uses the space reporting graph for runtime health data", async () => {
     const [manager] = await db.insert(agents).values({ spaceId, name: "Manager" }).returning();
-    await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, agentId));
-    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.agent.orgChainHealth?.status).toBe("healthy");
-    await db.update(agents).set({ reportsTo: agentId }).where(eq(agents.id, manager.id));
-    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.agent.orgChainHealth?.status).toBe("invalid_org_chain");
+    await db.update(agents).set({ leadAgentId: manager.id }).where(eq(agents.id, agentId));
+    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.agent.coordinationHealth?.status).toBe("healthy");
+    await db.update(agents).set({ leadAgentId: agentId }).where(eq(agents.id, manager.id));
+    expect((await pluginAgentRuntimeState(db, pluginId, spaceId, agentId))!.agent.coordinationHealth?.status).toBe("invalid_coordination_chain");
   });
 
   it("scopes runtime inputs to the enabled owning plugin and returns the current revision", async () => {

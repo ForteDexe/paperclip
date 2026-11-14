@@ -2,7 +2,7 @@ import { validControllerRollingDeploymentReceipt } from "./controller-rolling-de
 import { createRequire } from "node:module";
 import { readUpgradeArtifacts, upgradeArtifactKey } from "./upgrade-artifacts.js";
 /** Credential-free main-server replacement. This proves the wrapper/startup/DB
- * boundary; only the hosted workflow can qualify an active Daytona agent.
+ * boundary; only the hosted workflow can qualify an active Daytonan agent.
  * Run: node cli/node_modules/tsx/dist/cli.mjs tests/runner-e2e/controller-replacement-smoke.ts
  */
 import assert from "node:assert/strict";

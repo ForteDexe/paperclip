@@ -327,7 +327,7 @@ export function taskBridgeApiRequest(tool: string, input: Record<string, any>): 
 function createAgentApiRequest(input: Record<string, unknown>, binding: Pick<Binding, "spaceId" | "agentId" | "issueId">): RunnerApiCall {
   const body: Record<string, unknown> = {
     name: requiredString(input.name), adapterType: "outpost_runner", inheritRuntimeFrom: "caller",
-    reportsTo: binding.agentId, sourceIssueId: binding.issueId,
+    leadAgentId: binding.agentId, sourceIssueId: binding.issueId,
   };
   if (input.role !== undefined) body.role = input.role;
   if (input.title !== undefined) body.title = input.title;
@@ -3367,7 +3367,7 @@ function redactedActor(actor: {
   role: string;
   title?: string | null;
   status: string;
-  reportsTo?: string | null;
+  leadAgentId?: string | null;
   capabilities?: string | null;
 }) {
   return {
@@ -3377,7 +3377,7 @@ function redactedActor(actor: {
     role: actor.role,
     title: actor.title ?? null,
     status: actor.status,
-    reportsTo: actor.reportsTo ?? null,
+    leadAgentId: actor.leadAgentId ?? null,
     capabilities: actor.capabilities ?? null,
   };
 }

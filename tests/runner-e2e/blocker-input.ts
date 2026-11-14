@@ -36,7 +36,7 @@ export async function answerBlockerThroughUi(page: Page, interaction: Record<str
   // A bare rejection wakes the assignee immediately. A later comment cannot
   // safely supply this eval's changed scope, so fail before resolving the card.
   if (!collectsReason) throw new Error("Blocker input cannot save free-form direction: confirmation has no rejection reason field");
-  // The user changes scope; never approve a proposed admin/hiring action to pass an eval.
+  // The user changes scope; never approve a proposed admin/creation action to pass an eval.
   const reject = page.getByRole("button", { name: interaction.payload.rejectLabel ?? "Reject", exact: true }).last();
   await reject.click();
   await page.locator(`[id="${interaction.id}-reject-reason"]`).fill(answer);

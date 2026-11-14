@@ -202,11 +202,11 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     "oracleVersion"
   ],
   [
-    "questions-and-approvals.formal-hire-revision",
+    "questions-and-approvals.formal-create-revision",
     "sourceFiles"
   ],
   [
-    "questions-and-approvals.formal-hire-revision",
+    "questions-and-approvals.formal-create-revision",
     "oracleVersion"
   ],
   [

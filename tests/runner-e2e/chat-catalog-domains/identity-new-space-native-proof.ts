@@ -55,7 +55,7 @@ export function requireNativeFirstAgentProof(input: {
     || probes[0]!.checks.some(check => check.level === "error") || !probes[0]!.checks.some(check => check.code === "opencode_hello_probe_passed")
     || !Number.isInteger(probes[0]!.sequence) || probes[0]!.sequence < 1 || !Number.isInteger(hires[0]!.sequence) || probes[0]!.sequence >= hires[0]!.sequence
     || !matches(hires[0]!) || hires[0]!.httpStatus < 200 || hires[0]!.httpStatus >= 300 || hires[0]!.resultAgentId !== savedSetupAgentId)
-    throw new Error("New space requires one current same-agent native OpenCode account/model/local-target test and hire");
+    throw new Error("New space requires one current same-agent native OpenCode account/model/local-target test and create");
   if (agent.id !== savedSetupAgentId || agent.spaceId !== space.id || agent.role !== "ceo" || agent.adapterType !== "outpost_runner"
     || agent.adapterConfig.provider !== "opencode" || agent.adapterConfig.model !== NEW_SPACE_NATIVE_MODEL
     || agent.defaultEnvironmentId !== environment.id || agent.lifecycleState !== "ready" || !["idle", "active"].includes(agent.status)

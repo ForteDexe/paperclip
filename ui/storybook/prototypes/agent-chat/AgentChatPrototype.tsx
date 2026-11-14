@@ -80,7 +80,7 @@ const notes = {
   title: "Onboarding notes",
   createdAt: new Date("2026-09-10T15:42:10Z"),
   updatedAt: new Date("2026-09-10T15:42:12Z"),
-  body: "# Onboarding notes\n\nPeople understand hiring an agent quickly. The uncertainty starts with what to ask it to do first.\n\n- Give one concrete starting point.\n- Keep the conversation available after work finishes.\n- Put the result beside the conversation.",
+  body: "# Onboarding notes\n\nPeople understand creation an agent quickly. The uncertainty starts with what to ask it to do first.\n\n- Give one concrete starting point.\n- Keep the conversation available after work finishes.\n- Put the result beside the conversation.",
 };
 const runId = "agent-chat-shared-run";
 const run: IssueChatLinkedRun = {

@@ -367,7 +367,7 @@ export function createPostgresRunDispatchAdapter(
       budgetBlock: null,
       agentInvokable: true,
       agentInvokabilityDetails: {},
-      agentInvokabilityInvalidOrgChain: false,
+      agentInvokabilityInvalidCoordinationChain: false,
       heartbeatWakeOnDemandEnabled: true,
       issueFound: false,
       issueStatus: null,
@@ -392,9 +392,9 @@ export function createPostgresRunDispatchAdapter(
     const agentInvokability = await evaluateAgentInvokabilityFromDb(dbOrTx, agent);
     facts.agentInvokable = agentInvokability.invokable;
     facts.agentInvokabilityDetails = agentInvokability.invokable ? {} : agentInvokability.details;
-    facts.agentInvokabilityInvalidOrgChain = agentInvokability.invokable
+    facts.agentInvokabilityInvalidCoordinationChain = agentInvokability.invokable
       ? false
-      : agentInvokability.invalidOrgChain;
+      : agentInvokability.invalidCoordinationChain;
     if (!facts.agentInvokable) return { agentFound: true, facts };
 
     facts.heartbeatWakeOnDemandEnabled = isHeartbeatWakeOnDemandEnabled(agent);

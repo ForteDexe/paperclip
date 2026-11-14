@@ -119,7 +119,7 @@ export type {
 } from "./types/decision.js";
 
 export {
-  getAgentOrgChainHealth,
+  getAgentCoordinationHealth,
   getAgentWorkEligibility,
   isAgentAssignableToWork,
   isAgentInvokable,
@@ -127,10 +127,10 @@ export {
   isAgentStatusInvokable,
   type AgentEligibilityAgent,
   type AgentEligibilityLifecycleReason,
-  type AgentInvalidOrgChainAncestor,
-  type AgentOrgChainEntry,
-  type AgentOrgChainHealth,
-  type AgentOrgChainInvalidReason,
+  type AgentInvalidCoordinationAncestor,
+  type AgentCoordinationChainEntry,
+  type AgentCoordinationHealth,
+  type AgentCoordinationInvalidReason,
   type AgentWorkEligibility,
 } from "./agent-eligibility.js";
 export {

@@ -63,7 +63,7 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
       options: [{ id: "engineer", label: "Create one Platform Engineer" }], minSelected: 1, defaultSelectedOptionIds: ["engineer"],
     });
     await accept(f, creationId, ["engineer"]);
-    // Agent creation is fixture setup here; the live journey exercises creation.
+    // Creation is fixture setup here; the live journey exercises creation.
     const workerId = randomUUID();
     await server.db.insert(agents).values({ id: workerId, spaceId: f.spaceId, name: "Platform Engineer",
       status: "active", adapterType: "outpost_runner", runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } });

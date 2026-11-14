@@ -41,7 +41,7 @@ vi.mock("../services/index.js", () => ({
         id: reference,
         spaceId: "space-1",
         status: "active",
-        orgChainHealth: { status: "healthy" },
+        coordinationHealth: { status: "healthy" },
       },
     })),
   }),

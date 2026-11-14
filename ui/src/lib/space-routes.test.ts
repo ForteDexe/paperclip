@@ -79,24 +79,24 @@ describe("space routes", () => {
   it("re-prefixes team catalog routes so navigate preserves the space prefix", () => {
     expect(isOperatorPathWithoutPrefix("/teams")).toBe(false);
     expect(isOperatorPathWithoutPrefix("/teams-catalog")).toBe(true);
-    expect(isOperatorPathWithoutPrefix("/teams-catalog/core-exec-team")).toBe(true);
-    expect(extractSpacePrefixFromPath("/teams-catalog/core-exec-team")).toBeNull();
+    expect(isOperatorPathWithoutPrefix("/teams-catalog/core-crew")).toBe(true);
+    expect(extractSpacePrefixFromPath("/teams-catalog/core-crew")).toBeNull();
 
     // Auto-select effect: `/teams-catalog/<first-key>` must gain the `/PAP/` prefix.
-    expect(applySpacePrefix("/teams-catalog/core-exec-team", "PAP")).toBe(
-      "/PAP/teams-catalog/core-exec-team",
+    expect(applySpacePrefix("/teams-catalog/core-crew", "PAP")).toBe(
+      "/PAP/teams-catalog/core-crew",
     );
     // File-tree click: nested `/files/<encoded>` path is preserved under the prefix.
-    expect(applySpacePrefix("/teams-catalog/core-exec-team/files/TEAM.md", "PAP")).toBe(
-      "/PAP/teams-catalog/core-exec-team/files/TEAM.md",
+    expect(applySpacePrefix("/teams-catalog/core-crew/files/TEAM.md", "PAP")).toBe(
+      "/PAP/teams-catalog/core-crew/files/TEAM.md",
     );
     // Already-prefixed paths are left untouched (idempotent — no double prefix).
-    expect(applySpacePrefix("/PAP/teams-catalog/core-exec-team", "PAP")).toBe(
-      "/PAP/teams-catalog/core-exec-team",
+    expect(applySpacePrefix("/PAP/teams-catalog/core-crew", "PAP")).toBe(
+      "/PAP/teams-catalog/core-crew",
     );
     // Round-trips back to a space-relative path.
-    expect(toSpaceRelativePath("/PAP/teams-catalog/core-exec-team")).toBe(
-      "/teams-catalog/core-exec-team",
+    expect(toSpaceRelativePath("/PAP/teams-catalog/core-crew")).toBe(
+      "/teams-catalog/core-crew",
     );
   });
 

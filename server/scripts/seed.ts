@@ -39,7 +39,7 @@ const engineer = await createAgentLifecycle(db).requestCreation(space!.id, {
     role: "engineer",
     title: "Software Engineer",
     status: "idle",
-    reportsTo: defaultAgent!.id,
+    leadAgentId: defaultAgent!.id,
     adapterType: "process",
     adapterConfig: { command: "echo", args: ["hello from engineer"] },
     budgetMonthlyCents: 10000,

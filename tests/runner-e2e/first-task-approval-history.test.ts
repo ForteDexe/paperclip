@@ -20,8 +20,8 @@ function recording(): FirstTaskEvidence {
     options: [{ id: "draft", label: DRAFT_OPTION }, { id: "publish", label: PUBLISH_OPTION }], defaultSelectedOptionIds: ["draft", "publish"],
     target: { type: "issue_document", key: "plan", documentId: "plan", revisionId: "revision" },
   } };
-  const hireCard = { id: "hire-card", kind: "request_checkbox_confirmation", status: "pending", createdAt: at(4),
-    payload: { options: [{ id: "writer", label: `Hire ${approvalHistoryWriter(marker)}` }] } };
+  const hireCard = { id: "create-card", kind: "request_checkbox_confirmation", status: "pending", createdAt: at(4),
+    payload: { options: [{ id: "writer", label: `Create ${approvalHistoryWriter(marker)}` }] } };
   const executionCard = { id: "execution-card", kind: "request_confirmation", status: "pending", createdAt: at(6), payload: { prompt: "Start drafting" } };
   const resolve = (card: Row, minute: number, ids?: string[]) => ({ ...card, status: "accepted", resolvedByUserId: "human", resolvedAt: at(minute),
     result: { outcome: "accepted", ...(ids ? { selectedOptionIds: ids } : {}) } });
@@ -41,8 +41,8 @@ function recording(): FirstTaskEvidence {
     } }], runs: [{ id: "interview-run", status: "succeeded" }] });
   checkpoint("clarified", 2, { interactions: [planCard], documents: [plan] });
   checkpoint("plan-accepted", 3, { interactions: [resolve(planCard, 3, ["draft"])] });
-  checkpoint("hiring-proposed", 4, { interactions: [resolve(planCard, 3, ["draft"]), hireCard] });
-  checkpoint("hiring-accepted", 5, { interactions: [resolve(planCard, 3, ["draft"]), resolve(hireCard, 5, ["writer"])] });
+  checkpoint("creation-proposed", 4, { interactions: [resolve(planCard, 3, ["draft"]), hireCard] });
+  checkpoint("creation-accepted", 5, { interactions: [resolve(planCard, 3, ["draft"]), resolve(hireCard, 5, ["writer"])] });
   checkpoint("execution-proposed", 6, { agents: [{ id: "lead" }, { id: "writer", name: approvalHistoryWriter(marker), createdAt: at(5) }],
     interactions: [resolve(planCard, 3, ["draft"]), resolve(hireCard, 5, ["writer"]), executionCard] });
   checkpoint("accepted", 7, { interactions: [resolve(planCard, 3, ["draft"]), resolve(hireCard, 5, ["writer"]), resolve(executionCard, 7)] });
@@ -70,7 +70,7 @@ describe("onboarding approval history journey", () => {
     expect(runnerMatrix.filter(cell => cell.suite.id === "first-task")).toHaveLength(56);
   });
 
-  it("accepts the complete interview, partial plan approval, hiring, execution, and reload recording", () => {
+  it("accepts the complete interview, partial plan approval, creation, execution, and reload recording", () => {
     expect(failures(recording())).toEqual([]);
   });
 
@@ -78,7 +78,7 @@ describe("onboarding approval history journey", () => {
     "completed evidence satisfies the outer runner's status and parent-run contract for $id", execution => {
       const evidence = recording();
       // Seven work turns include the writer: only six belong to the parent.
-      const leadRuns = ["interview-run", "plan-run", "hiring-request-run", "hire-run", "create-child-run", "parent-run"].map((id, index) => ({
+      const leadRuns = ["interview-run", "plan-run", "creation-request-run", "create-run", "create-child-run", "parent-run"].map((id, index) => ({
         id, nativeIssueId: evidence.onboardingIssueId, agentId: evidence.agentId, status: "succeeded", runtimeMode: "native",
         contextSnapshot: { issueId: evidence.onboardingIssueId }, startedAt: `2026-11-01T00:0${[1, 2, 3, 5, 7, 8][index]}:00Z`,
       }));
@@ -135,7 +135,7 @@ describe("onboarding approval history journey", () => {
         vi.setSystemTime(Date.now() + 5_000);
         const pending = current.interactions.find(card => card.status === "pending")!;
         events.push(`accept:${pending.id}`);
-        current = state(pending.id === "plan-card" ? "plan-accepted" : pending.id === "hire-card" ? "hiring-accepted" : "accepted");
+        current = state(pending.id === "plan-card" ? "plan-accepted" : pending.id === "create-card" ? "creation-accepted" : "accepted");
         if (pending.id === "plan-card") current.interactions[0].result.selectedOptionIds = [...selections];
       },
     }) }), reload: async () => { events.push("reload"); } } as unknown as Page;
@@ -146,15 +146,15 @@ describe("onboarding approval history journey", () => {
         marker: firstTaskScenario(APPROVAL_HISTORY_CASE, "history").marker, deadlineAt: Date.now() + 30_000,
         allRuns: async () => current.runs, snapshot, capture: vi.fn(async () => undefined),
         settle: async (_runs, completion) => {
-          current = state(completion ? "finished" : current.phase === "plan-accepted" ? "hiring-proposed" : "execution-proposed");
+          current = state(completion ? "finished" : current.phase === "plan-accepted" ? "creation-proposed" : "execution-proposed");
         },
       });
-      expect(snapshot.mock.calls.filter(([phase]) => ["plan-accepted", "hiring-accepted", "accepted"].includes(phase)).map(([, at]) => at))
+      expect(snapshot.mock.calls.filter(([phase]) => ["plan-accepted", "creation-accepted", "accepted"].includes(phase)).map(([, at]) => at))
         .toEqual(clickedAt.map(at => new Date(at).toISOString()));
     } finally { vi.useRealTimers(); }
     expect([...selections]).toEqual(["draft"]);
-    expect(events).toEqual([`check:${DRAFT_OPTION}`, `uncheck:${PUBLISH_OPTION}`, "accept:plan-card", "plan-accepted", "hiring-proposed",
-      `check:Hire ${approvalHistoryWriter(firstTaskScenario(APPROVAL_HISTORY_CASE, "history").marker)}`, "accept:hire-card", "hiring-accepted",
+    expect(events).toEqual([`check:${DRAFT_OPTION}`, `uncheck:${PUBLISH_OPTION}`, "accept:plan-card", "plan-accepted", "creation-proposed",
+      `check:Create ${approvalHistoryWriter(firstTaskScenario(APPROVAL_HISTORY_CASE, "history").marker)}`, "accept:create-card", "creation-accepted",
       "execution-proposed", "accept:execution-card", "accepted", "finished", "reload", "finished"]);
   });
 
@@ -162,10 +162,10 @@ describe("onboarding approval history journey", () => {
     ["approved run without a child", e => { e.checkpoints.at(-1)!.tasks.pop(); }, "approved-writer-executes-once"],
     ["missing execution decision", e => { e.checkpoints.at(-1)!.interactions.pop(); }, "three-separate-human-approvals"],
     ["agent-only execution acceptance", e => { e.checkpoints.at(-1)!.interactions.at(-1)!.resolvedByAgentId = "lead"; }, "three-separate-human-approvals"],
-    ["hiring accepted with no writer selected", e => { e.checkpoints.at(-1)!.interactions[1].result.selectedOptionIds = []; }, "three-separate-human-approvals"],
+    ["creation accepted with no writer selected", e => { e.checkpoints.at(-1)!.interactions[1].result.selectedOptionIds = []; }, "three-separate-human-approvals"],
     ["execution confirmation targeted to the plan", e => { e.checkpoints.at(-1)!.interactions.at(-1)!.payload.target = { key: "plan" }; }, "three-separate-human-approvals"],
     ["new task before execution approval", e => { e.checkpoints.find(c => c.phase === "execution-proposed")!.tasks.push({ id: "early" }); }, "no-premature-work"],
-    ["hire before hiring approval", e => { e.checkpoints.find(c => c.phase === "hiring-proposed")!.agents.push({ id: "early" }); }, "no-premature-work"],
+    ["create before creation approval", e => { e.checkpoints.find(c => c.phase === "creation-proposed")!.agents.push({ id: "early" }); }, "no-premature-work"],
     ["defaults substituted for actual choices", e => { e.checkpoints.at(-1)!.interactions[0].result.selectedOptionIds = ["draft", "publish"]; }, "selected-plan-scope-retained"],
     ["changed plan revision", e => { e.checkpoints.at(-1)!.documents[0].latestRevisionId = "changed"; }, "selected-plan-scope-retained"],
     ["task assigned to the lead", e => { e.checkpoints.at(-1)!.tasks[1].assigneeAgentId = "lead"; }, "approved-writer-executes-once"],
@@ -180,7 +180,7 @@ describe("onboarding approval history journey", () => {
     ["writer switched to legacy execution", e => { e.checkpoints.at(-1)!.runs[1].runtimeMode = "legacy"; }, "writer-authored-output"],
     ["changed saved output after reload", e => { e.checkpoints.at(-1)!.documents[1].body += " Changed."; }, "reload-retains-completion"],
     ["duplicate approval left pending", e => { e.checkpoints.at(-1)!.interactions.push({ id: "duplicate", status: "pending", kind: "request_confirmation" }); }, "no-pending-approvals"],
-    ["missing intermediate approval observations", e => { e.checkpoints = e.checkpoints.filter(c => c.phase !== "hiring-accepted"); }, "approval-history-stages"],
+    ["missing intermediate approval observations", e => { e.checkpoints = e.checkpoints.filter(c => c.phase !== "creation-accepted"); }, "approval-history-stages"],
   ])("rejects %s", (_name, mutate, expected) => {
     const evidence = recording();
     mutate(evidence);

@@ -185,7 +185,7 @@
       "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
       "exitCode": 1,
       "retainedMachineDisposition": "permanent_infrastructure",
-      "diagnosis": "The real server rejected candidate agent creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction 26dde3cfe is included in the merged foundation.",
+      "diagnosis": "The real server rejected candidate creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction 26dde3cfe is included in the merged foundation.",
       "submittedProviderTurns": 0,
       "providerRequestCount": 0,
       "billingDeltaUsd": 0,
@@ -225,7 +225,7 @@
         "ref": "refs/heads/codex/runner-pi-acp",
         "workflowRunUrl": null
       },
-      "diagnosis": "Agent creation succeeded after shared admission repair; the actual verified runnerd backend factory then hit a dormant Pi-only transportDriverIdentity rejection before provider launch. The shared identity correction is included in foundation c3b7e9ecd.",
+      "diagnosis": "Creation succeeded after shared admission repair; the actual verified runnerd backend factory then hit a dormant Pi-only transportDriverIdentity rejection before provider launch. The shared identity correction is included in foundation c3b7e9ecd.",
       "submittedProviderTurns": 0,
       "providerRequestCount": 0,
       "billingDeltaUsd": 0,

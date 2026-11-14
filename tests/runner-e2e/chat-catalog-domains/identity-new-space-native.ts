@@ -77,8 +77,8 @@ export async function runNativeNewSpaceInPrivateBrowser(input: Input & {
     const url = new URL(response.url()); if (url.origin !== origin || response.request().method() !== "POST") return;
     const account = url.pathname === `/api/spaces/${space.id}/ai-connections`;
     const probe = url.pathname.match(new RegExp(`^/api/spaces/${space.id}/adapters/([^/]+)/test-environment$`));
-    const hire = url.pathname === `/api/spaces/${space.id}/agent-hires`;
-    if (!account && !probe && !hire) return;
+    const create = url.pathname === `/api/spaces/${space.id}/agent-hires`;
+    if (!account && !probe && !create) return;
     const sequence = ++responseSequence;
     const pending = (async () => {
       const body = response.request().postDataJSON() as Record<string, unknown>;

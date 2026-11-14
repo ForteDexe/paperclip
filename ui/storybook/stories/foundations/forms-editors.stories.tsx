@@ -10,7 +10,7 @@ import { InlineEntitySelector, type InlineEntityOption } from "@/components/Inli
 import { JsonSchemaForm, type JsonSchemaNode, getDefaultValues } from "@/components/JsonSchemaForm";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { MarkdownEditor, type MentionOption } from "@/components/MarkdownEditor";
-import { ReportsToPicker } from "@/components/ReportsToPicker";
+import { CoordinationLeadPicker } from "@/components/CoordinationLeadPicker";
 import {
   RoutineRunVariablesDialog,
   type RoutineRunDialogSubmitData,
@@ -568,7 +568,7 @@ function PickerGallery() {
         id: "agent-legacy",
         name: "LegacyReviewer",
         status: "terminated",
-        reportsTo: null,
+        leadAgentId: null,
       },
     ],
     [],
@@ -599,10 +599,10 @@ function PickerGallery() {
             />
           </div>
         </StatePanel>
-        <StatePanel label="ReportsToPicker" detail="Selected manager, CEO disabled state, and filtered hierarchy choices.">
+        <StatePanel label="CoordinationLeadPicker" detail="Selected manager, CEO disabled state, and filtered hierarchy choices.">
           <div className="flex flex-wrap gap-3">
-            <ReportsToPicker agents={agentsWithTerminated} value={manager} onChange={setManager} excludeAgentIds={["agent-codex"]} />
-            <ReportsToPicker agents={agentsWithTerminated} value={null} onChange={() => undefined} disabled />
+            <CoordinationLeadPicker agents={agentsWithTerminated} value={manager} onChange={setManager} excludeAgentIds={["agent-codex"]} />
+            <CoordinationLeadPicker agents={agentsWithTerminated} value={null} onChange={() => undefined} disabled />
           </div>
         </StatePanel>
         <StatePanel label="InlineEntitySelector" detail="Search/select dropdown for issue, project, and agent entities.">

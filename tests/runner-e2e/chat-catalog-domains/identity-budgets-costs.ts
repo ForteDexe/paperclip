@@ -21,7 +21,7 @@ export function gradeBudget(value: unknown) {
     "A similarly named worker's policy remains at its original $5 cap.");
   c.add("board-attribution", o.activity.some(row => row.action === "budget.policy_upserted" && row.actorType === "user"
     && row.details?.scopeId === worker.id && row.details?.amount === 5000 && !row.agentId), "The saved budget audit belongs to the board identity.");
-  c.add("unchanged-employee-configuration", !!o.state.workerConfig && !!o.state.currentWorkerConfig
+  c.add("unchanged-agent-configuration", !!o.state.workerConfig && !!o.state.currentWorkerConfig
     && JSON.stringify(o.state.workerConfig) === JSON.stringify(o.state.currentWorkerConfig),
     "A budget decision does not replace policy enforcement with a prompt/configuration instruction.");
   return c.result();

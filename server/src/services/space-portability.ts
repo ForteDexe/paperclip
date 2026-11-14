@@ -89,7 +89,7 @@ import { agentInstructionsBundleMode, agentInstructionsService } from "./agent-i
 import { assetService } from "./assets.js";
 import { isRunnerApiResponseAsset } from "./asset-content-access.js";
 import { generateReadme } from "./space-export-readme.js";
-import { renderOrgChartPng, type OrgNode } from "../routes/org-chart-svg.js";
+import { renderAgentHierarchyPng, type AgentHierarchyNode } from "../routes/agent-hierarchy-svg.js";
 import { spaceSkillService } from "./space-skills.js";
 import { spaceService } from "./space-service.js";
 import { validateCron } from "./cron.js";
@@ -149,45 +149,46 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-/** Build OrgNode tree from manifest agent list (slug + reportsToSlug). */
-function buildOrgTreeFromManifest(agents: SpacePortabilityManifest["agents"]): OrgNode[] {
+/** Build AgentHierarchyNode tree from manifest agent list (slug + leadAgentSlug). */
+function buildAgentTreeFromManifest(agents: SpacePortabilityManifest["agents"]): AgentHierarchyNode[] {
   const ROLE_LABELS: Record<string, string> = {
-    lead: "Default agent", engineering_lead: "Technology", product: "Marketing",
-    operations: "Finance", coo: "Operations", vp: "VP", manager: "Manager",
-    engineer: "Engineer", agent: "Agent",
+    lead: "Default agent", engineering_lead: "Engineering Lead", product: "Product",
+    operations: "Operations", security: "Security", engineer: "Engineer",
+    designer: "Designer", pm: "Product Manager", qa: "Quality",
+    devops: "DevOps", researcher: "Researcher", general: "Agent", agent: "Agent",
   };
   const bySlug = new Map(agents.map((a) => [a.slug, a]));
   const childrenOf = new Map<string | null, typeof agents>();
   for (const a of agents) {
-    const parent = a.reportsToSlug ?? null;
+    const parent = a.leadAgentSlug ?? null;
     const list = childrenOf.get(parent) ?? [];
     list.push(a);
     childrenOf.set(parent, list);
   }
-  const build = (parentSlug: string | null): OrgNode[] => {
+  const build = (parentSlug: string | null): AgentHierarchyNode[] => {
     const members = childrenOf.get(parentSlug) ?? [];
     return members.map((m) => ({
       id: m.slug,
       name: m.name,
       role: ROLE_LABELS[m.role] ?? m.role,
       status: "active",
-      reports: build(m.slug),
+      children: build(m.slug),
     }));
   };
-  // Find roots: agents whose reportsToSlug is null or points to a non-existent slug
-  const roots = agents.filter((a) => !a.reportsToSlug || !bySlug.has(a.reportsToSlug));
+  // Find roots: agents whose leadAgentSlug is null or points to a non-existent slug
+  const roots = agents.filter((a) => !a.leadAgentSlug || !bySlug.has(a.leadAgentSlug));
   const rootSlugs = new Set(roots.map((r) => r.slug));
   // Start from null parent, but also include orphans
   const tree = build(null);
   for (const root of roots) {
-    if (root.reportsToSlug && !bySlug.has(root.reportsToSlug)) {
+    if (root.leadAgentSlug && !bySlug.has(root.leadAgentSlug)) {
       // Orphan root (parent slug doesn't exist)
       tree.push({
         id: root.slug,
         name: root.name,
         role: ROLE_LABELS[root.role] ?? root.role,
         status: "active",
-        reports: build(root.slug),
+        children: build(root.slug),
       });
     }
   }
@@ -2066,13 +2067,13 @@ function normalizePortableSidebarOrder(value: unknown): SpacePortabilitySidebarO
   return sidebar.agents.length > 0 || sidebar.projects.length > 0 ? sidebar : null;
 }
 
-function sortAgentsBySidebarOrder<T extends { id: string; name: string; reportsTo: string | null }>(agents: T[]) {
+function sortAgentsBySidebarOrder<T extends { id: string; name: string; leadAgentId: string | null }>(agents: T[]) {
   if (agents.length === 0) return [];
 
   const byId = new Map(agents.map((agent) => [agent.id, agent]));
   const childrenOf = new Map<string | null, T[]>();
   for (const agent of agents) {
-    const parentId = agent.reportsTo && byId.has(agent.reportsTo) ? agent.reportsTo : null;
+    const parentId = agent.leadAgentId && byId.has(agent.leadAgentId) ? agent.leadAgentId : null;
     const siblings = childrenOf.get(parentId) ?? [];
     siblings.push(agent);
     childrenOf.set(parentId, siblings);
@@ -2422,9 +2423,9 @@ const YAML_KEY_PRIORITY = [
   "schema",
   "kind",
   "slug",
-  "reportsTo",
-  "reportsToExistingAgentId",
-  "reportsToExistingAgentSlug",
+  "leadAgentId",
+  "existingLeadAgentId",
+  "existingLeadAgentSlug",
   "skills",
   "owner",
   "assignee",
@@ -3275,9 +3276,9 @@ function buildManifestFromPackageFiles(
       icon: asString(extension.icon),
       appearance: extension.appearance == null ? undefined : portableAgentAppearance(extension.appearance, warnings, slug),
       capabilities: asString(extension.capabilities),
-      reportsToSlug: asString(frontmatter.reportsTo) ?? asString(extension.reportsTo),
-      reportsToExistingAgentId: asString(extension.reportsToExistingAgentId),
-      reportsToExistingAgentSlug: asString(extension.reportsToExistingAgentSlug),
+      leadAgentSlug: asString(frontmatter.leadAgentId) ?? asString(extension.leadAgentId),
+      existingLeadAgentId: asString(extension.existingLeadAgentId),
+      existingLeadAgentSlug: asString(extension.existingLeadAgentSlug),
       runner: runner as AgentRunnerChoice | undefined,
       adapterType: asString(extensionAdapter?.type) ?? "process",
       adapterConfig,
@@ -4286,7 +4287,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
             .slice(envInputsStart)
             .filter((inputValue) => inputValue.agentSlug === slug),
         );
-        const reportsToSlug = agent.reportsTo ? (idToSlug.get(agent.reportsTo) ?? null) : null;
+        const leadAgentSlug = agent.leadAgentId ? (idToSlug.get(agent.leadAgentId) ?? null) : null;
         const desiredSkills = readOutpostSkillSyncPreference(
           (agent.adapterConfig as Record<string, unknown>) ?? {},
         ).desiredSkills;
@@ -4303,7 +4304,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
               stripEmptyValues({
                 name: agent.name,
                 title: agent.title ?? null,
-                reportsTo: reportsToSlug,
+                leadAgentId: leadAgentSlug,
                 skills: desiredSkills.length > 0 ? desiredSkills : undefined,
               }) as Record<string, unknown>,
               content,
@@ -4793,14 +4794,14 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
     resolved.manifest.envInputs = dedupeEnvInputs(envInputs);
     resolved.warnings.unshift(...warnings);
 
-    // Generate org chart PNG from manifest agents
+    // Generate agent hierarchy PNG from manifest agents
     if (!options.preview && resolved.manifest.agents.length > 0) {
       try {
-        const orgNodes = buildOrgTreeFromManifest(resolved.manifest.agents);
-        const pngBuffer = await renderOrgChartPng(orgNodes);
-        finalFiles["images/org-chart.png"] = bufferToPortableBinaryFile(pngBuffer, "image/png");
+        const orgNodes = buildAgentTreeFromManifest(resolved.manifest.agents);
+        const pngBuffer = await renderAgentHierarchyPng(orgNodes);
+        finalFiles["images/agent-hierarchy.png"] = bufferToPortableBinaryFile(pngBuffer, "image/png");
       } catch {
-        // Non-fatal: export still works without the org chart image
+        // Non-fatal: export still works without the agent hierarchy image
       }
     }
 
@@ -5077,19 +5078,19 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
 
     for (const manifestAgent of selectedAgents) {
       if (
-        manifestAgent.reportsToExistingAgentId
-        && !existingAgentIds.has(manifestAgent.reportsToExistingAgentId)
+        manifestAgent.existingLeadAgentId
+        && !existingAgentIds.has(manifestAgent.existingLeadAgentId)
       ) {
         warnings.push(
-          `Agent ${manifestAgent.slug} references existing manager id ${manifestAgent.reportsToExistingAgentId}, but that agent is not present in the target space.`,
+          `Agent ${manifestAgent.slug} references coordination lead id ${manifestAgent.existingLeadAgentId}, but that agent is not present in the target space.`,
         );
       }
       if (
-        manifestAgent.reportsToExistingAgentSlug
-        && !existingSlugToAgent.has(manifestAgent.reportsToExistingAgentSlug)
+        manifestAgent.existingLeadAgentSlug
+        && !existingSlugToAgent.has(manifestAgent.existingLeadAgentSlug)
       ) {
         warnings.push(
-          `Agent ${manifestAgent.slug} references existing manager slug ${manifestAgent.reportsToExistingAgentSlug}, but that agent is not present in the target space.`,
+          `Agent ${manifestAgent.slug} references coordination lead slug ${manifestAgent.existingLeadAgentSlug}, but that agent is not present in the target space.`,
         );
       }
       const existing = existingSlugToAgent.get(manifestAgent.slug) ?? null;
@@ -5741,7 +5742,7 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
             icon: manifestAgent.icon,
             ...(manifestAgent.appearance ? { appearance: portableAgentAppearance(manifestAgent.appearance, warnings, manifestAgent.slug) } : {}),
             capabilities: manifestAgent.capabilities,
-            reportsTo: null,
+            leadAgentId: null,
             adapterType: normalizedAdapter.adapterType,
             adapterConfig: normalizedAdapter.adapterConfig,
             runtimeConfig: sanitizeImportedAgentRuntimeConfig(manifestAgent.runtimeConfig),
@@ -5864,32 +5865,32 @@ export function spacePortabilityService(db: Db, storage?: StorageService) {
         for (const manifestAgent of plan.selectedAgents) {
           const agentId = importedSlugToAgentId.get(manifestAgent.slug);
           if (!agentId) continue;
-          const managerSlug = manifestAgent.reportsToSlug;
-          let existingManagerId: string | null = null;
+          const leadSlug = manifestAgent.leadAgentSlug;
+          let existingLeadId: string | null = null;
           if (
-            manifestAgent.reportsToExistingAgentId
-            && preImportExistingAgentIds.has(manifestAgent.reportsToExistingAgentId)
+            manifestAgent.existingLeadAgentId
+            && preImportExistingAgentIds.has(manifestAgent.existingLeadAgentId)
           ) {
-            existingManagerId = manifestAgent.reportsToExistingAgentId;
-          } else if (manifestAgent.reportsToExistingAgentSlug) {
-            existingManagerId =
-              preImportExistingSlugToAgentId.get(manifestAgent.reportsToExistingAgentSlug) ?? null;
+            existingLeadId = manifestAgent.existingLeadAgentId;
+          } else if (manifestAgent.existingLeadAgentSlug) {
+            existingLeadId =
+              preImportExistingSlugToAgentId.get(manifestAgent.existingLeadAgentSlug) ?? null;
           }
-          if (!managerSlug && !existingManagerId) continue;
-          const managerId =
-            existingManagerId
-            ?? (managerSlug
-              ? importedSlugToAgentId.get(managerSlug) ?? existingSlugToAgentId.get(managerSlug) ?? null
+          if (!leadSlug && !existingLeadId) continue;
+          const leadId =
+            existingLeadId
+            ?? (leadSlug
+              ? importedSlugToAgentId.get(leadSlug) ?? existingSlugToAgentId.get(leadSlug) ?? null
               : null);
-          if (!managerId || managerId === agentId) continue;
+          if (!leadId || leadId === agentId) continue;
           try {
-            await updateImportedAgent(agentId, { reportsTo: managerId });
+            await updateImportedAgent(agentId, { leadAgentId: leadId });
           } catch {
-            const managerRef =
-              managerSlug
-              ?? manifestAgent.reportsToExistingAgentSlug
-              ?? manifestAgent.reportsToExistingAgentId;
-            warnings.push(`Could not assign manager ${managerRef} for imported agent ${manifestAgent.slug}.`);
+            const leadRef =
+              leadSlug
+              ?? manifestAgent.existingLeadAgentSlug
+              ?? manifestAgent.existingLeadAgentId;
+            warnings.push(`Could not assign coordination lead ${leadRef} for imported agent ${manifestAgent.slug}.`);
           }
         }
       }

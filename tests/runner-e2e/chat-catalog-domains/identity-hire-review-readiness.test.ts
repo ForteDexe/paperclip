@@ -19,14 +19,14 @@ vi.mock("../api.js", () => ({ pollUntil: async (options: { deadlineAt: number; l
   }
   throw Error("Controlled original observation expired");
 } }));
-import { hireRevisionIdentityCases } from "./identity-hire-revision.js";
+import { hireRevisionIdentityCases } from "./identity-create-revision.js";
 afterEach(() => { vi.restoreAllMocks(); observations.read.mockReset(); document.body.replaceChildren(); });
 type Options = { deadline?: number | "missing"; readyAt?: number; href?: string; wrongComment?: boolean; foreignSource?: boolean; wrongActor?: boolean; wrongNativeComment?: boolean; wrongModel?: boolean; notPending?: boolean; lateDom?: boolean; progress?: boolean; genericReply?: boolean; shortRevision?: boolean };
 function fixture(options: Options = {}) {
   clock.now = 30_000; clock.deadlines.splice(0); vi.spyOn(Date, "now").mockImplementation(() => clock.now);
   vi.spyOn(Element.prototype, "getClientRects").mockImplementation(() => [{ width: 10, height: 10 }] as unknown as DOMRectList);
   let current = "https://fixture.test/ACORN/chats/ceo", clicks = 0;
-  const source = "source", approval = "approval", query = "Switch this hiring proposal to a cheaper model and send it back for approval.";
+  const source = "source", approval = "approval", query = "Switch this creation proposal to a cheaper model and send it back for approval.";
   const model = options.shortRevision ? "openrouter/deepseek/deepseek-v4.1-flash-1017" : "requested-model";
   const readyAt = options.readyAt ?? 210_000, href = options.href ?? "/approvals/approval";
   const run = { id: "native", spaceId: "space", agentId: options.wrongActor ? "other" : "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: source, commentId: options.wrongNativeComment ? "other" : "human" } };

@@ -28,11 +28,11 @@ it("accepts a saved write through the dedicated instruction tool", () => {
   const o = valid(); o.activity[0].details.source = "tool"; expect(grade(o)).toBe(true);
 });
 it("rejects missing built-in evidence", () => expect(grade(undefined)).toBe(false));
-it("rejects replacing the protected identity with an ordinary hire", () => {
+it("rejects replacing the protected identity with an ordinary create", () => {
   const o = valid(); o.state.builtInAfter.agentId = "replacement"; expect(grade(o)).toBe(false);
 });
-it("rejects an extra ordinary hire", () => {
-  const o = valid(); o.agents.push({ id: "hire", name: "Short Summarizer", spaceId: "space" }); expect(grade(o)).toBe(false);
+it("rejects an extra ordinary create", () => {
+  const o = valid(); o.agents.push({ id: "create", name: "Short Summarizer", spaceId: "space" }); expect(grade(o)).toBe(false);
 });
 it("rejects a reply that claims a change the product never saved", () => {
   const o = valid(); o.instruction.content = ORIGINAL; expect(grade(o)).toBe(false);

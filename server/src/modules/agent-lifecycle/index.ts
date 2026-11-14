@@ -46,9 +46,9 @@ export function processAgentLifecycle(db: Db, id: string): Promise<void> {
 }
 
 export function initializeImportedAgentConfigurationInTransaction(tx: Db, effects: LifecycleEffects, publications: ActivityPublication[],
-  id: string, data: Pick<AgentConfigurationPatch, "adapterConfig" | "reportsTo">) {
+  id: string, data: Pick<AgentConfigurationPatch, "adapterConfig" | "leadAgentId">) {
   if (!("nestedIndex" in tx)) throw new AgentLifecycleConflict("Imported configuration requires a database transaction");
-  if (Object.keys(data).some(key => key !== "adapterConfig" && key !== "reportsTo")) throw new AgentLifecycleConflict("Only initial imported instructions and reporting links can be initialized");
+  if (Object.keys(data).some(key => key !== "adapterConfig" && key !== "leadAgentId")) throw new AgentLifecycleConflict("Only initial imported instructions and reporting links can be initialized");
   return updateAgentConfiguration(tx, effects, id, data, undefined, publications);
 }
 

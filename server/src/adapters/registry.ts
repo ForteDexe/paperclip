@@ -1229,7 +1229,7 @@ export function listServerAdapters(): ServerAdapterModule[] {
 
 /**
  * List adapters excluding those that are disabled in settings.
- * Used for menus and agent creation flows — disabled adapters remain
+ * Used for menus and creation flows — disabled adapters remain
  * functional for existing agents but hidden from selection.
  */
 export function listEnabledServerAdapters(disabled: string[]): ServerAdapterModule[] {

@@ -18,7 +18,7 @@ const baseAgent = {
   title: "Builder",
   icon: null,
   status: "idle",
-  reportsTo: null,
+  leadAgentId: null,
   capabilities: null,
   adapterType: "process",
   adapterConfig: {},
@@ -589,14 +589,14 @@ describe("agent cross-tenant route authorization", () => {
     expect(mockAgentService.resume).not.toHaveBeenCalled();
   });
 
-  it("keeps the invalid-org-chain guard for granted agent resume", async () => {
+  it("keeps the invalid-coordination-chain guard for granted agent resume", async () => {
     mockAgentService.getById.mockResolvedValue({
       ...baseAgent,
       status: "paused",
-      orgChainHealth: {
-        status: "invalid_org_chain",
-        reason: "missing_manager",
-        repairGuidance: "Repair the reporting chain first.",
+      coordinationHealth: {
+        status: "invalid_coordination_chain",
+        reason: "missing_lead_agent",
+        repairGuidance: "Repair the coordination chain first.",
       },
     });
     mockAccessService.decide.mockResolvedValue({
@@ -619,7 +619,7 @@ describe("agent cross-tenant route authorization", () => {
     );
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("Repair the reporting chain first.");
+    expect(res.body.error).toBe("Repair the coordination chain first.");
     expect(mockAgentService.resume).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
@@ -711,10 +711,10 @@ describe("agent cross-tenant route authorization", () => {
     mockAgentService.getById.mockImplementation(async () => ({
       ...baseAgent,
       status: "error",
-      orgChainHealth: {
-        status: "invalid_org_chain",
-        reason: "missing_manager",
-        repairGuidance: "Repair the reporting chain first.",
+      coordinationHealth: {
+        status: "invalid_coordination_chain",
+        reason: "missing_lead_agent",
+        repairGuidance: "Repair the coordination chain first.",
       },
     }));
     const app = await createApp({
@@ -730,7 +730,7 @@ describe("agent cross-tenant route authorization", () => {
     );
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toContain("Repair the reporting chain first");
+    expect(res.body.error).toContain("Repair the coordination chain first");
     expect(mockAgentService.clearError).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });

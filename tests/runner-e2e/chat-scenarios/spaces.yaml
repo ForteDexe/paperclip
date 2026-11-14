@@ -121,4 +121,4 @@ scenarios:
       A preview lists resources, conflicts and options without mutating the space. The agent
       requests a choice for unresolved consequential conflicts. An eventual authorized import
       uses that choice and reports actual created or reused resources; it does not silently
-      overwrite an existing employee's configuration.
+      overwrite an existing agent's configuration.

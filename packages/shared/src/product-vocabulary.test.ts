@@ -15,6 +15,8 @@ describe("product vocabulary", () => {
     expect(productLabel("space")).toBe("Space");
     expect(productLabel("space", { count: 2 })).toBe("Spaces");
     expect(productLabel("defaultAgent", { casing: "lower" })).toBe("default agent");
+    expect(productLabel("coordinationLead")).toBe("Coordination lead");
+    expect(productLabel("agentHierarchy", { count: 2, casing: "lower" })).toBe("agent hierarchies");
     expect(productLabel("operator", { count: 2, casing: "lower" })).toBe("operators");
     expect(countedProductLabel("artifact", 1)).toBe("1 artifact");
     expect(countedProductLabel("artifact", 3)).toBe("3 artifacts");

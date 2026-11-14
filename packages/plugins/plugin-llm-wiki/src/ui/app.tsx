@@ -4521,7 +4521,7 @@ function QueryTab({ context, overview }: { context: { spaceId: string | null }; 
             <Button variant="primary" size="sm" onClick={send} disabled={!prompt.trim()} loading={busy}>Send (⌘↵)</Button>
             <Badge>Cite: wiki + raw</Badge>
             <Badge>Max steps: 6</Badge>
-            <Tiny style={{ marginLeft: "auto" }}>Streamed via agent session · maintainer task</Tiny>
+            <Tiny style={{ marginLeft: "auto" }}>Streamed vian agent session · maintainer task</Tiny>
           </div>
         </div>
       </div>

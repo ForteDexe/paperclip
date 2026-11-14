@@ -46,7 +46,7 @@ export interface IssueLivenessAgentInput {
   role: string;
   title?: string | null;
   status: string;
-  reportsTo?: string | null;
+  leadAgentId?: string | null;
 }
 
 export interface IssueLivenessExecutionPathInput {
@@ -355,13 +355,13 @@ function addAgentChainCandidates(
   const chainSeen = new Set<string>();
   let current = startAgentId ? agentsById.get(startAgentId) : null;
 
-  while (current?.reportsTo) {
-    if (chainSeen.has(current.reportsTo)) break;
-    chainSeen.add(current.reportsTo);
-    const manager = agentsById.get(current.reportsTo);
-    if (!manager || manager.spaceId !== spaceId) break;
-    addOwnerCandidate(candidates, seen, agentsById, spaceId, manager.id, reason, sourceIssueId);
-    current = manager;
+  while (current?.leadAgentId) {
+    if (chainSeen.has(current.leadAgentId)) break;
+    chainSeen.add(current.leadAgentId);
+    const lead = agentsById.get(current.leadAgentId);
+    if (!lead || lead.spaceId !== spaceId) break;
+    addOwnerCandidate(candidates, seen, agentsById, spaceId, lead.id, reason, sourceIssueId);
+    current = lead;
   }
 }
 
@@ -419,7 +419,7 @@ function ownerCandidatesForRecoveryIssue(
 
   const invokableAgents = orderedInvokableAgents(agents, agentsById, issue.spaceId);
   for (const agent of invokableAgents) {
-    if (!agent.reportsTo) {
+    if (!agent.leadAgentId) {
       addOwnerCandidate(candidates, seen, agentsById, issue.spaceId, agent.id, "root_agent", issue.id);
     }
   }
@@ -676,7 +676,7 @@ export function classifyIssueGraphLiveness(input: IssueGraphLivenessInput): Issu
         issue: source,
         state: "blocked_by_uninvokable_assignee",
         reason: blockerAgent
-          ? `${issueLabel(source)} is blocked by ${issueLabel(blocker)}, but its assignee is ${blockerEligibility?.invokabilityReason === "invalid_org_chain" ? "in an invalid org chain" : blockerAgent.status}.`
+          ? `${issueLabel(source)} is blocked by ${issueLabel(blocker)}, but its assignee is ${blockerEligibility?.invokabilityReason === "invalid_coordination_chain" ? "in an invalid coordination chain" : blockerAgent.status}.`
           : `${issueLabel(source)} is blocked by ${issueLabel(blocker)}, but its assignee no longer exists.`,
         dependencyPath,
         recoveryIssue: blocker,

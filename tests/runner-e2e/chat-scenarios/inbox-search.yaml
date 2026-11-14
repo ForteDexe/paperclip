@@ -72,7 +72,7 @@ scenarios:
       - inbox-search/decisions
       - questions-and-approvals/governance
     context: >-
-      Accessible decision queues contain a hiring approval, a question and an informational
+      Accessible decision queues contain a creation approval, a question and an informational
       completed request.
     query: >-
       What decisions are waiting on me?

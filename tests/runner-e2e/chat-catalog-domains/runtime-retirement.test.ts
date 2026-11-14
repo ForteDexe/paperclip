@@ -19,7 +19,7 @@ it("rejects guidance that does not route the person to Morgan's profile", () => 
 it("rejects a link to a different agent's profile", () => { const o = valid(); o.links = ["/RUN/agents/ceo"]; expect(gradeRetirement(o).passed).toBe(false); });
 it("rejects termination through the status-update route", () => { const o = valid(); o.state.agentPatchTerminateStatus = 200; expect(gradeRetirement(o).passed).toBe(false); });
 it("rejects absent retirement evidence", () => expect(gradeRetirement(undefined).passed).toBe(false));
-it("rejects merely renaming the employee", () => { const o = valid(); o.state.retiredWorker.name = "Retired Morgan"; expect(gradeRetirement(o).passed).toBe(false); });
+it("rejects merely renaming the agent", () => { const o = valid(); o.state.retiredWorker.name = "Retired Morgan"; expect(gradeRetirement(o).passed).toBe(false); });
 it("rejects deleting historical work", () => { const o = valid(); o.tasks = o.tasks.filter(row => row.id !== "history"); expect(gradeRetirement(o).passed).toBe(false); });
 it("rejects retirement while the old process remains active", () => { const o = valid(); o.runs[0]!.status = "running"; expect(gradeRetirement(o).passed).toBe(false); });
 it("rejects forged historical attribution", () => { const o = valid(); o.state.historicalAttributionRetained = false; expect(gradeRetirement(o).passed).toBe(false); });

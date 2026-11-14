@@ -2883,11 +2883,11 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
 :root {
   --hex-959596: #959596; /* Muted feed actor/verb/title text (ActivityFeed.tsx, FeedCard.tsx) — PRIOR-ART-flagged gap cluster, no existing token match. */
   --hex-1d1d1d: #1d1d1d; /* OnboardingWizard.tsx dark decorative panel background, singleton. */
-  --hex-22d3ee: #22d3ee; /* OrgChart.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2). */
-  --hex-4ade80: #4ade80; /* OrgChart.tsx agent status dot — 'active'. */
-  --hex-facc15: #facc15; /* OrgChart.tsx agent status dot — 'paused' / 'idle' (shared value). */
-  --hex-f87171: #f87171; /* OrgChart.tsx agent status dot — 'error'. */
-  --hex-a3a3a3: #a3a3a3; /* OrgChart.tsx agent status dot — 'terminated' + defaultDotColor fallback. */
+  --hex-22d3ee: #22d3ee; /* AgentHierarchy.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2). */
+  --hex-4ade80: #4ade80; /* AgentHierarchy.tsx agent status dot — 'active'. */
+  --hex-facc15: #facc15; /* AgentHierarchy.tsx agent status dot — 'paused' / 'idle' (shared value). */
+  --hex-f87171: #f87171; /* AgentHierarchy.tsx agent status dot — 'error'. */
+  --hex-a3a3a3: #a3a3a3; /* AgentHierarchy.tsx agent status dot — 'terminated' + defaultDotColor fallback. */
   --hex-ef4444: #ef4444; /* ActivityCharts.tsx — priority 'critical'; also the <0.5 success-rate bar tint and the run-activity 'failed' segment. (Chart STATUS hues re-pointed at --status-task-* in DECISION-SHEET.md B5; priority/success series stay independent.) */
   --hex-f97316: #f97316; /* ActivityCharts.tsx — priority 'high'. */
   --hex-eab308: #eab308; /* ActivityCharts.tsx — priority 'medium'; also the 0.5-0.8 success-rate bar tint. */
@@ -3122,7 +3122,7 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --sz-calc-36: min(28rem,65vh); /* Extracted from ui/src/pages/InstanceExperimentalSettings.tsx (max-h-[min(28rem,65vh)]). */
   --sz-calc-37: min(100%,22rem); /* Extracted from ui/src/pages/IssueDetail.tsx (w-[min(100%,22rem)]). */
   --sz-85dvh: 85dvh; /* Extracted from ui/src/pages/IssueDetail.tsx (max-h-[85dvh]). */
-  --sz-calc-38: calc(100dvh - 9rem); /* Extracted from ui/src/pages/OrgChart.tsx (h-[calc(100dvh-9rem)]). */
+  --sz-calc-38: calc(100dvh - 9rem); /* Extracted from ui/src/pages/AgentHierarchy.tsx (h-[calc(100dvh-9rem)]). */
   --sz-720px: 720px; /* Extracted from ui/src/pages/RunTranscriptUxLab.tsx (max-h-[720px]). */
   --sz-460px: 460px; /* Extracted from ui/src/pages/RunTranscriptUxLab.tsx (max-h-[460px]). */
   --sz-960px: 960px; /* Extracted from ui/src/pages/Search.tsx (max-w-[960px]). */
@@ -3264,7 +3264,7 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --tp-border-color-background-color: border-color,background-color; /* Extracted from ui/src/components/ui/radio-card.tsx (transition-[border-color,background-color]). */
   --tp-color-background-color-border-color-box-shadow: color,background-color,border-color,box-shadow; /* Extracted from ui/src/components/ui/tabs.tsx (transition-[color,background-color,border-color,box-shadow]). */
   --tp-grid-template-rows-opacity: grid-template-rows,opacity; /* Extracted from ui/src/pages/SpaceSkills.tsx (transition-[grid-template-rows,opacity]). */
-  --tp-box-shadow-border-color: box-shadow,border-color; /* Extracted from ui/src/pages/OrgChart.tsx (transition-[box-shadow,border-color]). */
+  --tp-box-shadow-border-color: box-shadow,border-color; /* Extracted from ui/src/pages/AgentHierarchy.tsx (transition-[box-shadow,border-color]). */
   --tp-box-shadow: box-shadow; /* Extracted from ui/src/pages/ProjectDetail.tsx (transition-[box-shadow]). */
   --tp-transform-box-shadow: transform,box-shadow; /* Extracted from ui/src/pages/ProjectDetail.tsx (transition-[transform,box-shadow]). */
   --z-2: 2; /* Extracted from ui/src/components/DocumentAnnotationLayer.tsx (z-[2]). */

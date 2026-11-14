@@ -319,7 +319,7 @@ export function registerAgentCommands(program: Command): void {
                 name: row.name,
                 role: row.role,
                 status: row.status,
-                reportsTo: row.reportsTo,
+                leadAgentId: row.leadAgentId,
                 budgetMonthlyCents: row.budgetMonthlyCents,
                 spentMonthlyCents: row.spentMonthlyCents,
               }),
@@ -371,7 +371,7 @@ export function registerAgentCommands(program: Command): void {
   addCommonClientOptions(
     agent
       .command("create")
-      .description("Create an agent create request")
+      .description("Create an agent approval request")
       .option("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CreateAgentCreation JSON payload")
       .option("--runner <runner>", "Runner: auto (default), outpost, or legacy")

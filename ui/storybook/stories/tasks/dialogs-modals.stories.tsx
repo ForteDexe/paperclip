@@ -693,7 +693,7 @@ const meta = {
     outpost: {
       "capabilities": [
         "tasks/create",
-        "agents/hire",
+        "agents/create",
         "projects/lifecycle",
         "goals/hierarchy"
       ],
@@ -817,7 +817,7 @@ export const NewAgentRecommendation: Story = {
     <DialogStory
       eyebrow="NewAgentDialog"
       title="Recommended CEO-assisted setup"
-      description="Initial agent creation wizard state that routes operators toward CEO-owned agent setup."
+      description="Initial creation wizard state that routes operators toward CEO-owned agent setup."
       badges={["empty", "wizard", "CEO handoff"]}
     >
       <AgentDialogOpener />
@@ -831,7 +831,7 @@ export const NewAgentAdapterSelection: Story = {
     <DialogStory
       eyebrow="NewAgentDialog"
       title="Advanced adapter selection"
-      description="Advanced branch of the agent creation wizard showing registered adapter choices and recommended states."
+      description="Advanced branch of the creation wizard showing registered adapter choices and recommended states."
       badges={["populated", "adapters", "advanced"]}
     >
       <AgentDialogOpener variant="advanced" />

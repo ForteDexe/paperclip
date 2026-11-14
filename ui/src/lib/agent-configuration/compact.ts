@@ -9,7 +9,7 @@ export function compactAgentConfiguration(document: AgentConfigurationDocument):
     spec.adapterConfig = { ...spec.adapterConfig };
     delete spec.adapterConfig.promptTemplate;
   }
-  for (const key of ["title", "icon", "reportsTo", "capabilities", "defaultEnvironmentId", "metadata", "adapterConfig", "runtimeConfig"] as const) {
+  for (const key of ["title", "icon", "leadAgentId", "capabilities", "defaultEnvironmentId", "metadata", "adapterConfig", "runtimeConfig"] as const) {
     if (!nonempty(spec[key])) delete spec[key];
   }
   if (spec.budgetMonthlyCents === 0) delete spec.budgetMonthlyCents;

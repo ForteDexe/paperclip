@@ -45,8 +45,8 @@ function callbacks(db: Db) {
   return {
     getAgent: state.getAgent,
     getRun: state.getRun,
-    toAgentOrgRow: preparation.toAgentOrgRow,
-    groupAgentOrgRowsBySpace: preparation.groupAgentOrgRowsBySpace,
+    toAgentCoordinationRow: preparation.toAgentCoordinationRow,
+    groupAgentCoordinationRowsBySpace: preparation.groupAgentCoordinationRowsBySpace,
     issuesSvc: {
       listReviewAttention: vi.fn<HeartbeatSchedulingDependencies["issuesSvc"]["listReviewAttention"]>(async () => new Map()),
       create: vi.fn<HeartbeatSchedulingDependencies["issuesSvc"]["create"]>(),

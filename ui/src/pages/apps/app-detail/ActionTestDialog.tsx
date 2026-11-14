@@ -98,7 +98,7 @@ export function ActionTestDialog({
   const testAgentsView = useQueryView(testAgentsQuery);
   const agents = useMemo(
     () => [...(testAgentsQuery.data?.agents ?? [])].sort(
-      (a, b) => a.orgDepth - b.orgDepth || a.name.localeCompare(b.name),
+      (a, b) => a.hierarchyDepth - b.hierarchyDepth || a.name.localeCompare(b.name),
     ),
     [testAgentsQuery.data],
   );

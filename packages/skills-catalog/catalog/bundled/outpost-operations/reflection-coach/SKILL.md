@@ -65,7 +65,7 @@ curl -sS "$OUTPOST_API_URL/api/agents/<targetAgentId>" \
   -H "Authorization: Bearer $OUTPOST_API_KEY"
 ```
 
-Record `name`, `role`, `reportsTo`, `adapterType`, `adapterConfig.instructionsFilePath` (where `AGENTS.md` lives), and current assigned skills via `GET /api/agents/<targetAgentId>/skills`. Refuse and exit if `targetAgentId == $OUTPOST_AGENT_ID`.
+Record `name`, `role`, `leadAgentId`, `adapterType`, `adapterConfig.instructionsFilePath` (where `AGENTS.md` lives), and current assigned skills via `GET /api/agents/<targetAgentId>/skills`. Refuse and exit if `targetAgentId == $OUTPOST_AGENT_ID`.
 
 ### 2) Pull the recent record
 

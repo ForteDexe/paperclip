@@ -39,7 +39,7 @@ export function grokBotRoutes(db: Db, resourceUrl: string) {
   router.post("/spaces/:spaceId/grok-invitations", async (req, res) => {
     const { spaceId, operatorId } = await spaceScope(req, true);
     const details = createGrokInvitationSchema.parse(req.body);
-    if (details.reportsTo) { const manager = await agentService(db).getById(details.reportsTo); if (!manager || manager.spaceId !== spaceId || manager.status === "terminated") throw notFound("Manager not found"); }
+    if (details.leadAgentId) { const lead = await agentService(db).getById(details.leadAgentId); if (!lead || lead.spaceId !== spaceId || lead.status === "terminated") throw notFound("Coordination lead not found"); }
     res.set("Cache-Control", "no-store").status(201).json(await invitations.create(spaceId, operatorId, details));
   });
   router.get(path, async (req, res) => {

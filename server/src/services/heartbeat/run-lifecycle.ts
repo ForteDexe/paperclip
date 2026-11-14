@@ -2501,7 +2501,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           "Missing-comment retry suppressed because the agent is not invokable",
         payload: {
           reason: invokability.reason,
-          invalidOrgChain: invokability.invalidOrgChain,
+          invalidCoordinationChain: invokability.invalidCoordinationChain,
           ...invokability.details,
         },
       });

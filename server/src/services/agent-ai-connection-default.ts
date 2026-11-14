@@ -18,15 +18,15 @@ const PROVIDER_AUTH_ENV_KEYS: Record<AiProvider, readonly string[]> = {
   xai: ["XAI_API_KEY", "GROK_API_KEY", "GROK_HOME", "XAI_BASE_URL"],
 };
 
-/** A create inherits a connection choice, never its manager's credentials or identity. */
+/** A created agent inherits a connection choice, never its lead's credentials or identity. */
 export function defaultAiConnectionForCreate(
   adapterType: string,
   config: Record<string, unknown>,
-  managerBinding: unknown,
+  leadBinding: unknown,
 ): AiRuntimeConnectionBinding | undefined {
   const compatible = (binding: AiConnectionBinding) =>
     isAiConnectionCompatible(binding, adapterType, config.model, config.provider, config.acpxAgent);
-  const inherited = aiRuntimeConnectionBindingSchema.safeParse(managerBinding);
+  const inherited = aiRuntimeConnectionBindingSchema.safeParse(leadBinding);
   // Unmanaged parents keep their existing login and credential-reference paths.
   if (!inherited.success) return undefined;
   const env = config.env && typeof config.env === "object" ? config.env as Record<string, unknown> : {};

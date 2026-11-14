@@ -226,7 +226,7 @@ export async function cleanupAntigravityJourney(input: {
   const agent = agents.find(agent => agent.id === resources.agentId);
   if (agent && (agent.spaceId !== resources.spaceId || agent.name !== resources.agentName || named.length !== 1))
     throw new ConnectionFailure("cleanup_agent_owner_mismatch");
-  if (agent && agents.some(row => row.reportsTo === agent.id)) throw new ConnectionFailure("cleanup_agent_has_unowned_reports");
+  if (agent && agents.some(row => row.leadAgentId === agent.id)) throw new ConnectionFailure("cleanup_agent_has_unowned_reports");
   if (agent) {
     cleanup.agent = false; cleanup.runs = false;
     const requestedStops = new Map<string, string | null>();

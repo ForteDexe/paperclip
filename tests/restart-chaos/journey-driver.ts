@@ -77,7 +77,7 @@ const api = async (path, method = "GET", body) => {
 };
 let issueId = process.env.OUTPOST_TASK_ID;
 try {
-// This agent is hired for one task: find it by its own assignment.
+// This agent is created for one task: find it by its own assignment.
 const assigned = await api("/spaces/" + process.env.OUTPOST_SPACE_ID + "/issues?assigneeAgentId=" + process.env.OUTPOST_AGENT_ID);
 issueId ??= (Array.isArray(assigned) ? assigned : assigned.issues ?? []).find(item => item.title?.includes(${JSON.stringify(title)}))?.id;
 if (!issueId) throw new Error("No assigned task names " + ${JSON.stringify(title)});
@@ -136,7 +136,7 @@ export class JourneyDriver {
   /** Q3: the scripted agent that calls the connected app; others use the seeded agent. */
   get assigneeAgentId(): string | null { return this.state.app?.agentId ?? null; }
 
-  /** Q3: start the harness's OAuth app, connect it as the board, and hire the scripted agent. */
+  /** Q3: start the harness's OAuth app, connect it as the board, and create the scripted agent. */
   async prepare(): Promise<void> {
     if (this.workload !== "Q3" || this.state.app) return;
     const { api, lab, plan, timeline } = this.host;

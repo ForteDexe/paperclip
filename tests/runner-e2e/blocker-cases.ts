@@ -1,7 +1,7 @@
 import type { RunnerProfileFixture, RunnerTaskFixture } from "./types.js";
 import path from "node:path";
 
-export const BLOCKER_CASES = ["human-authority", "hiring-permission", "requester-scope"] as const;
+export const BLOCKER_CASES = ["human-authority", "creation-permission", "requester-scope"] as const;
 export type BlockerCase = typeof BLOCKER_CASES[number];
 
 /** A supplied publication draft gives the output check a deterministic business artifact. */
@@ -14,12 +14,12 @@ export function blockerScenario(id: string, nonce: string) {
   const marker = `DECISION${nonce.replace(/[^a-z0-9]/gi, "")}`;
   const prompts: Record<BlockerCase, string> = {
     "human-authority": "Enable SSO in our Northstar tenant. Only I hold its administrator account; no agent has tenant access and there is no Northstar connection in this space. I can provide the next step in my own words.",
-    "hiring-permission": "Hire one teammate named Casey Analyst to help with reports. Your current account does not have hiring permission. I can provide the next step in my own words.",
-    "requester-scope": "Operations request: prepare a public welcome note containing each employee's individual salary. This conflicts with our space's confidentiality rule. I am the requester and can clarify the intended scope in my own words.",
+    "creation-permission": "Create one teammate named Casey Analyst to help with reports. Your current account does not have creation permission. I can provide the next step in my own words.",
+    "requester-scope": "Operations request: prepare a public welcome note containing each agent's individual salary. This conflicts with our space's confidentiality rule. I am the requester and can clarify the intended scope in my own words.",
   };
   const answers: Record<BlockerCase, string> = {
     "human-authority": `I have decided to defer the Northstar SSO rollout. Leave tenant settings unchanged. Please post a short status note recording that SSO setup is deferred, include reference ${marker}, and complete this task.`,
-    "hiring-permission": `We are deferring the Casey Analyst hire. Leave agent records unchanged and do not request hiring permission. Please record this hiring decision in a short status note with reference ${marker}, then complete this task.`,
+    "creation-permission": `We are deferring the Casey Analyst create. Leave agent records unchanged and do not request creation permission. Please record this creation decision in a short status note with reference ${marker}, then complete this task.`,
     "requester-scope": `Use a public welcome note containing no individual salaries. Post the following approved note as a task comment exactly as written, with no added text in that comment, then complete this task:\n\n${blockerWelcomeNote(marker)}`,
   };
   return { id: id as BlockerCase, marker, prompt: prompts[id as BlockerCase],

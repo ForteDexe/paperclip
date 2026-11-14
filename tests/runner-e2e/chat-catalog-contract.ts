@@ -63,7 +63,7 @@ const originalClockExecutionIds = new Set([
   "chat-features.runner-opencode.local.agent-chat.conference-room",
   "chat-features.runner-opencode.local.agent-chat.track-delegated-work",
   "chat-features.runner-opencode.local.agents.agent-api-key",
-  "chat-features.runner-opencode.local.agents.hire-needs-approval",
+  "chat-features.runner-opencode.local.agents.create-needs-approval",
   "chat-features.runner-opencode.local.agents.pause-agent",
   "chat-features.runner-opencode.local.agents.retire-agent",
   "chat-features.runner-opencode.local.app-permissions.new-quarantined-action",

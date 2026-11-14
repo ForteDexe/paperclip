@@ -1,14 +1,14 @@
 #!/usr/bin/env npx tsx
 /**
- * Standalone org chart image generator.
+ * Standalone agent hierarchy image generator.
  *
- * Renders each of the 5 org chart styles to PNG using Playwright (headless Chromium).
+ * Renders each of the 5 agent hierarchy styles to PNG using Playwright (headless Chromium).
  * This gives us browser-native emoji rendering, full CSS support, and pixel-perfect output.
  *
  * Usage:
- *   npx tsx scripts/generate-org-chart-images.ts
+ *   npx tsx scripts/generate-agent-hierarchy-images.ts
  *
- * Output: tmp/org-chart-images/<style>-<size>.png
+ * Output: tmp/agent-hierarchy-images/<style>-<size>.png
  */
 import { chromium } from "@playwright/test";
 import * as fs from "fs";
@@ -16,15 +16,15 @@ import * as path from "path";
 
 // ── Org data (same as index.html) ──────────────────────────────
 
-interface OrgNode {
+interface AgentHierarchyNode {
   name: string;
   role: string;
   icon?: string;
   tag: string;
-  children?: OrgNode[];
+  children?: AgentHierarchyNode[];
 }
 
-const ORGS: Record<string, OrgNode> = {
+const ORGS: Record<string, AgentHierarchyNode> = {
   sm: {
     name: "Default agent",
     role: "Default agent",
@@ -99,7 +99,7 @@ const ORGS: Record<string, OrgNode> = {
         children: [{ name: "Analyst", role: "Finance", tag: "fin" }],
       },
       {
-        name: "COO",
+        name: "Operations Coordinator",
         role: "Operations",
         icon: "⚙️",
         tag: "ops",
@@ -114,7 +114,7 @@ const ORGS: Record<string, OrgNode> = {
 };
 
 // OG collapsed org
-const OG_ORG: OrgNode = {
+const OG_ORG: AgentHierarchyNode = {
   name: "Default agent",
   role: "Default agent",
   tag: "lead",
@@ -130,7 +130,7 @@ interface StyleDef {
   key: string;
   name: string;
   css: string;
-  renderCard: (node: OrgNode, isOg: boolean) => string;
+  renderCard: (node: AgentHierarchyNode, isOg: boolean) => string;
 }
 
 const COMMON_CSS = `
@@ -516,7 +516,7 @@ body { background: #0d1117; }
 // ── HTML rendering ─────────────────────────────────────────────
 
 function renderNode(
-  node: OrgNode,
+  node: AgentHierarchyNode,
   style: StyleDef,
   isOg: boolean,
 ): string {
@@ -531,7 +531,7 @@ function renderNode(
 }
 
 function renderTree(
-  orgData: OrgNode,
+  orgData: AgentHierarchyNode,
   style: StyleDef,
   isOg: boolean,
 ): string {
@@ -548,7 +548,7 @@ const OUTPOST_WATERMARK = `<div class="watermark">
 
 function buildHtml(
   style: StyleDef,
-  orgData: OrgNode,
+  orgData: AgentHierarchyNode,
   isOg: boolean,
 ): string {
   const tree = renderTree(orgData, style, isOg);
@@ -567,7 +567,7 @@ ${OUTPOST_WATERMARK}
 // ── Main ───────────────────────────────────────────────────────
 
 async function main() {
-  const outDir = path.resolve("tmp/org-chart-images");
+  const outDir = path.resolve("tmp/agent-hierarchy-images");
   fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await chromium.launch();
@@ -650,7 +650,7 @@ async function main() {
   let compHtml = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
-<title>Org Chart Style Comparison</title>
+<title>Agent hierarchy Style Comparison</title>
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; background: #050505; color: #eee; padding: 40px; }
   h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.03em; }
@@ -664,7 +664,7 @@ async function main() {
   .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; font-weight: 500; }
 </style>
 </head><body>
-<h1>Org Chart Export — Style Comparison</h1>
+<h1>Agent hierarchy Export — Style Comparison</h1>
 <p class="sub">5 styles × 3 org sizes + OG cards. All rendered via Playwright (browser-native emojis, full CSS).</p>
 `;
 
@@ -685,7 +685,7 @@ async function main() {
   compHtml += `</body></html>`;
   fs.writeFileSync(path.join(outDir, "comparison.html"), compHtml);
   console.log(`\n✓ All done! ${results.length} images generated.`);
-  console.log(`  Open: tmp/org-chart-images/comparison.html`);
+  console.log(`  Open: tmp/agent-hierarchy-images/comparison.html`);
 }
 
 main().catch((e) => {

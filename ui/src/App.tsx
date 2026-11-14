@@ -63,7 +63,7 @@ const NewAgent = lazy(() => import("./pages/NewAgent").then((module) => ({ defau
 
 
 const ProductionAgents = lazy(() => import("./pages/Agents.production").then((module) => ({ default: module.Agents })));
-const ProductionOrgChart = lazy(() => import("./pages/OrgChart.production").then((module) => ({ default: module.OrgChart })));
+const ProductionAgentHierarchy = lazy(() => import("./pages/AgentHierarchy.production").then((module) => ({ default: module.AgentHierarchy })));
 
 function ProductionSurface({ children }: { children: ReactNode }) {
   return <Suspense fallback={<OutpostLoading />}>{children}</Suspense>;
@@ -116,8 +116,8 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />
       <Route
-        path="org"
-        element={streamlinedUiEnabled ? <Navigate to="/agents/all" replace /> : <ProductionSurface><ProductionOrgChart /></ProductionSurface>}
+        path="agent-hierarchy"
+        element={streamlinedUiEnabled ? <Navigate to="/agents/all" replace /> : <ProductionSurface><ProductionAgentHierarchy /></ProductionSurface>}
       />
       <Route path="agents" element={<Navigate to="/agents/all" replace />} />
       {AGENT_FILTER_TABS.map((tab) => (

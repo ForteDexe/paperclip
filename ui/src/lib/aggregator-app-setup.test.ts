@@ -3,21 +3,21 @@ import type { Agent } from "@outpost/shared";
 import { aggregatorAppSetupTask, aggregatorSetupAgent } from "./aggregator-app-setup";
 
 function agent(id: string, overrides: Partial<Agent> = {}): Agent {
-  return { id, name: id, role: "general", status: "active", reportsTo: null, createdAt: new Date("2026-01-01"), ...overrides } as Agent;
+  return { id, name: id, role: "general", status: "active", leadAgentId: null, createdAt: new Date("2026-01-01"), ...overrides } as Agent;
 }
 
 describe("aggregator setup task assignee", () => {
   it("prefers a named Default agent over other agents", () => {
     expect(aggregatorSetupAgent([
       agent("lead", { role: "lead", createdAt: new Date(0) }),
-      agent("default", { name: " Default agent ", reportsTo: "lead" }),
+      agent("default", { name: " Default agent ", leadAgentId: "lead" }),
     ])?.id).toBe("default");
   });
 
   it("chooses the highest ranking default and then the oldest at that rank", () => {
     const agents = [
       agent("new", { name: "Default agent", createdAt: new Date("2026-09-01") }),
-      agent("report", { name: "Default agent", reportsTo: "old", createdAt: new Date(0) }),
+      agent("report", { name: "Default agent", leadAgentId: "old", createdAt: new Date(0) }),
       agent("old", { name: "Default agent" }),
     ];
     expect(aggregatorSetupAgent(agents)?.id).toBe("old");
@@ -34,7 +34,7 @@ describe("aggregator setup task assignee", () => {
     expect(aggregatorSetupAgent([
       agent("terminated", { name: "Default agent", status: "terminated" }),
       agent("pending", { name: "Default agent", status: "pending_approval" }),
-      agent("invalid", { name: "Default agent", orgChainHealth: { status: "invalid_org_chain" } as Agent["orgChainHealth"] }),
+      agent("invalid", { name: "Default agent", coordinationHealth: { status: "invalid_coordination_chain" } as Agent["coordinationHealth"] }),
       agent("available"),
     ])?.id).toBe("available");
     expect(aggregatorSetupAgent([])).toBeUndefined();

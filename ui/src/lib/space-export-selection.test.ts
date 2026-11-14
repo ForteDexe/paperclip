@@ -23,7 +23,7 @@ const ROOT_FILES = [
   "README.md",
   "COMPANY.md",
   ".outpost.yaml",
-  "images/org-chart.png",
+  "images/agent-hierarchy.png",
   "images/logo.png",
 ];
 

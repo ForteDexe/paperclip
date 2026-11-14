@@ -32,7 +32,7 @@ export async function storeOrganizationApiKey(
   };
 }
 
-/** Store a validated key during agent creation without rotating other agents’
+/** Store a validated key during creation without rotating other agents’
  * credentials. The caller removes this definition if creation fails. */
 export async function storeProviderApiKey(
   spaceId: string,

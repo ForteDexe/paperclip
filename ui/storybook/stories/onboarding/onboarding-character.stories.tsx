@@ -31,7 +31,7 @@ function Frame({ children }: { children: ReactNode }) {
 export const Asleep: Story = { render: (args) => <Frame><OnboardingCharacter {...args} className="size-full" /></Frame> };
 export const Awake: Story = { args: { awake: true }, render: (args) => <Frame><OnboardingCharacter {...args} className="size-full" /></Frame> };
 
-/** Step from the connect step to Review and back, as the wizard does; the palette is picked here since a real hire assigns it at random. */
+/** Step from the connect step to Review and back, as the wizard does; the palette is picked here since a real create assigns it at random. */
 export const WakeUp: Story = {
   render: (args) => {
     const [awake, setAwake] = useState(false);

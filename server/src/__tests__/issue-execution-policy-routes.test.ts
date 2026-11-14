@@ -102,7 +102,7 @@ function registerModuleMocks() {
           id: reference,
           spaceId: "space-1",
           status: "idle",
-          orgChainHealth: { status: "healthy" },
+          coordinationHealth: { status: "healthy" },
         },
       })),
     }),

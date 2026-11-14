@@ -201,8 +201,8 @@ vi.mock("../services/remote-agent-profiles.js", () => ({
   remoteAgentProfileService: () => remoteAgentProfileSvc,
 }));
 
-vi.mock("../routes/org-chart-svg.js", () => ({
-  renderOrgChartPng: vi.fn(async () => Buffer.from("png")),
+vi.mock("../routes/agent-hierarchy-svg.js", () => ({
+  renderAgentHierarchyPng: vi.fn(async () => Buffer.from("png")),
 }));
 
 const { spacePortabilityService, dedupeImportedSpaceName, parseGitHubSourceUrl, renderYamlBlock, renderFrontmatter } = await import("../services/space-portability.js");
@@ -279,7 +279,7 @@ describe("space portability", () => {
         role: "engineer",
         title: "Software Engineer",
         icon: "code",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Writes code",
         adapterType: "claude_local",
         adapterConfig: {
@@ -324,9 +324,9 @@ describe("space portability", () => {
         name: "Product Lead",
         status: "idle",
         role: "product",
-        title: "Chief Marketing Officer",
+        title: "Product Coordinator",
         icon: "globe",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Owns marketing",
         adapterType: "claude_local",
         adapterConfig: {
@@ -609,7 +609,7 @@ describe("space portability", () => {
     expect(asTextFile(exported.files["agents/claudecoder/AGENTS.md"])).toContain("You are ClaudeCoder.");
     expect(asTextFile(exported.files["agents/claudecoder/AGENTS.md"])).toContain("skills:");
     expect(asTextFile(exported.files["agents/claudecoder/AGENTS.md"])).toContain(`- "${outpostKey}"`);
-    expect(asTextFile(exported.files["agents/product/AGENTS.md"])).not.toContain("skills:");
+    expect(asTextFile(exported.files["agents/product-lead/AGENTS.md"])).not.toContain("skills:");
     expect(asTextFile(exported.files["skills/outpost/outpost/outpost/SKILL.md"])).toContain("metadata:");
     expect(asTextFile(exported.files["skills/outpost/outpost/outpost/SKILL.md"])).toContain('kind: "github-dir"');
     expect(exported.files["skills/outpost/outpost/outpost/references/api.md"]).toBeUndefined();
@@ -654,10 +654,10 @@ describe("space portability", () => {
     expect(asTextFile(exported.files["agents/claudecoder/AGENTS.md"])).toContain(`- "${outpostKey}"`);
   });
 
-  it("drops retired Default agent creation-denial metadata from exports", async () => {
+  it("drops retired Default creation-denial metadata from exports", async () => {
     const denial = { actorType: "user", actorId: "operator-user", at: "2026-11-08T00:00:00.000Z" };
     const lead = (id: string, name: string, permissions: Record<string, unknown>) => ({
-      id, spaceId: "space-1", name, status: "idle", role: "lead", title: null, icon: null, reportsTo: null, capabilities: null,
+      id, spaceId: "space-1", name, status: "idle", role: "lead", title: null, icon: null, leadAgentId: null, capabilities: null,
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, budgetMonthlyCents: 0, permissions, metadata: null,
     });
     agentSvc.list.mockResolvedValue([
@@ -670,9 +670,9 @@ describe("space portability", () => {
     });
 
     const permissions = (slug: string) => exported.manifest.agents.find((agent: { slug: string }) => agent.slug === slug)?.permissions;
-    expect(permissions("deniedlead")).not.toHaveProperty("canCreateAgents");
-    expect(permissions("deniedlead")).not.toHaveProperty("leadCreationDeniedBy");
-    expect(permissions("openlead")).not.toHaveProperty("leadCreationDeniedBy");
+    expect(permissions("denieddefaultagent")).not.toHaveProperty("canCreateAgents");
+    expect(permissions("denieddefaultagent")).not.toHaveProperty("leadCreationDeniedBy");
+    expect(permissions("opendefaultagent")).not.toHaveProperty("leadCreationDeniedBy");
   });
 
   it("refuses to read external instruction roots without an instance-admin export grant", async () => {
@@ -684,7 +684,7 @@ describe("space portability", () => {
       role: "engineer",
       title: null,
       icon: null,
-      reportsTo: null,
+      leadAgentId: null,
       capabilities: null,
       adapterType: "codex_local",
       adapterConfig: {
@@ -797,7 +797,7 @@ describe("space portability", () => {
         role: "engineer",
         title: null,
         icon: null,
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: null,
         adapterType: "codex_local",
         adapterConfig: {
@@ -920,13 +920,13 @@ describe("space portability", () => {
       "sidebar:",
       "  agents:",
       '    - "claudecoder"',
-      '    - "product"',
+      '    - "product-lead"',
       "  projects:",
       '    - "alpha"',
       '    - "zulu"',
     ].join("\n"));
     expect(exported.manifest.sidebar).toEqual({
-      agents: ["claudecoder", "product"],
+      agents: ["claudecoder", "product-lead"],
       projects: ["alpha", "zulu"],
     });
   });
@@ -1273,7 +1273,7 @@ describe("space portability", () => {
 
     expect(preview.counts.issues).toBe(0);
     expect(preview.fileInventory.some((entry) => entry.path.startsWith("tasks/"))).toBe(false);
-    expect(preview.fileInventory.some((entry) => entry.path === "images/org-chart.png")).toBe(false);
+    expect(preview.fileInventory.some((entry) => entry.path === "images/agent-hierarchy.png")).toBe(false);
 
     const downloaded = await portability.exportBundle("space-1", {
       include: {
@@ -1283,7 +1283,7 @@ describe("space portability", () => {
         issues: false,
       },
     });
-    expect(downloaded.files["images/org-chart.png"]).toMatchObject({
+    expect(downloaded.files["images/agent-hierarchy.png"]).toMatchObject({
       encoding: "base64",
       contentType: "image/png",
     });
@@ -1814,7 +1814,7 @@ describe("space portability", () => {
     for (const [, input] of agentSvc.create.mock.calls) expect(input.appearance).toEqual(appearance);
   });
 
-  it("does not restore retired Default agent creation-denial metadata on import", async () => {
+  it("does not restore retired Default creation-denial metadata on import", async () => {
     const denial = { actorType: "user", actorId: "source-operator-user", at: "2026-11-08T00:00:00.000Z" };
     const source = await agentSvc.list();
     agentSvc.list.mockResolvedValue([{ ...source[0], role: "lead", permissions: { canCreateAgents: false, canCreateSkills: true, leadCreationDeniedBy: denial } }]);
@@ -1848,7 +1848,7 @@ describe("space portability", () => {
     expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
-  it("ignores retired Default agent creation-denial metadata during update import", async () => {
+  it("ignores retired Default creation-denial metadata during update import", async () => {
     const denial = { actorType: "user", actorId: "source-operator-user", at: "2026-11-08T00:00:00.000Z" };
     const [fixture] = await agentSvc.list();
     const existing = { ...fixture, role: "lead", permissions: { canCreateAgents: false, canCreateSkills: true, leadCreationDeniedBy: denial } };
@@ -2296,7 +2296,7 @@ describe("space portability", () => {
       },
     ]);
     agentSvc.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({
-      id: `${String(input.name).toLowerCase()}-created`,
+      id: `${String(input.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}-created`,
       name: input.name,
       status: input.status,
       adapterType: input.adapterType,
@@ -2314,15 +2314,15 @@ describe("space portability", () => {
             'schema: "agentcompanies/v1"',
             'name: "Imported Outpost"',
             "includes:",
-            "  - agents/engineering_lead/AGENTS.md",
+            "  - agents/engineering-lead/AGENTS.md",
             "  - agents/qa/AGENTS.md",
             "---",
             "",
           ].join("\n"),
-          "agents/engineering_lead/AGENTS.md": [
+          "agents/engineering-lead/AGENTS.md": [
             "---",
             'name: "Engineering Lead"',
-            'slug: "engineering_lead"',
+            'slug: "engineering-lead"',
             'kind: "agent"',
             "---",
             "",
@@ -2334,7 +2334,7 @@ describe("space portability", () => {
             'name: "QA"',
             'slug: "qa"',
             'kind: "agent"',
-            'reportsTo: "engineering_lead"',
+            'leadAgentId: "engineering-lead"',
             "---",
             "",
             "Verify engineering work.",
@@ -2343,9 +2343,9 @@ describe("space portability", () => {
           ".outpost.yaml": [
             'schema: "outpost/v1"',
             "agents:",
-            "  engineering_lead:",
-            '    reportsToExistingAgentId: "existing-lead"',
-            '    reportsToExistingAgentSlug: "lead"',
+            "  engineering-lead:",
+            '    existingLeadAgentId: "existing-lead"',
+            '    existingLeadAgentSlug: "lead"',
             "    adapter:",
             '      type: "claude_local"',
             "  qa:",
@@ -2360,8 +2360,8 @@ describe("space portability", () => {
       collisionStrategy: "rename",
     }, "user-1");
 
-    expect(agentSvc.update).toHaveBeenCalledWith("engineering_lead-created", { reportsTo: "existing-lead" });
-    expect(agentSvc.update).toHaveBeenCalledWith("qa-created", { reportsTo: "engineering_lead-created" });
+    expect(agentSvc.update).toHaveBeenCalledWith("engineering-lead-created", { leadAgentId: "existing-lead" });
+    expect(agentSvc.update).toHaveBeenCalledWith("qa-created", { leadAgentId: "engineering-lead-created" });
   });
 
   it("exports project env as portable inputs without concrete values", async () => {
@@ -2627,7 +2627,7 @@ describe("space portability", () => {
         role: "engineer",
         title: "Software Engineer",
         icon: "code",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Writes code",
         adapterType: "claude_local",
         adapterConfig: { promptTemplate: "You are ClaudeCoder." },
@@ -2643,7 +2643,7 @@ describe("space portability", () => {
         role: "coach",
         title: "Reflection Coach",
         icon: "sparkles",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Reviews trajectories",
         adapterType: "codex_local",
         adapterConfig: { promptTemplate: "You coach agents." },
@@ -3382,7 +3382,7 @@ describe("space portability", () => {
         role: "engineer",
         title: "Software Engineer",
         icon: "code",
-        reportsTo: null,
+        leadAgentId: null,
         capabilities: "Writes code",
         adapterType: "claude_local",
         adapterConfig: {
@@ -3717,7 +3717,7 @@ describe("space portability", () => {
         projects: true,
         issues: true,
       },
-      selectedFiles: ["agents/product/AGENTS.md"],
+      selectedFiles: ["agents/product-lead/AGENTS.md"],
       target: {
         mode: "existing_space",
         spaceId: "space-1",
@@ -3731,7 +3731,7 @@ describe("space portability", () => {
       "space-1",
       expect.objectContaining({
         "COMPANY.md": expect.any(String),
-        "agents/product/AGENTS.md": expect.any(String),
+        "agents/product-lead/AGENTS.md": expect.any(String),
       }),
       {
         onConflict: "rename",
@@ -3759,7 +3759,7 @@ describe("space portability", () => {
     expect(result.space.action).toBe("unchanged");
     expect(result.agents).toEqual([
       {
-        slug: "product",
+        slug: "product-lead",
         id: "agent-product",
         action: "created",
         name: "Product Lead",
@@ -5974,18 +5974,18 @@ describe("space portability", () => {
     expect(plan!.plannedName).toBe("ClaudeCoder");
   });
 
-  it("handles circular reportsTo chains without infinite recursion during export", async () => {
+  it("handles circular leadAgentId chains without infinite recursion during export", async () => {
     const portability = spacePortabilityService({} as any);
 
     agentSvc.list.mockResolvedValue([
       {
         id: "agent-a", name: "AgentA", status: "idle", role: "engineer", title: null, icon: null,
-        reportsTo: "agent-b", capabilities: null, adapterType: "claude_local",
+        leadAgentId: "agent-b", capabilities: null, adapterType: "claude_local",
         adapterConfig: {}, runtimeConfig: {}, budgetMonthlyCents: 0, permissions: {}, metadata: null,
       },
       {
         id: "agent-b", name: "AgentB", status: "idle", role: "manager", title: null, icon: null,
-        reportsTo: "agent-a", capabilities: null, adapterType: "claude_local",
+        leadAgentId: "agent-a", capabilities: null, adapterType: "claude_local",
         adapterConfig: {}, runtimeConfig: {}, budgetMonthlyCents: 0, permissions: {}, metadata: null,
       },
     ]);
@@ -5993,7 +5993,7 @@ describe("space portability", () => {
       files: { "AGENTS.md": "Instructions" }, entryFile: "AGENTS.md", warnings: [],
     });
 
-    // Export should complete without infinite recursion in org chart building
+    // Export should complete without infinite recursion in agent hierarchy building
     const exported = await portability.exportBundle("space-1", {
       include: { space: true, agents: true, projects: false, issues: false },
     });

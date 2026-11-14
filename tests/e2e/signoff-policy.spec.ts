@@ -482,7 +482,7 @@ async function setupSpace(boardRequest: APIRequestContext): Promise<TestContext>
   const spaceId = space.id;
   const spacePrefix = space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E";
 
-  // Helper: hire/approve agent + API key + request context
+  // Helper: create/approve agent + API key + request context
   async function createAgent(name: string, role: string, title: string): Promise<AgentAuth> {
     const agentRes = await boardRequest.post(`${BASE_URL}/api/spaces/${spaceId}/agent-hires`, {
       data: {
@@ -497,10 +497,10 @@ async function setupSpace(boardRequest: APIRequestContext): Promise<TestContext>
       },
     });
     expect(agentRes.ok()).toBe(true);
-    const hire = await agentRes.json();
-    const agent = hire.agent;
-    if (hire.approval) {
-      const approvalRes = await boardRequest.post(`${BASE_URL}/api/approvals/${hire.approval.id}/approve`, {
+    const create = await agentRes.json();
+    const agent = create.agent;
+    if (create.approval) {
+      const approvalRes = await boardRequest.post(`${BASE_URL}/api/approvals/${create.approval.id}/approve`, {
         data: { decisionNote: "Approved for signoff e2e setup." },
       });
       expect(approvalRes.ok()).toBe(true);

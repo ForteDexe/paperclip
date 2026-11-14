@@ -89,7 +89,7 @@ function UpgradePage() {
 
 const meta = {
   id: "agents-runner-upgrade",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Runner upgrade",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Agents/Runner upgrade",
   component: UpgradePage,
   parameters: {
     layout: "fullscreen",

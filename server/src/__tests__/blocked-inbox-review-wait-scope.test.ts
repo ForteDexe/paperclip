@@ -47,7 +47,7 @@ function rowFindings(externalResponseWaits: IssueGraphLivenessInput["externalRes
   const findings = classifyIssueGraphLiveness({
     issues,
     relations,
-    agents: [{ id: agentId, spaceId, name: "Coder", role: "engineer", status: "active", reportsTo: null }],
+    agents: [{ id: agentId, spaceId, name: "Coder", role: "engineer", status: "active", leadAgentId: null }],
     externalResponseWaits,
     now: new Date("2026-11-10T00:00:00Z"),
   });

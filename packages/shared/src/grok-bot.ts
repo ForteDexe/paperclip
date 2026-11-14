@@ -6,7 +6,7 @@ export const createGrokInvitationSchema = z.object({
   name: z.string().trim().min(1).max(100),
   botName: z.string().trim().min(1).max(100),
   role: z.enum(AGENT_ROLES).default("general"),
-  reportsTo: z.uuid().nullable().optional(),
+  leadAgentId: z.uuid().nullable().optional(),
 }).strict();
 export const configureGrokRoutineSchema = z.object({
   bindingId: z.uuid(), expectedRevision: z.number().int().nonnegative(),
@@ -32,7 +32,7 @@ export interface GrokBinding extends DotBinding {
   assignment?: { id: string; runId: string; status: string; lastActivityAt: string; attentionRequired: boolean } | null;
 }
 export interface GrokInvitation extends Omit<DotInvitation, "agent" | "binding"> {
-  agent: DotInvitation["agent"] & { role: typeof AGENT_ROLES[number]; reportsTo: string | null; botName: string };
+  agent: DotInvitation["agent"] & { role: typeof AGENT_ROLES[number]; leadAgentId: string | null; botName: string };
   binding: GrokBinding | null;
 }
 export interface GrokConnection extends Omit<DotConnection, "binding"> { binding: GrokBinding | null; recoveryNeeded: boolean; queuedTaskCount?: number; currentTask?: { id: string; identifier: string; title: string } | null }

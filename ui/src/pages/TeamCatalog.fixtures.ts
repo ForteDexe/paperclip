@@ -12,15 +12,15 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const sampleTeam: CatalogTeam = {
-  id: "outpost:bundled:outpost-defaults:core-exec-team",
-  key: "outpost/bundled/outpost-defaults/core-exec-team",
+  id: "outpost:bundled:outpost-defaults:core-crew",
+  key: "outpost/bundled/outpost-defaults/core-crew",
   kind: "bundled",
   category: "outpost-defaults",
-  slug: "core-exec-team",
+  slug: "core-crew",
   name: "Core Exec Team",
   description:
-    "A starter leadership team: an Default agent who manages an Engineering Lead and a Product Lead, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
-  path: "catalog/bundled/outpost-defaults/core-exec-team",
+    "A starter agent group: a Default agent coordinating an Engineering Lead and a Product Lead, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
+  path: "catalog/bundled/outpost-defaults/core-crew",
   entrypoint: "TEAM.md",
   schema: "agentcompanies/v1",
   defaultInstall: true,

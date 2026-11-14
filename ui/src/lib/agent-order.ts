@@ -99,7 +99,7 @@ export function sortAgentsByDefaultSidebarOrder(
   const byId = new Map(agents.map((agent) => [agent.id, agent]));
   const childrenOf = new Map<string | null, Agent[]>();
   for (const agent of agents) {
-    const parentId = agent.reportsTo && byId.has(agent.reportsTo) ? agent.reportsTo : null;
+    const parentId = agent.leadAgentId && byId.has(agent.leadAgentId) ? agent.leadAgentId : null;
     const siblings = childrenOf.get(parentId) ?? [];
     siblings.push(agent);
     childrenOf.set(parentId, siblings);

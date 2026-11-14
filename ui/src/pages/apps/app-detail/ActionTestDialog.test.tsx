@@ -135,7 +135,7 @@ beforeEach(() => {
   root = createRoot(container);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   listTestAgentsMock.mockReset().mockResolvedValue({
-    agents: [{ id: "agent-lead", name: "Default agent", role: "lead", title: "Default agent", status: "active", orgDepth: 0 }],
+    agents: [{ id: "agent-lead", name: "Default agent", role: "lead", title: "Default agent", status: "active", hierarchyDepth: 0 }],
   });
   getTestAgentAccessMock.mockReset().mockResolvedValue({
     access: {

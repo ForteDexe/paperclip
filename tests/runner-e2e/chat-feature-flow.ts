@@ -34,7 +34,7 @@ export async function runChatFeatureFlow(context: {
   registry.register<{ id: string }>({ id: "worker", dependencies: ["project"], async setup() {
     const base = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: execution.environment.id,
       workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce });
-    const worker = { ...base, name: "Morgan", role: "engineer", title: "Engineer", reportsTo: f.agent.id,
+    const worker = { ...base, name: "Morgan", role: "engineer", title: "Engineer", leadAgentId: f.agent.id,
       capabilities: "Writes clear product announcements using the project brief.",
       runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>),
         heartbeat: { enabled: false, maxConcurrentRuns: 1, maxDailyRuns: 1, maxDailyCostCents: CHAT_FEATURE_BUDGET_CENTS } } };

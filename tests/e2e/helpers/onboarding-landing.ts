@@ -59,7 +59,7 @@ async function readNavLog(page: Page): Promise<string[]> {
 export async function expectLandsOnFirstTaskWithoutDashboardBounce(
   page: Page,
 ): Promise<void> {
-  // The wizard's launch handler does async work (hire + create issue) before
+  // The wizard's launch handler does async work (create + create issue) before
   // navigating, so give reaching the issue page a generous budget.
   await expect(page).toHaveURL(ISSUE_URL, { timeout: 30_000 });
   const settledUrl = page.url();

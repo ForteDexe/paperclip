@@ -39,7 +39,7 @@ async function main(): Promise<ClaudePrivateReceipt> {
     const managedLocal = inventory.filter(row => row.driver === "local");
     const effectiveEnvironmentId = agent.defaultEnvironmentId ?? settings.defaultEnvironmentId ?? (managedLocal.length === 1 ? managedLocal[0]!.id : undefined);
     if (settings.experimental?.enableManagedSandboxOnly || settings.general?.executionMode === "kubernetes") throw new Error("Saved target requires its actual managed/sandbox execution qualification, not an implicit host fallback");
-    if (agent.spaceId !== input.spaceId || effectiveEnvironmentId !== input.environmentId || agentHarnessType(agent.adapterType, agent.adapterConfig) !== "claude_local") throw new Error("Saved hire is not the selected same-space Claude target");
+    if (agent.spaceId !== input.spaceId || effectiveEnvironmentId !== input.environmentId || agentHarnessType(agent.adapterType, agent.adapterConfig) !== "claude_local") throw new Error("Saved create is not the selected same-space Claude target");
     connectionId = input.connectionId; grantId = input.grantId; config = agent.adapterConfig; savedType = agent.adapterType;
     savedBinding = agent.runtimeConfig.aiConnection;
     if (!savedBinding || savedBinding.mode === "router" || savedBinding.provider !== "anthropic" || savedBinding.mode !== "responsible_user" && (savedBinding.connectionId !== connectionId || savedBinding.grantId !== grantId)) throw new Error("Saved Claude configuration lacks the actual selected managed Anthropic binding; ambient login fallback is forbidden");

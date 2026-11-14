@@ -54,8 +54,8 @@ export interface CatalogTeamActorContext {
 }
 
 export interface CatalogTeamImportOptions {
-  targetManagerAgentId?: string | null;
-  targetManagerSlug?: string | null;
+  targetLeadAgentId?: string | null;
+  targetLeadSlug?: string | null;
   include?: Partial<SpacePortabilityInclude>;
   agents?: SpacePortabilityAgentSelection;
   collisionStrategy?: SpacePortabilityCollisionStrategy;
@@ -93,7 +93,7 @@ export interface CatalogTeamPreparedSource {
   errors: string[];
 }
 
-interface CatalogTargetManagerReference {
+interface CatalogTargetLeadReference {
   agentId: string;
   slug: string;
 }
@@ -451,7 +451,7 @@ async function catalogProvenance(team: CatalogTeam) {
   };
 }
 
-async function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: CatalogTargetManagerReference | null) {
+async function renderCatalogProvenanceYaml(team: CatalogTeam, targetLead: CatalogTargetLeadReference | null) {
   const provenance = await catalogProvenance(team);
   const agentSlugs = Array.from(new Set(team.agentSlugs)).sort();
   const projectSlugs = Array.from(new Set(team.projectSlugs)).sort();
@@ -461,10 +461,10 @@ async function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: Cat
     .filter((slug): slug is string => Boolean(slug));
 
   const renderEntity = (slug: string, opts?: { reparentRoot?: boolean }) => ({
-    ...(opts?.reparentRoot && targetManager
+    ...(opts?.reparentRoot && targetLead
       ? {
-          reportsToExistingAgentId: targetManager.agentId,
-          reportsToExistingAgentSlug: targetManager.slug,
+          existingLeadAgentId: targetLead.agentId,
+          existingLeadAgentSlug: targetLead.slug,
         }
       : {}),
     metadata: {
@@ -488,7 +488,7 @@ async function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: Cat
     agents: Object.fromEntries(agentSlugs.map((slug) => [
       slug,
       renderEntity(slug, {
-        reparentRoot: Boolean(targetManager && team.rootAgentSlugs.includes(slug)),
+        reparentRoot: Boolean(targetLead && team.rootAgentSlugs.includes(slug)),
       }),
     ])),
   };
@@ -745,27 +745,27 @@ export function teamsCatalogService(db: Db) {
   const spaceSkills = spaceSkillService(db);
   const agents = agentService(db);
 
-  async function resolveTargetManagerReference(
+  async function resolveTargetLeadReference(
     spaceId: string,
     options: CatalogTeamImportOptions,
-  ): Promise<CatalogTargetManagerReference | null> {
-    if (options.targetManagerSlug) {
-      const slug = normalizeAgentUrlKey(options.targetManagerSlug);
-      if (!slug) throw unprocessable("Target manager slug is invalid.");
-      const managers = await agents.list(spaceId);
-      const manager = managers.find((candidate) => normalizeAgentUrlKey(candidate.name) === slug);
-      if (!manager) throw notFound("Target manager agent not found");
-      return { agentId: manager.id, slug };
+  ): Promise<CatalogTargetLeadReference | null> {
+    if (options.targetLeadSlug) {
+      const slug = normalizeAgentUrlKey(options.targetLeadSlug);
+      if (!slug) throw unprocessable("Coordination-lead slug is invalid.");
+      const candidates = await agents.list(spaceId);
+      const lead = candidates.find((candidate) => normalizeAgentUrlKey(candidate.name) === slug);
+      if (!lead) throw notFound("Coordination lead not found");
+      return { agentId: lead.id, slug };
     }
-    if (!options.targetManagerAgentId) return null;
-    const manager = await agents.getById(options.targetManagerAgentId);
-    if (!manager) throw notFound("Target manager agent not found");
-    if (manager.spaceId !== spaceId) {
-      throw forbidden("Target manager agent must belong to the target space.");
+    if (!options.targetLeadAgentId) return null;
+    const lead = await agents.getById(options.targetLeadAgentId);
+    if (!lead) throw notFound("Coordination lead not found");
+    if (lead.spaceId !== spaceId) {
+      throw forbidden("Coordination lead must belong to the target space.");
     }
     return {
-      agentId: manager.id,
-      slug: normalizeAgentUrlKey(manager.name) ?? manager.id,
+      agentId: lead.id,
+      slug: normalizeAgentUrlKey(lead.name) ?? lead.id,
     };
   }
 
@@ -792,13 +792,13 @@ export function teamsCatalogService(db: Db) {
     warnings.push(...skillPrep.warnings);
     errors.push(...skillPrep.errors);
 
-    const targetManager = await resolveTargetManagerReference(spaceId, options);
+    const targetLead = await resolveTargetLeadReference(spaceId, options);
     const files = await readCatalogTeamSourceFiles(team);
     const existingExtension =
       typeof files[".outpost.yaml"] === "string"
         ? parseYamlDocument(files[".outpost.yaml"])
         : {};
-    const generatedExtension = parseYamlDocument(await renderCatalogProvenanceYaml(team, targetManager));
+    const generatedExtension = parseYamlDocument(await renderCatalogProvenanceYaml(team, targetLead));
     files[".outpost.yaml"] = renderYamlFile(mergePlainRecords(existingExtension, generatedExtension));
     rewriteAgentCatalogSkillRefs(team, files);
 

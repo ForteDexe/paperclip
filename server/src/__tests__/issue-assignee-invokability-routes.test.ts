@@ -74,7 +74,7 @@ vi.mock("../services/index.js", () => ({
         id: raw,
         spaceId: "space-1",
         status: agentStatusById[raw] ?? "idle",
-        orgChainHealth: { status: "healthy" },
+        coordinationHealth: { status: "healthy" },
       },
     })),
   }),

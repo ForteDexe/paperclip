@@ -3,7 +3,7 @@
 This suite covers the instruction reductions tracked in the
 [working checklist](../../doc/plans/2026-10-02-stock-harness-outpost-checklist.md).
 Existing context-integrity and chat evals supplied a custom QA instruction
-bundle. Their passing results therefore did not qualify a hire with the tiny
+bundle. Their passing results therefore did not qualify a create with the tiny
 production default. The new suite omits that fixture bundle and lets the public
 agent-creation route materialize the shipped default.
 
@@ -25,7 +25,7 @@ product disposition recovery still counts as actual usage. This is not a new
 | Change | Required deterministic evidence | Product E2E evidence |
 | --- | --- | --- |
 | SH-1: native Codex preserves vendor base instructions | Serialized start/resume requests from the TypeScript driver, recovery paths, runnerd transport, Runner Lab/live sessions, and Rust provider use additive developer instructions. | Real new native Codex hires execute the three journeys below. Task success alone cannot prove vendor base preservation. |
-| SH-2: identity-only default hire manual | Existing public agent-creation and onboarding-asset tests cover default, custom, and CEO exceptions. | The public bundle is exactly one `AGENTS.md` containing the eight-word shipped identity, checked before provider execution and again during cleanup. |
+| SH-2: identity-only default create manual | Existing public agent-creation and onboarding-asset tests cover default, custom, and CEO exceptions. | The public bundle is exactly one `AGENTS.md` containing the eight-word shipped identity, checked before provider execution and again during cleanup. |
 | SH-3: reduced shared legacy task/chat defaults and resume delta | Shared prompt tests and ACPX, Codex, OpenCode, Pi, Hermes, and Cursor Cloud adapter regressions retain runtime context and exclude removed generic procedures. | Actual legacy `adapter.invoke` prompts retain fresh identity/connection guidance, omit the removed procedures, and have complete receipts for every observed run. |
 
 `pnpm test:e2e:runner:stock-harness` runs these credential-free prerequisites,
@@ -103,7 +103,7 @@ pnpm test:e2e:runner -- --id stock-harness.runner-codex.local.assigned-skill-exp
 Use an exact cell first, then expand profile/journey selections when its evidence
 is understood. The ordinary launcher, isolated instance, fixture cleanup,
 screenshots, attempt history, usage/cost reporting, and dashboard publisher are
-unchanged. `snapshots/stock-harness-hire.json` captures the public bundle and
+unchanged. `snapshots/stock-harness-create.json` captures the public bundle and
 budgets before paid execution. `snapshots/stock-harness.json` captures the final
 bundle, budgets, run IDs, actual legacy prompts, and matcher verdicts. Evidence
 API failures retain an error snapshot and cannot pass. All snapshots use the
@@ -141,7 +141,7 @@ The suite exercises fresh isolated hires and their continuations. Existing saved
 manuals and old Codex sessions are not automatically migrated. The latter still
 need a provider-session reset to restore a previously replaced vendor base.
 Private Runner protocol definitions remain separate: they use mock control-plane
-operations and cannot substitute for this public hiring and assembled-prompt
+operations and cannot substitute for this public creation and assembled-prompt
 coverage.
 
 ## GitHub qualification and matched comparison
@@ -152,7 +152,7 @@ The first diagnostic native Codex skill cell
 [passed on GitHub](https://github.com/paperclipai/paperclip/actions/runs/37034213743)
 at `a63437069de58d22ee5adbcb6a6202c007dcf037`. All seven independent skill/task
 checks passed; the provider run lasted 34.745 seconds and the cell 56.660 seconds.
-Its tiny public hire bundle and budget receipts passed, and cleanup passed.
+Its tiny public create bundle and budget receipts passed, and cleanup passed.
 This diagnostic predates enforced prerequisite admission and the expanded source
 digest, so it is retained separately from the final qualification matrix.
 
@@ -166,7 +166,7 @@ and refuses admission when setup fails. A cold legacy pilot must pass before the
 full matrix retry.
 
 The [fixed legacy pilot](https://github.com/paperclipai/paperclip/actions/runs/37039240025)
-at `4163dbfd0fd4d145bfa52b4d7f80eb59a362ee36` passed SDK setup, hire/shared
+at `4163dbfd0fd4d145bfa52b4d7f80eb59a362ee36` passed SDK setup, create/shared
 prompt/oracle checks and the Rust additive test. It stopped before providers:
 the real daemon-frame test lacked the cold `outpost-runnerd` binary. Setup now
 builds that daemon from the locked Rust source before TypeScript gates, retains

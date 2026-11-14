@@ -37,7 +37,7 @@ export function gradeBudgetIncident(value: unknown) {
   const paused = o.state.beforeWorker as PausedAgent | undefined; const manual = o.state.afterManual as PausedAgent | undefined;
   c.add("manual-pause-is-separate", paused?.id === worker.id && paused.status === "paused" && paused.pauseReason === "budget"
     && manual?.id === other.id && manual.status === "paused" && manual.pauseReason === "manual",
-    "Morgan's actual budget hold is distinguished from another actual manually paused employee.");
+    "Morgan's actual budget hold is distinguished from another actual manually paused agent.");
   // The saved hold, the agent's own writes and the page opened from the reply
   // link carry this check; the reply's wording is read by a person, not graded.
   c.add("honest-incident-guidance", o.reply.trim().length > 0

@@ -47,7 +47,7 @@ export async function prepareTeamConditions(
 ) {
   const preview = await ctx.input.api.post<CatalogTeamImportPreviewResult>(
     `${root(ctx)}/teams/catalog/${encodeURIComponent(team.id)}/preview`,
-    { targetManagerAgentId: ctx.input.fixtures.agent.id },
+    { targetLeadAgentId: ctx.input.fixtures.agent.id },
   );
   const rootAgent = preview.portabilityPreview.manifest.agents.find(
     (a) => a.slug === team.rootAgentSlugs[0],
@@ -103,7 +103,7 @@ export async function prepareTeamConditions(
   const existing = await ctx.input.api.get<Agent>(`/api/agents/${created.id}`);
   const conflict = await ctx.input.api.post<CatalogTeamImportPreviewResult>(
     `${root(ctx)}/teams/catalog/${encodeURIComponent(team.id)}/preview`,
-    { targetManagerAgentId: ctx.input.fixtures.agent.id },
+    { targetLeadAgentId: ctx.input.fixtures.agent.id },
   );
   const plan = conflict.portabilityPreview.plan.agentPlans.find(
     (p) => p.slug === rootAgent.slug,

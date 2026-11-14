@@ -5,24 +5,24 @@
   "note": "Capability audit only. Local means constructible investigation path, not implemented or passing. Provider means genuine prerequisite required, not an inferred unsupported product capability. All frozen scenarios stay in denominator.",
   "scenarios": [
     {
-      "scenarioId": "agents.hire-claude-code",
+      "scenarioId": "agents.create-claude-code",
       "readinessClass": "provider",
       "needs": "Eligible Claude account, qualified computer; must bind account and perform true validation."
     },
     {
-      "scenarioId": "agents.hire-needs-account",
+      "scenarioId": "agents.create-needs-account",
       "readinessClass": "provider",
       "needs": "Start genuinely without eligible Anthropic access, then complete supported human account setup; resumed branch requires real Claude credentials."
     },
     {
-      "scenarioId": "agents.hire-needs-approval",
+      "scenarioId": "agents.create-needs-approval",
       "readinessClass": "implemented",
       "needs": "Actual space approval policy; real pending Morgan proposal rejected by human; explicit changed Jules request accepted against same proposed identity; counted exact decision notifications and no premature worker runs."
     },
     {
-      "scenarioId": "agents.hire-denied",
+      "scenarioId": "agents.create-denied",
       "readinessClass": "implemented",
-      "needs": "Effective deny via public permissions; independent bearer probe; assert no employee/proposal/delegated task and honest human path."
+      "needs": "Effective deny via public permissions; independent bearer probe; assert no agent/proposal/delegated task and honest human path."
     },
     {
       "scenarioId": "agents.ambiguous-cloud-code",
@@ -120,7 +120,7 @@
       "needs": "Real admitted model discovery/account inventory; independently compare restrictions, availability and binding, secrets never exposed."
     },
     {
-      "scenarioId": "runs-adapters.validate-hire",
+      "scenarioId": "runs-adapters.validate-create",
       "readinessClass": "provider",
       "needs": "Eligible selected account with genuine target authentication failure; deterministic failure must not be synthesized in saved state."
     },

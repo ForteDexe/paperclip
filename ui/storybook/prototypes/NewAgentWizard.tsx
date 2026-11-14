@@ -41,7 +41,7 @@ const modelLists = {
   cursor_cloud: [], pi_local: [], hermes_local: [],
 };
 
-// Review-only flow. All edits and the simulated hire live in React state;
+// Review-only flow. All edits and the simulated create live in React state;
 // importing this from Storybook never creates an agent or contacts a provider.
 export const NEW_AGENT_ADAPTERS = [
   "claude_local", "codex_local", "cursor", "cursor_cloud", "gemini_local",

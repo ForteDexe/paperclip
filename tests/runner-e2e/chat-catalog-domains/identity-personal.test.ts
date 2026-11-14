@@ -68,7 +68,7 @@ describe("personal identity and space lifecycle oracles", () => {
     const agentWrote = base(); agentWrote.state.beforeHumanName = "Alex Chen"; expect(grade(agentWrote)).toBe(false);
     const agentAllowed = base(); agentAllowed.state.agentWriteStatus = 200; expect(grade(agentAllowed)).toBe(false);
   });
-  it("does not accept a changed space/employee as a personal profile edit", () => {
+  it("does not accept a changed space/agent as a personal profile edit", () => {
     const o = valid("navigation-preferences.edit-profile"); o.agents[0]!.name = "Alex Chen";
     expect(profileIdentityCases[0]!.grade(o).passed).toBe(false);
   });

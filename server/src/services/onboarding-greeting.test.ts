@@ -5,7 +5,7 @@ describe("renderOnboardingGreeting", () => {
   it("introduces the agent by name as the user's first teammate", async () => {
     const greeting = await renderOnboardingGreeting({
       agentName: "Nova",
-      organizationName: "Acme",
+      spaceName: "Acme",
     });
 
     expect(greeting).toContain(
@@ -22,7 +22,7 @@ describe("renderOnboardingGreeting", () => {
   it("drops the name gracefully when no agent name is set", async () => {
     const greeting = await renderOnboardingGreeting({
       agentName: null,
-      organizationName: "Acme",
+      spaceName: "Acme",
     });
 
     expect(greeting).toContain(

@@ -29,7 +29,7 @@ function createAgent(id: string, name: string, icon: string, urlKey: string): Ag
     title: null,
     icon,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "codex_local",
     adapterConfig: {},

@@ -679,7 +679,7 @@ export async function deliverConversationComments(
       eq(agents.id, issue.conversationAgentId!), eq(agents.spaceId, issue.spaceId),
     ));
     // Match queue admission: setup may retain accepted work, but a pause or
-    // invalid reporting chain must leave the durable comment outbox untouched.
+    // invalid coordination chain must leave the durable comment outbox untouched.
     const invokability = await evaluateAgentInvokabilityFromDb(connection,
       agent && isAgentAwaitingSetup(agent) ? { ...agent, status: "idle" } : agent);
     if (!invokability.invokable || !agent) return invokability;

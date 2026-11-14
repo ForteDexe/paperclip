@@ -222,9 +222,9 @@ export interface SpacePortabilityAgentManifestEntry {
   icon: string | null;
   appearance?: AgentAppearance | null;
   capabilities: string | null;
-  reportsToSlug: string | null;
-  reportsToExistingAgentId: string | null;
-  reportsToExistingAgentSlug: string | null;
+  leadAgentSlug: string | null;
+  existingLeadAgentId: string | null;
+  existingLeadAgentSlug: string | null;
   adapterType: string;
   adapterConfig: Record<string, unknown>;
   runtimeConfig: Record<string, unknown>;

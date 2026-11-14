@@ -1275,7 +1275,7 @@ describe("IssueProperties", () => {
         title: null,
         icon: null,
         status: "active",
-        orgChainHealth: { status: "ok" },
+        coordinationHealth: { status: "ok" },
       } as unknown as Parameters<typeof mockAgentsApi.list.mockResolvedValue>[0][number]);
     mockAgentsApi.list.mockResolvedValue([minimalAgent("agent-1", "ClaudeCoder"), minimalAgent("agent-2", "QA")]);
     const onUpdate = vi.fn();
@@ -1342,7 +1342,7 @@ describe("IssueProperties", () => {
         title: null,
         icon: null,
         status: "active",
-        orgChainHealth: { status: "ok" },
+        coordinationHealth: { status: "ok" },
       } as unknown as Parameters<typeof mockAgentsApi.list.mockResolvedValue>[0][number],
     ]);
     const root = renderProperties(container, {
@@ -3173,7 +3173,7 @@ describe("IssueProperties", () => {
     title: null,
     icon: null,
     status: "active",
-    orgChainHealth: { status: "ok" },
+    coordinationHealth: { status: "ok" },
   } as unknown as Parameters<typeof mockAgentsApi.list.mockResolvedValue>[0][number];
 
   function createWatchdogSummary(overrides: Record<string, unknown> = {}) {

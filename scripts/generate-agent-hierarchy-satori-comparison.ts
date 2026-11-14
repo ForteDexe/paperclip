@@ -1,28 +1,28 @@
 #!/usr/bin/env npx tsx
 /**
- * Standalone org chart comparison generator — pure SVG (no Playwright).
+ * Standalone agent hierarchy comparison generator — pure SVG (no Playwright).
  *
  * Generates SVG files for all 5 styles × 3 org sizes, plus a comparison HTML page.
  * Uses the server-side SVG renderer directly — same code that powers the routes.
  *
  * Usage:
- *   npx tsx scripts/generate-org-chart-satori-comparison.ts
+ *   npx tsx scripts/generate-agent-hierarchy-satori-comparison.ts
  *
- * Output: tmp/org-chart-svg-comparison/
+ * Output: tmp/agent-hierarchy-svg-comparison/
  */
 import * as fs from "fs";
 import * as path from "path";
 import {
-  renderOrgChartSvg,
-  renderOrgChartPng,
-  type OrgNode,
-  type OrgChartStyle,
-  ORG_CHART_STYLES,
-} from "../server/src/routes/org-chart-svg.js";
+  renderAgentHierarchySvg,
+  renderAgentHierarchyPng,
+  type AgentHierarchyNode,
+  type AgentHierarchyStyle,
+  AGENT_HIERARCHY_STYLES,
+} from "../server/src/routes/agent-hierarchy-svg.js";
 
 // ── Sample org data ──────────────────────────────────────────────
 
-const ORGS: Record<string, OrgNode> = {
+const ORGS: Record<string, AgentHierarchyNode> = {
   sm: {
     id: "lead",
     name: "Default agent",
@@ -101,8 +101,8 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        id: "coo",
-        name: "COO",
+        id: "operations-coordinator",
+        name: "Operations Coordinator",
         role: "Operations",
         status: "active",
         reports: [
@@ -115,7 +115,7 @@ const ORGS: Record<string, OrgNode> = {
   },
 };
 
-const STYLE_META: Record<OrgChartStyle, { name: string; vibe: string; bestFor: string }> = {
+const STYLE_META: Record<AgentHierarchyStyle, { name: string; vibe: string; bestFor: string }> = {
   monochrome: { name: "Monochrome", vibe: "Vercel — zero color noise, dark", bestFor: "GitHub READMEs, developer docs" },
   nebula: { name: "Nebula", vibe: "Glassmorphism — cosmic gradient", bestFor: "Hero sections, marketing" },
   circuit: { name: "Circuit", vibe: "Linear/Raycast — indigo traces", bestFor: "Product pages, dev tools" },
@@ -126,15 +126,15 @@ const STYLE_META: Record<OrgChartStyle, { name: string; vibe: string; bestFor: s
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main() {
-  const outDir = path.resolve("tmp/org-chart-svg-comparison");
+  const outDir = path.resolve("tmp/agent-hierarchy-svg-comparison");
   fs.mkdirSync(outDir, { recursive: true });
 
   const sizes = ["sm", "med", "lg"] as const;
   const results: string[] = [];
 
-  for (const style of ORG_CHART_STYLES) {
+  for (const style of AGENT_HIERARCHY_STYLES) {
     for (const size of sizes) {
-      const svg = renderOrgChartSvg([ORGS[size]], style);
+      const svg = renderAgentHierarchySvg([ORGS[size]], style);
       const svgFile = `${style}-${size}.svg`;
       fs.writeFileSync(path.join(outDir, svgFile), svg);
       results.push(svgFile);
@@ -142,7 +142,7 @@ async function main() {
 
       // Also generate PNG
       try {
-        const png = await renderOrgChartPng([ORGS[size]], style);
+        const png = await renderAgentHierarchyPng([ORGS[size]], style);
         const pngFile = `${style}-${size}.png`;
         fs.writeFileSync(path.join(outDir, pngFile), png);
         results.push(pngFile);
@@ -157,7 +157,7 @@ async function main() {
   let html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
-<title>Org Chart Style Comparison — Pure SVG (No Playwright)</title>
+<title>Agent hierarchy Style Comparison — Pure SVG (No Playwright)</title>
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; background: #050505; color: #eee; padding: 40px; }
   h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.03em; }
@@ -176,12 +176,12 @@ async function main() {
   .note code { background: #1a1a1a; padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #6366f1; }
 </style>
 </head><body>
-<h1>Org Chart Export — Style Comparison</h1>
+<h1>Agent hierarchy Export — Style Comparison</h1>
 <p class="sub">5 styles × 3 org sizes. Pure SVG — no Playwright, no Satori, no browser needed.</p>
 <div class="badge">Server-side compatible — works on any route</div>
 `;
 
-  for (const style of ORG_CHART_STYLES) {
+  for (const style of AGENT_HIERARCHY_STYLES) {
     const meta = STYLE_META[style];
     html += `<div class="style-section">
   <h2>${meta.name}</h2>
@@ -199,7 +199,7 @@ async function main() {
 <div class="note">
   <h3>Why Pure SVG instead of Satori?</h3>
   <p>
-    <strong>Satori</strong> converts JSX → SVG using Yoga (flexbox). It's great for OG cards but has limitations for org charts:
+    <strong>Satori</strong> converts JSX → SVG using Yoga (flexbox). It's great for OG cards but has limitations for agent hierarchys:
     no <code>::before/::after</code> pseudo-elements, no CSS grid, limited gradient support,
     and connector lines between nodes would need post-processing.
   </p>
@@ -216,7 +216,7 @@ async function main() {
 
   fs.writeFileSync(path.join(outDir, "comparison.html"), html);
   console.log(`\n✓ All done! ${results.length} files generated.`);
-  console.log(`  Open: tmp/org-chart-svg-comparison/comparison.html`);
+  console.log(`  Open: tmp/agent-hierarchy-svg-comparison/comparison.html`);
 }
 
 main().catch((e) => {

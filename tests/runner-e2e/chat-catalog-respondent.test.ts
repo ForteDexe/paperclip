@@ -13,7 +13,7 @@ it("uses a separate actual engineer principal and only the declared assignment g
   const { input, api } = fixture(); const originalFixtures = input.fixtures;
   await prepareChatCatalogRespondent(input, descriptor);
   expect(input.fixtures).toBe(originalFixtures); expect(input.fixtures.agent).toEqual({ id: "morgan", name: "Morgan", spaceId: "space" });
-  expect(api.post.mock.calls[0]?.[1]).toMatchObject({ name: "Morgan", role: "engineer", reportsTo: "ceo", permissions: { canCreateAgents: false } });
+  expect(api.post.mock.calls[0]?.[1]).toMatchObject({ name: "Morgan", role: "engineer", leadAgentId: "ceo", permissions: { canCreateAgents: false } });
   expect(api.patch.mock.calls[0]?.[1]).toEqual({ canCreateAgents: false, canAssignTasks: true });
 });
 it("preserves default CEO fixtures and refuses another scenario before any mutation", async () => {

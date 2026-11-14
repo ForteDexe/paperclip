@@ -42,7 +42,7 @@ async function createTask(page: Page, prefix: string, agentName: string, title: 
 }
 
 const coordination = native
-  ? `Use the native Outpost tools. First get_task_context to verify the current task and your identity. For hiring use call_api with operationId POST /api/spaces/{spaceId}/agent-hires and the requested JSON body. Use create_task for subtasks. Do not use shell commands or raw HTTP. Never read or print credentials. For completion call outpost_finish exactly once with reportedWorkDisposition done, summary describing the completed work, completionClaim {contractRevision:"1",objectiveSatisfied:true,criteria:[{criterionId:"objective",status:"satisfied",evidenceRefs:[]}],remainingWork:[]}, evidence [], and verification []. Wait for that tool to succeed before your final response.`
+  ? `Use the native Outpost tools. First get_task_context to verify the current task and your identity. For creation use call_api with operationId POST /api/spaces/{spaceId}/agent-hires and the requested JSON body. Use create_task for subtasks. Do not use shell commands or raw HTTP. Never read or print credentials. For completion call outpost_finish exactly once with reportedWorkDisposition done, summary describing the completed work, completionClaim {contractRevision:"1",objectiveSatisfied:true,criteria:[{criterionId:"objective",status:"satisfied",evidenceRefs:[]}],remainingWork:[]}, evidence [], and verification []. Wait for that tool to succeed before your final response.`
   : `Use the injected OUTPOST_API_URL and OUTPOST_API_KEY for every API request. Include Authorization: Bearer $OUTPOST_API_KEY and X-Outpost-Run-Id: $OUTPOST_RUN_ID. Never print credentials or the environment. Verify GET /api/agents/me identifies you before writes; stop if it does not. You must act as the agent, not the local board. Use standard Outpost APIs or the managed API tool, and do not install a CLI. Do not read or modify unrelated files. For completion use PATCH /api/issues/$OUTPOST_TASK_ID with status done and a comment.`;
 
 for (const source of ["anthropic", "openai"] as const) {
@@ -57,7 +57,7 @@ for (const source of ["anthropic", "openai"] as const) {
     for (const p of Object.values(providers)) if (!process.env[p.key]) throw new Error(`Missing ${p.key}`);
     const target: Provider = source === "anthropic" ? "openai" : "anthropic";
     const nonce = randomUUID().slice(0, 8);
-    const space = await api("/spaces", "POST", { name: `Hiring QA ${environment} ${providers[source].label} ${nonce}`, description: "Disposable live AI hiring acceptance" });
+    const space = await api("/spaces", "POST", { name: `Creation QA ${environment} ${providers[source].label} ${nonce}`, description: "Disposable live AI creation acceptance" });
     const account = await api(`/spaces/${space.id}/ai-connections`, "POST", { provider: source, method: "api_key", name: `${providers[source].label} QA account`, ownership: "personal", apiKey: process.env[providers[source].key], agentIds: [], allAgents: false });
     let environmentId: string | undefined;
     if (environment === "daytona") {
@@ -66,7 +66,7 @@ for (const source of ["anthropic", "openai"] as const) {
       if (!installed) await api("/plugins/install", "POST", { packageName: path.resolve(import.meta.dirname, "../../packages/plugins/sandbox-providers/daytona"), isLocalPath: true });
       else expect(installed.status).toBe("ready");
       const secret = await api(`/spaces/${space.id}/secrets`, "POST", { name: `Daytona QA ${nonce}`, key: "DAYTONA_API_KEY", value: process.env.DAYTONA_API_KEY });
-      const env = await api(`/spaces/${space.id}/environments`, "POST", { name: `Hiring QA Daytona ${nonce}`, driver: "sandbox", config: { provider: "daytona", apiKey: { type: "secret_ref", secretId: secret.id, version: "latest" }, image: process.env.HIRING_AI_DAYTONA_IMAGE, cpu: 4, memory: 4, disk: 10, reuseLease: false, runnerLifecycleMode: "per_turn", autoStopInterval: 5, autoArchiveInterval: 15, autoDeleteInterval: 60, timeoutMs: 300_000 }, envVars: {} });
+      const env = await api(`/spaces/${space.id}/environments`, "POST", { name: `Creation QA Daytona ${nonce}`, driver: "sandbox", config: { provider: "daytona", apiKey: { type: "secret_ref", secretId: secret.id, version: "latest" }, image: process.env.HIRING_AI_DAYTONA_IMAGE, cpu: 4, memory: 4, disk: 10, reuseLease: false, runnerLifecycleMode: "per_turn", autoStopInterval: 5, autoArchiveInterval: 15, autoDeleteInterval: 60, timeoutMs: 300_000 }, envVars: {} });
       environmentId = env.id;
     }
     const binding = { provider: source, method: "api_key", mode: "responsible_user" };
@@ -74,18 +74,18 @@ for (const source of ["anthropic", "openai"] as const) {
     const config = (provider: Provider) => native
       ? { model: providers[provider].model, lifecycleMode: "per_turn", ...(provider === "anthropic" ? { provider: "acpx", acpxAgent: "claude", acpxPermissionMode: "approve-all" } : { provider: "codex", codexPermissionMode: "never" }) }
       : { model: providers[provider].model, engine: "cli", ...(provider === "anthropic" ? { dangerouslySkipPermissions: true } : { dangerouslyBypassApprovalsAndSandbox: true }) };
-    const manager = await api(`/spaces/${space.id}/agents`, "POST", { name: `${providers[source].label} Manager ${nonce}`, role: "ceo", adapterType: adapterType(source), adapterConfig: config(source), defaultEnvironmentId: environmentId, runtimeConfig: { aiConnection: binding, heartbeat: { enabled: false } }, instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": `# Acceptance manager\n${coordination}\nPerform only the requested bounded hiring workflow. This test has no code deliverable.` } } });
+    const manager = await api(`/spaces/${space.id}/agents`, "POST", { name: `${providers[source].label} Manager ${nonce}`, role: "ceo", adapterType: adapterType(source), adapterConfig: config(source), defaultEnvironmentId: environmentId, runtimeConfig: { aiConnection: binding, heartbeat: { enabled: false } }, instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": `# Acceptance manager\n${coordination}\nPerform only the requested bounded creation workflow. This test has no code deliverable.` } } });
     const sameName = `${providers[source].label} Teammate ${nonce}`;
     const crossName = `${providers[target].label} Teammate ${nonce}`;
     const selfTitle = `Self subtask ${nonce}`;
     const proof = (kind: string) => `HIRING-${kind}-${nonce}: 1147`;
     const simplePrompt = (kind: string) => `${coordination}\nCalculate 31*37 and use exactly ${proof(kind)} as your ${native ? "outpost_finish summary and final response" : "completion comment"}. Mark this task done. No subtasks or files.`;
-    const hire = (provider: Provider, name: string) => ({ name, role: "engineer", reportsTo: manager.id, adapterType: adapterType(provider), adapterConfig: config(provider), ...(environmentId ? { defaultEnvironmentId: environmentId } : {}), instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": `# Acceptance worker\n${coordination}` } } });
-    const title = `Hire both providers ${nonce}`;
+    const create = (provider: Provider, name: string) => ({ name, role: "engineer", leadAgentId: manager.id, adapterType: adapterType(provider), adapterConfig: config(provider), ...(environmentId ? { defaultEnvironmentId: environmentId } : {}), instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": `# Acceptance worker\n${coordination}` } } });
+    const title = `Create both providers ${nonce}`;
     const child = native
       ? `Use create_task with idempotencyKey self-${nonce}, title ${JSON.stringify(selfTitle)}, assigneeActorId ${manager.id}, and description ${JSON.stringify(simplePrompt("SELF"))}.`
       : `Create a subtask with title ${JSON.stringify(selfTitle)}, parentId equal to OUTPOST_TASK_ID, assigneeAgentId ${manager.id}, status todo, and description ${JSON.stringify(simplePrompt("SELF"))}.`;
-    const prompt = `${coordination}\nPerform exactly these three operations, then mark this manager task done with links. Do not wait for the child and do not configure AI connections.\n1. POST /api/spaces/${space.id}/agent-hires with ${JSON.stringify(hire(source, sameName))}.\n2. POST the same endpoint with ${JSON.stringify(hire(target, crossName))}. It is expected that ${providers[target].label} has no connection yet; hiring must still succeed. Do not provide runtimeConfig.aiConnection or credentials for either hire; the server must select defaults.\n3. ${child} The board will assign tasks to the two hires separately.`;
+    const prompt = `${coordination}\nPerform exactly these three operations, then mark this manager task done with links. Do not wait for the child and do not configure AI connections.\n1. POST /api/spaces/${space.id}/agent-hires with ${JSON.stringify(create(source, sameName))}.\n2. POST the same endpoint with ${JSON.stringify(create(target, crossName))}. It is expected that ${providers[target].label} has no connection yet; creation must still succeed. Do not provide runtimeConfig.aiConnection or credentials for either create; the server must select defaults.\n3. ${child} The board will assign tasks to the two hires separately.`;
     const evidence: Record<string, unknown> = { spaceId: space.id, prefix: space.issuePrefix, managerId: manager.id, account, source, target, runner, environment, environmentId };
     console.log(`Fixture ${JSON.stringify(evidence)}`);
     try {

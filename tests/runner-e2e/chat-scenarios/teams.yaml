@@ -31,7 +31,7 @@ scenarios:
   - id: teams.install-team
     capabilities:
       - teams/install
-      - agents/hire
+      - agents/create
     context: >-
       The preview is accepted, required accounts exist, and the agent has effective installation
       and resource-creation authority.

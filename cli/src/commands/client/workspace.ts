@@ -20,15 +20,15 @@ interface RuntimeActionOptions extends BaseClientOptions {
   payloadJson?: string;
 }
 
-interface OrgOutputOptions extends SpaceOptions {
+interface HierarchyOutputOptions extends SpaceOptions {
   out?: string;
 }
 
 export function registerWorkspaceCommands(program: Command): void {
-  const org = program.command("org").description("Outpost chart operations");
-  addSpaceGet(org, "get", "Get org chart data", "org");
-  addBinarySpaceGet(org, "svg", "Download org chart SVG", "org.svg");
-  addBinarySpaceGet(org, "png", "Download org chart PNG", "org.png");
+  const hierarchy = program.command("hierarchy").description("Agent hierarchy operations");
+  addSpaceGet(hierarchy, "get", "Get agent hierarchy data", "agent-hierarchy");
+  addBinarySpaceGet(hierarchy, "svg", "Download agent hierarchy SVG", "agent-hierarchy.svg");
+  addBinarySpaceGet(hierarchy, "png", "Download agent hierarchy PNG", "agent-hierarchy.png");
   addSpaceGet(program.command("agent-config").description("Agent configuration summaries"), "list", "List agent configurations", "agent-configurations");
 
   const workspace = program.command("workspace").description("Execution workspace operations");
@@ -130,7 +130,7 @@ function addBinarySpaceGet(parent: Command, name: string, description: string, p
       .description(description)
       .option("-C, --space-id <id>", "Outpost ID")
       .option("--out <path>", "Write output to file")
-      .action(async (opts: OrgOutputOptions) => {
+      .action(async (opts: HierarchyOutputOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireSpace: true });
           const response = await fetch(buildApiUrl(ctx.api.apiBase, `${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`), {

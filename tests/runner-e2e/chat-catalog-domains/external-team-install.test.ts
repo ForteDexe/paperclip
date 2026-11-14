@@ -170,7 +170,7 @@ function runtimeFixture() {
 }
 it("the actual public per-slug override schema accepts only the selected runtime/account configuration, not CEO instructions or cwd", () => {
   const f = runtimeFixture(), runtime = selectedTeamInstallRuntime(f.ctx, f.actor), overrides = teamInstallOverrides(f.o.state.team as never, runtime);
-  const payload = catalogTeamInstallSchema.parse({ targetManagerAgentId: "ceo", adapterOverrides: overrides });
+  const payload = catalogTeamInstallSchema.parse({ targetLeadAgentId: "ceo", adapterOverrides: overrides });
   expect(Object.keys(payload.adapterOverrides!)).toEqual(["cto", "coder"]);
   for (const entry of Object.values(payload.adapterOverrides!)) {
     expect(entry).toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL, timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } } });

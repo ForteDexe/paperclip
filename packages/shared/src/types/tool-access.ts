@@ -1687,8 +1687,8 @@ export interface ToolConnectionTestAgent {
   role: string;
   title: string | null;
   status: string;
-  /** Zero-based depth in the space reporting tree; roots are highest-ranked. */
-  orgDepth: number;
+  /** Zero-based depth in the optional coordination tree; root peers have depth zero. */
+  hierarchyDepth: number;
 }
 
 export interface ToolConnectionTestAgentsResponse {

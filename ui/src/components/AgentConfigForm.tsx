@@ -84,7 +84,7 @@ import { getUIAdapter } from "../adapters";
 import { ClaudeLocalAdvancedFields } from "../adapters/claude-local/config-fields";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
-import { ReportsToPicker } from "./ReportsToPicker";
+import { CoordinationLeadPicker } from "./CoordinationLeadPicker";
 import {
   EnvironmentVariablesEditor,
   type EnvironmentVariablesEditorHandle,
@@ -1688,13 +1688,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 placeholder="e.g. VP of Engineering"
               />
             </Field>
-            <Field label="Reports to" hint={help.reportsTo}>
-              <ReportsToPicker
+            <Field label="Coordination lead" hint={help.leadAgentId}>
+              <CoordinationLeadPicker
                 agents={spaceAgents}
-                value={eff("identity", "reportsTo", props.agent.reportsTo ?? null)}
-                onChange={(id) => mark("identity", "reportsTo", id)}
+                value={eff("identity", "leadAgentId", props.agent.leadAgentId ?? null)}
+                onChange={(id) => mark("identity", "leadAgentId", id)}
                 excludeAgentIds={[props.agent.id]}
-                chooseLabel="Choose manager…"
+                chooseLabel="Choose coordination lead…"
               />
             </Field>
             {isLocal && !props.hidePromptTemplate && (

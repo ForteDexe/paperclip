@@ -5,7 +5,7 @@ import { readChatOutputDocument, sendChatMessage, type ChatFlowInput, type ChatI
 import { dropChatSendAcknowledgement } from "./lost-send.js";
 
 type Agent = {
-  id: string; name: string; reportsTo?: string; adapterType?: string;
+  id: string; name: string; leadAgentId?: string; adapterType?: string;
   adapterConfig?: Record<string, unknown>; runtimeConfig?: Record<string, unknown>;
 };
 type Comment = { id: string; body: string; authorAgentId?: string; clientRequestId?: string };
@@ -27,24 +27,24 @@ export function assertChatHire(input: {
 }) {
   const hires = input.agents.filter(agent => agent.name === input.hireName);
   expect(hires).toHaveLength(1);
-  const hired = hires[0]!;
+  const created = hires[0]!;
   const lead = input.agents.find(agent => agent.id === input.leadId)!;
   expect(input.connectionId).toBeTruthy();
-  expect(hired).toMatchObject({ reportsTo: input.leadId, adapterType: "outpost_runner" });
-  if (input.hiredId) expect(hired.id).toBe(input.hiredId);
-  expect(hired.adapterConfig?.model).toBe(lead.adapterConfig?.model);
-  expect(hired.runtimeConfig?.aiConnection).toEqual(input.binding);
+  expect(created).toMatchObject({ leadAgentId: input.leadId, adapterType: "outpost_runner" });
+  if (input.hiredId) expect(created.id).toBe(input.hiredId);
+  expect(created.adapterConfig?.model).toBe(lead.adapterConfig?.model);
+  expect(created.runtimeConfig?.aiConnection).toEqual(input.binding);
   expect(input.tasks.map(task => task.id).sort()).toEqual([...input.taskIds].sort());
   for (const id of input.taskIds) {
     const task = input.tasks.find(task => task.id === id)!;
-    expect(task).toMatchObject({ status: "done", assigneeAgentId: hired.id, parentId: null });
+    expect(task).toMatchObject({ status: "done", assigneeAgentId: created.id, parentId: null });
     expect(task.projectId).toBeTruthy();
     const runs = input.runs.filter(run => run.contextSnapshot?.issueId === id);
     expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ agentId: hired.id, status: "succeeded", runtimeMode: "native" });
+    expect(runs[0]).toMatchObject({ agentId: created.id, status: "succeeded", runtimeMode: "native" });
     expect(runs[0]!.contextSnapshot?.aiConnection).toMatchObject({ connectionId: input.connectionId });
   }
-  return hired;
+  return created;
 }
 
 export function assertGroundedChatStatus(input: {
@@ -123,30 +123,30 @@ export async function runChatHardeningFlow(context: {
   const output = (id: string, token: string) => readChatOutputDocument(api, id, token);
 
   try {
-  if (execution.task.id === "hire-delegate-reuse") {
+  if (execution.task.id === "create-delegate-reuse") {
     const hireName = `Morgan Reviewer ${nonce}`;
-    await turn(`Hire exactly one teammate named ${hireName}, reporting to you, using your native runner, model, and available AI connection. Have that teammate write a concise launch checklist as a saved Outpost document with the line "Reference: ${marker}". Put the work in one assigned task in ${project.name}. Link it here and let the teammate complete it.`, 2);
+    await turn(`Create exactly one teammate named ${hireName}, reporting to you, using your native runner, model, and available AI connection. Have that teammate write a concise launch checklist as a saved Outpost document with the line "Reference: ${marker}". Put the work in one assigned task in ${project.name}. Link it here and let the teammate complete it.`, 2);
     const first = (await tasks())[0]!;
     expect(first).toBeTruthy();
     const firstOutput = await output(first.id, marker);
     const account = f.aiConnection!;
-    const hired = assertChatHire({ agents: await agents(), leadId: f.agent.id, hireName,
+    const created = assertChatHire({ agents: await agents(), leadId: f.agent.id, hireName,
       connectionId: account.connectionId, binding: account.binding, taskIds: [first.id], tasks: await tasks(), runs: await allRuns() });
-    expect((firstOutput as Document).createdByAgentId).toBe(hired.id);
+    expect((firstOutput as Document).createdByAgentId).toBe(created.id);
     await turn(`Have the existing ${hireName} review the checklist on ${first.identifier} and write a separate saved review document with the line "Reference: REVIEW${marker}". Create one review task in ${project.name}, assigned to that same teammate. Include the actual checklist in the handoff so they can review it. Preserve the original checklist and task.`, 4);
     const observed = await tasks();
     const second = observed.find(task => task.id !== first.id)!;
     expect(second).toBeTruthy();
     const reviewOutput = await output(second.id, `REVIEW${marker}`);
-    expect((reviewOutput as Document).createdByAgentId).toBe(hired.id);
+    expect((reviewOutput as Document).createdByAgentId).toBe(created.id);
     expect(await api.get(`/api/issues/${first.id}/documents/${encodeURIComponent(firstOutput.key)}`)).toEqual(firstOutput);
     await turn(`Give me a brief status update on ${first.identifier} and ${second.identifier}: identify their owner and recorded status. Do not create or change work.`, 5);
-    assertChatHire({ agents: await agents(), leadId: f.agent.id, hireName, hiredId: hired.id,
+    assertChatHire({ agents: await agents(), leadId: f.agent.id, hireName, hiredId: created.id,
       connectionId: account.connectionId, binding: account.binding, taskIds: [first.id, second.id], tasks: await tasks(), runs: await allRuns() });
     const reply = await latestReply();
     expect(reply).toContain(first.identifier!); expect(reply).toContain(second.identifier!);
     expect(reply).toContain(hireName); expect(reply).toMatch(/done|completed/i);
-    await input.evidence("chat-hire-reuse.json", { agents: await agents(), tasks: await tasks(), firstOutput, reviewOutput, runs: await allRuns() });
+    await input.evidence("chat-create-reuse.json", { agents: await agents(), tasks: await tasks(), firstOutput, reviewOutput, runs: await allRuns() });
   } else if (execution.task.id === "blocked-status-review") {
     const blocker = `VENUE${marker}`, staleBlocker = `BUDGET${marker}`;
     const source = await api.post<ChatIssue>(`${spacePath}/issues`, {
@@ -171,7 +171,7 @@ export async function runChatHardeningFlow(context: {
       taskIdsAfter: (await tasks()).map(task => task.id), taskRuns: (await allRuns()).filter(run => run.contextSnapshot?.issueId === source.id) });
     const config = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: execution.environment.id,
       workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce });
-    const reviewer = await api.post<Agent>(`${spacePath}/agents`, { ...config, name: `Riley Reviewer ${nonce}`, role: "engineer", reportsTo: f.agent.id });
+    const reviewer = await api.post<Agent>(`${spacePath}/agents`, { ...config, name: `Riley Reviewer ${nonce}`, role: "engineer", leadAgentId: f.agent.id });
     await turn(`Have ${reviewer.name} review the saved brief on ${source.identifier} against that task's saved plan, in one separate task in ${project.name}. Give the reviewer both source documents. They should save a JSON review document with planLaunchDay, briefLaunchDay, and a boolean consistent, then complete the review task. Preserve the source task and both documents.`, 3);
     const review = (await tasks()).find(task => task.id !== source.id)!;
     expect(review).toMatchObject({ status: "done", assigneeAgentId: reviewer.id, parentId: null, projectId: project.id });

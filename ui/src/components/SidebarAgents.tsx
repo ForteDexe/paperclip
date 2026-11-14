@@ -146,19 +146,19 @@ function SidebarAgentItem({
   const editHref = `${agentUrl(agent)}/configuration`;
   const isActive = activeAgentId === routeRef;
   const isPaused = agent.status === "paused";
-  const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
+  const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
   const pauseResumeLabel = isPaused ? "Resume agent" : "Pause agent";
-  const pauseResumeDisabled = disabled || agent.status === "pending_approval" || (isPaused && hasInvalidOrgChain);
+  const pauseResumeDisabled = disabled || agent.status === "pending_approval" || (isPaused && hasInvalidCoordination);
   const pauseResumeDisabledLabel = disabled
     ? "Updating..."
-    : isPaused && hasInvalidOrgChain
+    : isPaused && hasInvalidCoordination
         ? "Invalid org chain"
       : pauseResumeLabel;
   const showBuiltInLifecycle = builtInStatus === "needs_setup" || builtInStatus === "pending_approval";
   const trailingLabel = [
     directReportCount > 0 ? `Coordinates ${directReportCount} ${directReportCount === 1 ? "agent" : "agents"}` : null,
     showBuiltInLifecycle ? `Built-in agent ${builtInStatus.replace(/_/g, " ")}` : null,
-    hasInvalidOrgChain ? "Invalid reporting chain" : null,
+    hasInvalidCoordination ? "Invalid coordination chain" : null,
   ].filter(Boolean).join(", ") || undefined;
 
   // C11 (DECISION-SHEET.md): the row itself is a SidebarNavItem, so agent rows
@@ -178,12 +178,12 @@ function SidebarAgentItem({
         starred && !isMobile ? "pr-14" : "pr-8",
       )}
       trailing={
-        directReportCount > 0 || showBuiltInLifecycle || hasInvalidOrgChain ? (
+        directReportCount > 0 || showBuiltInLifecycle || hasInvalidCoordination ? (
           <span className="ml-1 flex shrink-0 items-center gap-1">
             <AgentCoordinationIndicator directReportCount={directReportCount} />
             {showBuiltInLifecycle ? <BuiltInLifecycleChip status={builtInStatus} compact /> : null}
-            {hasInvalidOrgChain ? (
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid reporting chain" />
+            {hasInvalidCoordination ? (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid coordination chain" />
             ) : null}
           </span>
         ) : undefined
@@ -610,8 +610,8 @@ export function SidebarAgents({ streamlined = false }: { streamlined?: boolean }
   const directReportCountByAgentId = useMemo(() => {
     const counts = new Map<string, number>();
     for (const agent of visibleAgents) {
-      if (!agent.reportsTo) continue;
-      counts.set(agent.reportsTo, (counts.get(agent.reportsTo) ?? 0) + 1);
+      if (!agent.leadAgentId) continue;
+      counts.set(agent.leadAgentId, (counts.get(agent.leadAgentId) ?? 0) + 1);
     }
     return counts;
   }, [visibleAgents]);

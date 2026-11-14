@@ -3,7 +3,7 @@ import { JourneyError } from "./types.js";
 
 export const onboardingServerCodes = ["agent_runner_config_incompatible", "agent_runner_unavailable", "agent_runner_platform_probe_failed", "managed_sandbox_unavailable", "environment_space_mismatch"] as const;
 export const onboardingCheckCodes = ["adapter_auth_missing", "codex_hello_probe_failed", "codex_hello_probe_passed", "codex_hello_probe_timeout", "codex_hello_probe_auth_required", "environment_lease_acquire_failed", "environment_workspace_realize_failed", "environment_target_failed", "environment_target_unsupported", "environment_not_found", "environment_target_unavailable", "managed_sandbox_unavailable", "environment_env_binding_missing", "environment_env_resolution_failed", "ai_connection_api_key_rejected", "ai_connection_verification_failed", "sandbox_test_identity"] as const;
-const checkpoints = ["connect", "validation", "hire", "review", "agent-verification"] as const;
+const checkpoints = ["connect", "validation", "create", "review", "agent-verification"] as const;
 const states = ["missing", "pending", "json", "unreadable", "oversized"] as const;
 const requestedAdapters = ["codex_local", "outpost_runner"] as const;
 const adapters = ["codex_local", "outpost_runner", "unrecognized"] as const;
@@ -19,15 +19,15 @@ export interface OnboardingResponseEvidence {
   truncatedChecks: boolean;
 }
 export interface OnboardingConnectEvidence {
-  version: 1; checkpoint: typeof checkpoints[number]; validation: OnboardingResponseEvidence; hire: OnboardingResponseEvidence;
+  version: 1; checkpoint: typeof checkpoints[number]; validation: OnboardingResponseEvidence; create: OnboardingResponseEvidence;
 }
 const blank = (): OnboardingResponseEvidence => ({ state: "missing", httpStatus: null, requestedAdapter: null, adapter: null, outcome: null, serverCode: null, checks: [], truncatedChecks: false });
 const record = (v: unknown): v is Record<string, unknown> => Boolean(v && typeof v === "object" && !Array.isArray(v));
 const member = <T extends readonly string[]>(values: T, v: unknown): v is T[number] => typeof v === "string" && values.includes(v);
 const closed = (v: unknown, keys: string[]) => record(v) && Object.keys(v).length === keys.length && keys.every(key => Object.hasOwn(v, key));
 export function validateOnboardingConnectEvidence(value: unknown): void {
-  if (!closed(value, ["version", "checkpoint", "validation", "hire"]) || !record(value) || value.version !== 1 || !member(checkpoints, value.checkpoint)) throw new Error("invalid_onboarding_connect_evidence");
-  for (const response of [value.validation, value.hire]) {
+  if (!closed(value, ["version", "checkpoint", "validation", "create"]) || !record(value) || value.version !== 1 || !member(checkpoints, value.checkpoint)) throw new Error("invalid_onboarding_connect_evidence");
+  for (const response of [value.validation, value.create]) {
     if (!closed(response, ["state", "httpStatus", "requestedAdapter", "adapter", "outcome", "serverCode", "checks", "truncatedChecks"]) || !record(response) ||
       !member(states, response.state) || !(response.httpStatus === null || Number.isSafeInteger(response.httpStatus) && Number(response.httpStatus) >= 100 && Number(response.httpStatus) <= 599) ||
       !(response.requestedAdapter === null || member(requestedAdapters, response.requestedAdapter)) ||
@@ -40,7 +40,7 @@ export function validateOnboardingConnectEvidence(value: unknown): void {
 
 /** Observe only responses to this Connect action; never retain bodies, text, headers or browser errors. */
 export async function onboardingConnect(input: { page: Page; origin: string; spaceId: string; deadlineAt: number; retain(value: OnboardingConnectEvidence): void }): Promise<OnboardingConnectEvidence> {
-  const { page } = input, receipt: OnboardingConnectEvidence = { version: 1, checkpoint: "connect", validation: blank(), hire: blank() };
+  const { page } = input, receipt: OnboardingConnectEvidence = { version: 1, checkpoint: "connect", validation: blank(), create: blank() };
   input.retain(receipt);
   let active = true, failure: JourneyError | undefined;
   let signalFailure!: (error: JourneyError) => void;
@@ -52,12 +52,12 @@ export async function onboardingConnect(input: { page: Page; origin: string; spa
     if (checkpoints.indexOf(checkpoint) > checkpoints.indexOf(receipt.checkpoint)) receipt.checkpoint = checkpoint;
   };
   const reject = (code: string) => { failure ??= new JourneyError("failed", code); signalFailure(failure); };
-  const route = (request: Request): { kind: "validation" | "hire"; adapter: "codex_local" | "outpost_runner" | null } | null => {
+  const route = (request: Request): { kind: "validation" | "create"; adapter: "codex_local" | "outpost_runner" | null } | null => {
     try {
       const url = new URL(request.url());
       if (request.method() !== "POST" || url.origin !== input.origin || url.search || url.hash) return null;
       const prefix = `/api/spaces/${encodeURIComponent(input.spaceId)}`;
-      if (url.pathname === `${prefix}/agent-hires`) return { kind: "hire", adapter: null };
+      if (url.pathname === `${prefix}/agent-hires`) return { kind: "create", adapter: null };
       for (const adapter of ["codex_local", "outpost_runner"] as const) if (url.pathname === `${prefix}/adapters/${adapter}/test-environment`) return { kind: "validation", adapter };
     } catch { /* An unrelated or malformed URL is not this action's evidence. */ }
     return null;

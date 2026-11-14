@@ -54,7 +54,7 @@ It saves configuration and invalidates verification in the caller's transaction.
 The [lifecycle guide](../../../doc/AGENT-LIFECYCLE.md) lists its permitted callers.
 Ordinary configuration updates use the root lifecycle command.
 
-The [agent lifecycle module](../../../doc/AGENT-LIFECYCLE.md) owns agent creation,
+The [agent lifecycle module](../../../doc/AGENT-LIFECYCLE.md) owns creation,
 pause, resume, and termination. Use its commands for these changes.
 
 The execution admission module owns project task-execution policy and the

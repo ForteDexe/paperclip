@@ -28,7 +28,7 @@ describe("terminal case handoff follows accepted task completion", () => {
     await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "owner" });
     await db.insert(agents).values([
       { id: agentId, spaceId, name: "Builder", role: "lead", status: "idle", adapterType: "process" },
-      { id: otherAgentId, spaceId, name: "Other", role: "engineer", status: "idle", adapterType: "process", reportsTo: agentId },
+      { id: otherAgentId, spaceId, name: "Other", role: "engineer", status: "idle", adapterType: "process", leadAgentId: agentId },
     ]);
     await db.insert(issues).values({ id: issueId, spaceId, title: "Verify a receipt", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId });

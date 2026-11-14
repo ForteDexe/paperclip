@@ -16,7 +16,7 @@ test("a ready agent with a missing personal key offers Claude setup in chat and 
     }));
     await writeFile(path.join(root, "continued"), "ready");
     const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
-      name: "Chief of Staff", role: "general", adapterType: "process",
+      name: "Default agent", role: "general", adapterType: "process",
       adapterConfig: { command: process.execPath },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
     } }));
@@ -33,7 +33,7 @@ test("a ready agent with a missing personal key offers Claude setup in chat and 
     await page.getByTestId("task-chat-composer-input").locator('[contenteditable="true"]').fill("Say hello.");
     await page.getByTestId("task-chat-composer-send").click();
     await expect(page.getByText("Connect your Claude account", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Chief of Staff needs your own AI connection.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Default agent needs your own AI connection.", { exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
     const chat = await json(await request.get(chatPath));
     // Real pre-dispatch failure, not a seeded card or mocked Outpost response.

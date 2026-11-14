@@ -109,7 +109,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     observations.reloaded = { ...await snapshot(), renderedContent: reopenedSource.renderedContent };
     check("agent-settings-reload-persisted");
 
-    const title = `Journey QA agent settings ${campaignId}`;
+    const title = `Journey QAn agent settings ${campaignId}`;
     const task = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
       agentName: agent.name, title, prompt: settingsTaskPrompt, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });

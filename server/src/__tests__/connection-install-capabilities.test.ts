@@ -32,7 +32,7 @@ const dialect = new PgDialect();
 /** Only the query transport is synthetic. Both paths use the real services and policy evaluator. */
 function fixture(count = 3) {
   const agentRows = Array.from({ length: count }, (_, index) => ({
-    id: agentId(index), spaceId, status: "idle", role: "engineer", permissions: {}, reportsTo: null,
+    id: agentId(index), spaceId, status: "idle", role: "engineer", permissions: {}, leadAgentId: null,
   }));
   const state = {
     activeMembership: true,

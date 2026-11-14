@@ -10,7 +10,7 @@ interface PageSkeletonProps {
     | "approvals"
     | "costs"
     | "inbox"
-    | "org-chart";
+    | "agent-hierarchy";
 }
 
 export function PageSkeleton({ variant = "list", collectionHeading }: PageSkeletonProps) {
@@ -73,7 +73,7 @@ export function PageSkeleton({ variant = "list", collectionHeading }: PageSkelet
     );
   }
 
-  if (variant === "org-chart") {
+  if (variant === "agent-hierarchy") {
     return (
       <div className="space-y-4">
         <Skeleton className="h-(--sz-calc-17) w-full rounded-lg border border-border" />

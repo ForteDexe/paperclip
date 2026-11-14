@@ -149,7 +149,7 @@ RUN set -eu; \
     printf '%s\n' 'export PATH=/opt/outpost-runner/provider-pack/node_modules/.bin:$PATH' \
       > /etc/profile.d/01-outpost-runner-provider-pack.sh; \
     chmod 0644 /etc/profile.d/01-outpost-runner-provider-pack.sh; \
-    for command_name in acpx claude-agent-acp codex-acp claude codex grok gemini kimi opencode cursor-agent agent hermes gh outpost-runnerd; do \
+    for command_name in acpx claude-agent-acp codex-acp claude codex grok gemini kimi opencode cursor-agent hermes gh outpost-runnerd; do \
       command -v "$command_name" >/dev/null || { echo "FATAL: $command_name not on PATH after build" >&2; exit 1; }; \
     done; \
     metadata="$(outpost-runnerd --build-metadata)"; \

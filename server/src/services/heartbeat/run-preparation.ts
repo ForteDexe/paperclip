@@ -104,7 +104,7 @@ import {
 } from "../../modules/run-dispatch/index.js";
 import {
   DIRECT_NON_INVOKABLE_STATUSES,
-  type AgentOrgRow,
+  type AgentCoordinationRow,
 } from "../agent-invokability.js";
 import {
   isLowTrustQuarantined,
@@ -2868,38 +2868,38 @@ function readNonEmptyString(value: unknown): string | null {
 
 /** Issue context and responsible-user resolution bound to one service database. */
 export function createHeartbeatRunPreparation(db: Db) {
-  function toAgentOrgRow(
+  function toAgentCoordinationRow(
     agent: Pick<
       typeof agents.$inferSelect,
-      "id" | "spaceId" | "name" | "reportsTo" | "status"
+      "id" | "spaceId" | "name" | "leadAgentId" | "status"
     >,
-  ): AgentOrgRow {
+  ): AgentCoordinationRow {
     return {
       id: agent.id,
       spaceId: agent.spaceId,
       name: agent.name,
-      reportsTo: agent.reportsTo,
+      leadAgentId: agent.leadAgentId,
       status: agent.status,
     };
   }
 
-  async function listSpaceAgentOrgRows(
+  async function listSpaceAgentCoordinationRows(
     spaceId: string,
-  ): Promise<AgentOrgRow[]> {
+  ): Promise<AgentCoordinationRow[]> {
     return db
       .select({
         id: agents.id,
         spaceId: agents.spaceId,
         name: agents.name,
-        reportsTo: agents.reportsTo,
+        leadAgentId: agents.leadAgentId,
         status: agents.status,
       })
       .from(agents)
       .where(eq(agents.spaceId, spaceId));
   }
 
-  function groupAgentOrgRowsBySpace(agentRows: AgentOrgRow[]) {
-    const bySpace = new Map<string, AgentOrgRow[]>();
+  function groupAgentCoordinationRowsBySpace(agentRows: AgentCoordinationRow[]) {
+    const bySpace = new Map<string, AgentCoordinationRow[]>();
     for (const agent of agentRows) {
       const spaceAgents = bySpace.get(agent.spaceId);
       if (spaceAgents) {
@@ -3327,9 +3327,9 @@ export function createHeartbeatRunPreparation(db: Db) {
   }
 
   return {
-    toAgentOrgRow,
-    listSpaceAgentOrgRows,
-    groupAgentOrgRowsBySpace,
+    toAgentCoordinationRow,
+    listSpaceAgentCoordinationRows,
+    groupAgentCoordinationRowsBySpace,
     getIssueExecutionContext,
     getPinnedSkillTestContext,
     getRoutineEnvForExecutionIssue,

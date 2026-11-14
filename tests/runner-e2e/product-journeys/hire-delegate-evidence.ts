@@ -22,9 +22,9 @@ function hireReplyLinks(body: string, issuePrefix: string): string[] {
   }
   return links;
 }
-export const HIRE_DELEGATE_JOURNEY = "hire-delegate-reuse" as const;
+export const HIRE_DELEGATE_JOURNEY = "create-delegate-reuse" as const;
 export function hireDelegateNames(campaignId: string) {
-  return { project: `Journey QA hire-delegate-reuse ${campaignId}`, hire: `Morgan Reviewer ${campaignId}`,
+  return { project: `Journey QA create-delegate-reuse ${campaignId}`, create: `Morgan Reviewer ${campaignId}`,
     checklist: `Checklist ${campaignId}`, review: `Review ${campaignId}` };
 }
 export interface HireScope {
@@ -93,25 +93,25 @@ export function observedHireResources<A extends Row, T extends Row>(scope: HireS
   const ownable = (row: Row, name: unknown) => row.spaceId === scope.spaceId && typeof row.id === "string" && row.id
     && typeof name === "string" && Boolean(name);
   const ownedAgents = agents.filter(agent => ownable(agent, agent.name)), ownedTasks = tasks.filter(task => ownable(task, task.title));
-  return { agents: ownedAgents, tasks: ownedTasks, hires: ownedAgents.filter(agent => agent.name === names.hire),
+  return { agents: ownedAgents, tasks: ownedTasks, hires: ownedAgents.filter(agent => agent.name === names.create),
     expectedTasks: ownedTasks.filter(task => [names.checklist, names.review].includes(task.title)),
     scopeMismatch: state.activity.some(event => [...agents, ...tasks].some(row => row.id === event.entityId)
       && state.leadRuns.some(run => run.id === event.runId && run.contextSnapshot?.wakeReason === "chat_task_completed"))
-      || agents.some(agent => !ownable(agent, agent.name) || agent.reportsTo !== scope.leadId)
+      || agents.some(agent => !ownable(agent, agent.name) || agent.leadAgentId !== scope.leadId)
       || tasks.some(task => !ownable(task, task.title) || task.projectId !== scope.projectId) };
 }
 export function assertHireBinding(scope: HireScope, agents: Row[], hiredId?: string) {
   const names = hireDelegateNames(scope.campaignId);
-  const hires = agents.filter(agent => agent.name === names.hire);
+  const hires = agents.filter(agent => agent.name === names.create);
   if (agents.length !== 1 || hires.length !== 1) throw new JourneyError("failed", "exactly_one_native_hire_required");
-  const hired = hires[0]!;
-  if (hired.id === scope.leadId || hiredId && hired.id !== hiredId || hired.spaceId !== scope.spaceId
-    || hired.reportsTo !== scope.leadId || hired.adapterType !== "outpost_runner" || hired.adapterConfig?.model !== scope.model
-    || !scope.connectionBinding || (!isDeepStrictEqual(hired.runtimeConfig?.aiConnection, scope.connectionBinding)
-      && !approvedFallback(scope, hired.runtimeConfig?.aiConnection))) {
+  const created = hires[0]!;
+  if (created.id === scope.leadId || hiredId && created.id !== hiredId || created.spaceId !== scope.spaceId
+    || created.leadAgentId !== scope.leadId || created.adapterType !== "outpost_runner" || created.adapterConfig?.model !== scope.model
+    || !scope.connectionBinding || (!isDeepStrictEqual(created.runtimeConfig?.aiConnection, scope.connectionBinding)
+      && !approvedFallback(scope, created.runtimeConfig?.aiConnection))) {
     throw new JourneyError("failed", "hire_native_binding_mismatch");
   }
-  return hired;
+  return created;
 }
 export function assertHireTaskCreation(scope: HireScope, hiredId: string | undefined, tasks: Row[], activity: Row[], leadRuns: Row[]) {
   for (const task of tasks) {

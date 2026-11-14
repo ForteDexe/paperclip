@@ -134,8 +134,8 @@ export const catalogTeamSourcePolicySchema = z.object({
 }).strict();
 
 export const catalogTeamPreviewSchema = z.object({
-  targetManagerAgentId: z.string().min(1).nullable().optional(),
-  targetManagerSlug: z.string().min(1).nullable().optional(),
+  targetLeadAgentId: z.string().min(1).nullable().optional(),
+  targetLeadSlug: z.string().min(1).nullable().optional(),
   include: portabilityIncludeSchema.omit({ space: true }).strict().optional(),
   agents: portabilityAgentSelectionSchema.optional(),
   collisionStrategy: portabilityCollisionStrategySchema.optional(),

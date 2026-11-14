@@ -1278,7 +1278,7 @@ describe("agent live run routes", () => {
     });
 
     it.each(["viewer", "missing", "other-space", "reassigned", "other-chat-owner"])(
-      "rejects a %s task retry without dispatching or requiring agent creation", async (fault) => {
+      "rejects a %s task retry without dispatching or requiring creation", async (fault) => {
         const fixture = createFailedChatRetryDb(false);
         mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, contextSnapshot: { issueId: failedChatIssueId } });
         if (fault === "viewer") mockAccessService.decide.mockResolvedValue({

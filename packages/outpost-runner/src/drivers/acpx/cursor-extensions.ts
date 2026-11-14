@@ -99,7 +99,7 @@ export function createCursorProfileExtensionAdapter(context: {
       if (id === context.sessionId) throw new Error("Cursor child cannot impersonate its parent session");
       const metadata = object(object(update._meta).cursor);
       const toolCallId = requiredText(metadata.toolCallId, "subagent toolCallId", 1_000);
-      const agentId = optionalText(metadata.agentId, "subagent agentId", 1_000);
+      const agentId = optionalText(metadata.agentId, "subagentId", 1_000);
       const previous = children.get(id);
       if (update.sessionUpdate === "subagent_spawned") {
         if (previous || children.size >= 256) throw new Error("Cursor child session identity is duplicated or over capacity");

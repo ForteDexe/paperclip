@@ -4,7 +4,7 @@ import { PrimaryPage, mobile, primaryDecorator, primaryParameters } from "../../
 
 export default {
   id: "default-agent-07-confirmation",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/07 Confirmation",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/07 Confirmation",
   decorators: [primaryDecorator],
   parameters: { ...primaryParameters, initialEntries: ["/PAP/agents/alex"],
     outpost: {

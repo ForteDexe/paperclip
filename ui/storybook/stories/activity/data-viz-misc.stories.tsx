@@ -616,7 +616,7 @@ function PageSkeletonMatrix() {
     "approvals",
     "costs",
     "inbox",
-    "org-chart",
+    "agent-hierarchy",
   ] as const;
 
   return (

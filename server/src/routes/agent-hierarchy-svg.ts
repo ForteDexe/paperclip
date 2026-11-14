@@ -1,25 +1,25 @@
 /**
- * Server-side SVG renderer for Outpost org charts.
+ * Server-side SVG renderer for Outpost agent hierarchies.
  * Supports 5 visual styles: monochrome, nebula, circuit, warmth, schematic.
  * Pure SVG output — no browser/Playwright needed. PNG via sharp.
  */
 
-export interface OrgNode {
+export interface AgentHierarchyNode {
   id: string;
   name: string;
   role: string;
   status: string;
-  reports: OrgNode[];
+  children: AgentHierarchyNode[];
   /** Populated by collapseTree: the flattened list of hidden descendants for avatar grid rendering. */
-  collapsedReports?: OrgNode[];
+  collapsedAgents?: AgentHierarchyNode[];
 }
 
-export type OrgChartStyle = "monochrome" | "nebula" | "circuit" | "warmth" | "schematic";
+export type AgentHierarchyStyle = "monochrome" | "nebula" | "circuit" | "warmth" | "schematic";
 
-export const ORG_CHART_STYLES: OrgChartStyle[] = ["monochrome", "nebula", "circuit", "warmth", "schematic"];
+export const AGENT_HIERARCHY_STYLES: AgentHierarchyStyle[] = ["monochrome", "nebula", "circuit", "warmth", "schematic"];
 
 interface LayoutNode {
-  node: OrgNode;
+  node: AgentHierarchyNode;
   x: number;
   y: number;
   width: number;
@@ -85,7 +85,7 @@ const ROLE_ICONS: Record<string, {
     // 🌐 Globe with meridians
     emojiSvg: `<path fill="#3B88C3" d="M18 0C8.059 0 0 8.059 0 18s8.059 18 18 18 18-8.059 18-18S27.941 0 18 0zM2.05 19h3.983c.092 2.506.522 4.871 1.229 7H4.158c-1.207-2.083-1.95-4.459-2.108-7zM19 8V2.081c2.747.436 5.162 2.655 6.799 5.919H19zm7.651 2c.754 2.083 1.219 4.46 1.317 7H19v-7h7.651zM17 2.081V8h-6.799C11.837 4.736 14.253 2.517 17 2.081zM17 10v7H8.032c.098-2.54.563-4.917 1.317-7H17zM6.034 17H2.05c.158-2.54.901-4.917 2.107-7h3.104c-.705 2.129-1.135 4.495-1.227 7zm1.998 2H17v7H9.349c-.754-2.083-1.219-4.459-1.317-7zM17 28v5.919c-2.747-.437-5.163-2.655-6.799-5.919H17zm2 5.919V28h6.8c-1.637 3.264-4.053 5.482-6.8 5.919zM19 26v-7h8.969c-.099 2.541-.563 4.917-1.317 7H19zm10.967-7h3.982c-.157 2.541-.9 4.917-2.107 7h-3.104c.706-2.129 1.136-4.494 1.229-7zm0-2c-.093-2.505-.523-4.871-1.229-7h3.104c1.207 2.083 1.95 4.46 2.107 7h-3.982zm.512-9h-2.503c-.717-1.604-1.606-3.015-2.619-4.199C27.346 4.833 29.089 6.267 30.479 8zM10.643 3.801C9.629 4.985 8.74 6.396 8.023 8H5.521c1.39-1.733 3.133-3.166 5.122-4.199zM5.521 28h2.503c.716 1.604 1.605 3.015 2.619 4.198C8.654 31.166 6.911 29.733 5.521 28zm19.836 4.198c1.014-1.184 1.902-2.594 2.619-4.198h2.503c-1.39 1.733-3.133 3.166-5.122 4.198z"/>`,
   },
-  coo: {
+  legacy_operations: {
     bg: "#e0f2fe", roleLabel: "Operations", accentColor: "#58a6ff", iconColor: "#075985",
     iconPath: "M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
     // ⚙️ Gear
@@ -118,7 +118,7 @@ const ROLE_ICONS: Record<string, {
   operations: {
     bg: "#e0f2fe", roleLabel: "Operations", accentColor: "#58a6ff", iconColor: "#075985",
     iconPath: "M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
-    // ⚙️ Gear (same as COO)
+    // ⚙️ Gear
     emojiSvg: `<path fill="#66757F" d="M34 15h-3.362c-.324-1.369-.864-2.651-1.582-3.814l2.379-2.379c.781-.781.781-2.048 0-2.829l-1.414-1.414c-.781-.781-2.047-.781-2.828 0l-2.379 2.379C23.65 6.225 22.369 5.686 21 5.362V2c0-1.104-.896-2-2-2h-2c-1.104 0-2 .896-2 2v3.362c-1.369.324-2.651.864-3.814 1.582L8.808 4.565c-.781-.781-2.048-.781-2.828 0L4.565 5.979c-.781.781-.781 2.048-.001 2.829l2.379 2.379C6.225 12.35 5.686 13.632 5.362 15H2c-1.104 0-2 .896-2 2v2c0 1.104.896 2 2 2h3.362c.324 1.368.864 2.65 1.582 3.813l-2.379 2.379c-.78.78-.78 2.048.001 2.829l1.414 1.414c.78.78 2.047.78 2.828 0l2.379-2.379c1.163.719 2.445 1.258 3.814 1.582V34c0 1.104.896 2 2 2h2c1.104 0 2-.896 2-2v-3.362c1.368-.324 2.65-.864 3.813-1.582l2.379 2.379c.781.781 2.047.781 2.828 0l1.414-1.414c.781-.781.781-2.048 0-2.829l-2.379-2.379c.719-1.163 1.258-2.445 1.582-3.814H34c1.104 0 2-.896 2-2v-2C36 15.896 35.104 15 34 15zM18 26c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/>`,
   },
   default: {
@@ -129,14 +129,14 @@ const ROLE_ICONS: Record<string, {
   },
 };
 
-function guessRoleTag(node: OrgNode): string {
+function guessRoleTag(node: AgentHierarchyNode): string {
   const name = node.name.toLowerCase();
   const role = node.role.toLowerCase();
   if (name === "lead" || role.includes("default agent")) return "lead";
-  if (name === "engineering_lead" || role.includes("chief technology") || role.includes("technology")) return "engineering_lead";
-  if (name === "product" || role.includes("chief marketing") || role.includes("marketing")) return "product";
-  if (name === "operations" || role.includes("chief financial")) return "operations";
-  if (name === "coo" || role.includes("chief operating")) return "coo";
+  if (name === "engineering_lead" || role.includes("technology")) return "engineering_lead";
+  if (name === "product" || role.includes("product") || role.includes("marketing")) return "product";
+  if (name === "operations" || role.includes("finance")) return "operations";
+  if (name === "operations" || role.includes("operations")) return "operations";
   if (role.includes("engineer") || role.includes("eng")) return "engineer";
   if (role.includes("quality") || role.includes("qa")) return "quality";
   if (role.includes("design")) return "design";
@@ -145,14 +145,14 @@ function guessRoleTag(node: OrgNode): string {
   return "default";
 }
 
-function getRoleInfo(node: OrgNode) {
+function getRoleInfo(node: AgentHierarchyNode) {
   const tag = guessRoleTag(node);
   return { tag, ...(ROLE_ICONS[tag] || ROLE_ICONS.default) };
 }
 
 // ── Style themes ─────────────────────────────────────────────────
 
-const THEMES: Record<OrgChartStyle, StyleTheme> = {
+const THEMES: Record<AgentHierarchyStyle, StyleTheme> = {
   // 01 — Monochrome (Vercel-inspired, dark minimal)
   monochrome: {
     bgColor: "#18181b",
@@ -286,8 +286,8 @@ const THEMES: Record<OrgChartStyle, StyleTheme> = {
 
       // Schematic uses monospace role labels
       const schemaRoles: Record<string, string> = {
-        lead: "chief_leadership", engineering_lead: "chief_technology", product: "chief_marketing",
-        coo: "chief_operating", engineer: "engineer",
+        lead: "default_agent", engineering_lead: "engineering_lead", product: "product",
+        engineer: "engineer",
         quality: "quality_assurance", design: "designer", finance: "finance",
         operations: "operations", default: "agent",
       };
@@ -350,39 +350,39 @@ function avatarGridHeight(count: number): number {
   return rows * (MINI_AVATAR_SIZE + MINI_AVATAR_GAP) - MINI_AVATAR_GAP + MINI_AVATAR_PADDING * 2;
 }
 
-function cardWidth(node: OrgNode): number {
+function cardWidth(node: AgentHierarchyNode): number {
   const { roleLabel: defaultRoleLabel } = getRoleInfo(node);
   const roleLabel = node.role.startsWith("×") ? node.role : defaultRoleLabel;
   const nameW = measureText(node.name, 14) + CARD_PAD_X * 2;
   const roleW = measureText(roleLabel, 11) + CARD_PAD_X * 2;
   let w = Math.max(CARD_MIN_W, Math.max(nameW, roleW));
   // Widen for avatar grid if needed
-  if (node.collapsedReports && node.collapsedReports.length > 0) {
-    w = Math.max(w, avatarGridWidth(node.collapsedReports.length));
+  if (node.collapsedAgents && node.collapsedAgents.length > 0) {
+    w = Math.max(w, avatarGridWidth(node.collapsedAgents.length));
   }
   return w;
 }
 
-function cardHeight(node: OrgNode): number {
-  if (node.collapsedReports && node.collapsedReports.length > 0) {
-    return CARD_H + avatarGridHeight(node.collapsedReports.length);
+function cardHeight(node: AgentHierarchyNode): number {
+  if (node.collapsedAgents && node.collapsedAgents.length > 0) {
+    return CARD_H + avatarGridHeight(node.collapsedAgents.length);
   }
   return CARD_H;
 }
 
 // ── Tree layout (top-down, centered) ─────────────────────────────
 
-function subtreeWidth(node: OrgNode): number {
+function subtreeWidth(node: AgentHierarchyNode): number {
   const cw = cardWidth(node);
-  if (!node.reports || node.reports.length === 0) return cw;
-  const childrenW = node.reports.reduce(
+  if (!node.children || node.children.length === 0) return cw;
+  const childrenW = node.children.reduce(
     (sum, child, i) => sum + subtreeWidth(child) + (i > 0 ? GAP_X : 0),
     0,
   );
   return Math.max(cw, childrenW);
 }
 
-function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
+function layoutTree(node: AgentHierarchyNode, x: number, y: number): LayoutNode {
   const w = cardWidth(node);
   const sw = subtreeWidth(node);
   const cardX = x + (sw - w) / 2;
@@ -397,11 +397,11 @@ function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
     children: [],
   };
 
-  if (node.reports && node.reports.length > 0) {
+  if (node.children && node.children.length > 0) {
     let childX = x;
     const childY = y + h + GAP_Y;
-    for (let i = 0; i < node.reports.length; i++) {
-      const child = node.reports[i];
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
       const childSW = subtreeWidth(child);
       layoutNode.children.push(layoutTree(child, childX, childY));
       childX += childSW + GAP_X;
@@ -465,7 +465,7 @@ function defaultRenderCard(ln: LayoutNode, theme: StyleTheme): string {
 
   // Render collapsed avatar grid if this node has hidden reports
   let avatarGridSvg = "";
-  const collapsed = ln.node.collapsedReports;
+  const collapsed = ln.node.collapsedAgents;
   if (collapsed && collapsed.length > 0) {
     const gridTop = ln.y + CARD_H + MINI_AVATAR_PADDING;
     const cols = Math.min(collapsed.length, MINI_AVATAR_MAX_COLS);
@@ -563,7 +563,7 @@ const OUTPOST_LOGO_SVG = `<g>
 const TARGET_W = 1280;
 const TARGET_H = 640;
 
-export interface OrgChartOverlay {
+export interface AgentHierarchyOverlay {
   /** Space name displayed top-left */
   spaceName?: string;
   /** Summary stats displayed bottom-right, e.g. "Agents: 5, Skills: 8" */
@@ -571,10 +571,10 @@ export interface OrgChartOverlay {
 }
 
 /** Count total nodes in a tree. */
-function countNodes(nodes: OrgNode[]): number {
+function countNodes(nodes: AgentHierarchyNode[]): number {
   let count = 0;
   for (const n of nodes) {
-    count += 1 + countNodes(n.reports ?? []);
+    count += 1 + countNodes(n.children ?? []);
   }
   return count;
 }
@@ -587,21 +587,21 @@ const MAX_LEVEL_WIDTH = 8;
 const MAX_CHILDREN_SHOWN = 6;
 
 /** Flatten all descendants of a node into a single list. */
-function flattenDescendants(nodes: OrgNode[]): OrgNode[] {
-  const result: OrgNode[] = [];
+function flattenDescendants(nodes: AgentHierarchyNode[]): AgentHierarchyNode[] {
+  const result: AgentHierarchyNode[] = [];
   for (const n of nodes) {
     result.push(n);
-    result.push(...flattenDescendants(n.reports ?? []));
+    result.push(...flattenDescendants(n.children ?? []));
   }
   return result;
 }
 
 /** Collect all nodes at a given depth in the tree. */
-function nodesAtDepth(nodes: OrgNode[], depth: number): OrgNode[] {
+function nodesAtDepth(nodes: AgentHierarchyNode[], depth: number): AgentHierarchyNode[] {
   if (depth === 0) return nodes;
-  const result: OrgNode[] = [];
+  const result: AgentHierarchyNode[] = [];
   for (const n of nodes) {
-    result.push(...nodesAtDepth(n.reports ?? [], depth - 1));
+    result.push(...nodesAtDepth(n.children ?? [], depth - 1));
   }
   return result;
 }
@@ -610,10 +610,10 @@ function nodesAtDepth(nodes: OrgNode[], depth: number): OrgNode[] {
  * Estimate how many cards would be shown at the next level if we expand,
  * considering truncation (each parent shows at most MAX_CHILDREN_SHOWN + 1 placeholder).
  */
-function estimateNextLevelWidth(parentNodes: OrgNode[]): number {
+function estimateNextLevelWidth(parentNodes: AgentHierarchyNode[]): number {
   let total = 0;
   for (const p of parentNodes) {
-    const childCount = (p.reports ?? []).length;
+    const childCount = (p.children ?? []).length;
     if (childCount === 0) continue;
     total += Math.min(childCount, MAX_CHILDREN_SHOWN + 1); // +1 for "and N more" placeholder
   }
@@ -623,14 +623,14 @@ function estimateNextLevelWidth(parentNodes: OrgNode[]): number {
 /**
  * Collapse a node's children to avatar dots (for wide levels that can't expand).
  */
-function collapseToAvatars(node: OrgNode): OrgNode {
-  const childCount = countNodes(node.reports ?? []);
+function collapseToAvatars(node: AgentHierarchyNode): AgentHierarchyNode {
+  const childCount = countNodes(node.children ?? []);
   if (childCount === 0) return node;
   return {
     ...node,
     role: `×${childCount} reports`,
-    collapsedReports: flattenDescendants(node.reports ?? []),
-    reports: [],
+    collapsedAgents: flattenDescendants(node.children ?? []),
+    children: [],
   };
 }
 
@@ -638,44 +638,44 @@ function collapseToAvatars(node: OrgNode): OrgNode {
  * Truncate a node's children: keep first MAX_CHILDREN_SHOWN, replace rest with
  * a summary "and N more" placeholder node (rendered as a count card).
  */
-function truncateChildren(node: OrgNode): OrgNode {
-  const children = node.reports ?? [];
+function truncateChildren(node: AgentHierarchyNode): AgentHierarchyNode {
+  const children = node.children ?? [];
   if (children.length <= MAX_CHILDREN_SHOWN) return node;
   const kept = children.slice(0, MAX_CHILDREN_SHOWN);
   const hiddenCount = children.length - MAX_CHILDREN_SHOWN;
-  const placeholder: OrgNode = {
+  const placeholder: AgentHierarchyNode = {
     id: `${node.id}-more`,
     name: `+${hiddenCount} more`,
     role: "overflow",
     status: "active",
-    reports: [],
+    children: [],
   };
-  return { ...node, reports: [...kept, placeholder] };
+  return { ...node, children: [...kept, placeholder] };
 }
 
 /**
  * Adaptive collapse: expands levels as long as they fit, truncates or collapses
  * when a level is too wide.
  */
-function smartCollapseTree(roots: OrgNode[]): OrgNode[] {
+function smartCollapseTree(roots: AgentHierarchyNode[]): AgentHierarchyNode[] {
   // Deep clone so we can mutate
-  const clone = (nodes: OrgNode[]): OrgNode[] =>
-    nodes.map((n) => ({ ...n, reports: clone(n.reports ?? []) }));
+  const clone = (nodes: AgentHierarchyNode[]): AgentHierarchyNode[] =>
+    nodes.map((n) => ({ ...n, children: clone(n.children ?? []) }));
   const tree = clone(roots);
 
   // Walk levels from root down
   for (let depth = 0; depth < 10; depth++) {
     const parents = nodesAtDepth(tree, depth);
-    const parentsWithChildren = parents.filter((p) => (p.reports ?? []).length > 0);
+    const parentsWithChildren = parents.filter((p) => (p.children ?? []).length > 0);
     if (parentsWithChildren.length === 0) break;
 
     const nextWidth = estimateNextLevelWidth(parentsWithChildren);
     if (nextWidth <= MAX_LEVEL_WIDTH) {
       // Next level fits with truncation — truncate oversized parents, then continue deeper
       for (const p of parentsWithChildren) {
-        if ((p.reports ?? []).length > MAX_CHILDREN_SHOWN) {
+        if ((p.children ?? []).length > MAX_CHILDREN_SHOWN) {
           const truncated = truncateChildren(p);
-          p.reports = truncated.reports;
+          p.children = truncated.children;
         }
       }
       continue;
@@ -685,8 +685,8 @@ function smartCollapseTree(roots: OrgNode[]): OrgNode[] {
     for (const p of parentsWithChildren) {
       const collapsed = collapseToAvatars(p);
       p.role = collapsed.role;
-      p.collapsedReports = collapsed.collapsedReports;
-      p.reports = [];
+      p.collapsedAgents = collapsed.collapsedAgents;
+      p.children = [];
     }
     break;
   }
@@ -694,14 +694,14 @@ function smartCollapseTree(roots: OrgNode[]): OrgNode[] {
   return tree;
 }
 
-export function renderOrgChartSvg(orgTree: OrgNode[], style: OrgChartStyle = "warmth", overlay?: OrgChartOverlay): string {
+export function renderAgentHierarchySvg(agentHierarchy: AgentHierarchyNode[], style: AgentHierarchyStyle = "warmth", overlay?: AgentHierarchyOverlay): string {
   const theme = THEMES[style] || THEMES.warmth;
 
   // Auto-collapse large orgs to keep the chart readable
-  const totalNodes = countNodes(orgTree);
-  const effectiveTree = totalNodes > COLLAPSE_THRESHOLD ? smartCollapseTree(orgTree) : orgTree;
+  const totalNodes = countNodes(agentHierarchy);
+  const effectiveTree = totalNodes > COLLAPSE_THRESHOLD ? smartCollapseTree(agentHierarchy) : agentHierarchy;
 
-  let root: OrgNode;
+  let root: AgentHierarchyNode;
   if (effectiveTree.length === 1) {
     root = effectiveTree[0];
   } else {
@@ -710,7 +710,7 @@ export function renderOrgChartSvg(orgTree: OrgNode[], style: OrgChartStyle = "wa
       name: "Outpost",
       role: "Root",
       status: "active",
-      reports: effectiveTree,
+      children: effectiveTree,
     };
   }
 
@@ -759,8 +759,8 @@ function svgEscape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export async function renderOrgChartPng(orgTree: OrgNode[], style: OrgChartStyle = "warmth", overlay?: OrgChartOverlay): Promise<Buffer> {
-  const svg = renderOrgChartSvg(orgTree, style, overlay);
+export async function renderAgentHierarchyPng(agentHierarchy: AgentHierarchyNode[], style: AgentHierarchyStyle = "warmth", overlay?: AgentHierarchyOverlay): Promise<Buffer> {
+  const svg = renderAgentHierarchySvg(agentHierarchy, style, overlay);
   const sharpModule = await import("sharp");
   const sharp = sharpModule.default;
   // Render at 2x density for retina quality, resize to exact target dimensions

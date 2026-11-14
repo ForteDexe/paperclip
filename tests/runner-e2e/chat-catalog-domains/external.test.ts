@@ -181,7 +181,7 @@ describe("external domain independent oracles", () => {
       for (const reply of ["Yes: **Product Engineering** (CTO, senior coder, QA) is the closest ready-made team for a website. It needs the `doc-maintenance`, `github-pr-workflow`, `qa-acceptance` and `task-planning` skills.",
         "The product-engineering pod fits; it would add three people and a project, with skills Doc Maintenance, GitHub PR workflow, QA acceptance and task planning. It is not installed yet."])
         expect(definition.grade({ ...valid(id), reply }).passed).toBe(true);
-      for (const mutate of [(o: ExternalObservation) => { o.reply = "No ready-made website team exists; I can hire one."; },
+      for (const mutate of [(o: ExternalObservation) => { o.reply = "No ready-made website team exists; I can create one."; },
         (o: ExternalObservation) => { o.links = ["/ACORN/teams-catalog/outpost:bundled:software-development:product-engineering"]; },
         (o: ExternalObservation) => { o.state.teamApiOperations = []; }, (o: ExternalObservation) => { o.state.runEventsRead = false; },
         (o: ExternalObservation) => { (o.state.teamApiOperations as string[]).push("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install"); }]) {

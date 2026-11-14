@@ -46,7 +46,7 @@ async function createSpace(db: ReturnType<typeof createDb>, label: string) {
 async function createAgent(
   db: ReturnType<typeof createDb>,
   spaceId: string,
-  input: { role?: string; reportsTo?: string | null; permissions?: Record<string, unknown> } = {},
+  input: { role?: string; leadAgentId?: string | null; permissions?: Record<string, unknown> } = {},
 ) {
   return db
     .insert(agents)
@@ -54,7 +54,7 @@ async function createAgent(
       spaceId,
       name: `Agent ${randomUUID()}`,
       role: input.role ?? "engineer",
-      reportsTo: input.reportsTo ?? null,
+      leadAgentId: input.leadAgentId ?? null,
       permissions: input.permissions ?? {},
       adapterType: "process",
       adapterConfig: {},
@@ -2144,7 +2144,7 @@ describeEmbeddedPostgres("authorization service", () => {
     });
   });
 
-  it("denies agent creation for a low-trust boundary even with explicit canCreateAgents", async () => {
+  it("denies creation for a low-trust boundary even with explicit canCreateAgents", async () => {
     const space = await createSpace(db, "LowTrustCreateDenied");
     const project = await createProject(db, space.id, "Contained");
     const actorAgent = await createAgent(db, space.id, {
@@ -2256,8 +2256,8 @@ describeEmbeddedPostgres("authorization service", () => {
     const space = await createSpace(db, "SubtreeScope");
     const actorAgent = await createAgent(db, space.id);
     const managerAgent = await createAgent(db, space.id);
-    const childAgent = await createAgent(db, space.id, { reportsTo: managerAgent.id });
-    const grandchildAgent = await createAgent(db, space.id, { reportsTo: childAgent.id });
+    const childAgent = await createAgent(db, space.id, { leadAgentId: managerAgent.id });
+    const grandchildAgent = await createAgent(db, space.id, { leadAgentId: childAgent.id });
     const outsideAgent = await createAgent(db, space.id);
     await grantAgentPermission(db, space.id, actorAgent.id, "tasks:assign_scope", {
       managedSubtreeAgentIds: [managerAgent.id],

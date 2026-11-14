@@ -1836,9 +1836,9 @@ Migration `0274_agent_chat.sql` adds conversation identity/state and session gen
 ## Resource lifecycle events
 
 `resource_lifecycle_events` records content-free lifecycle hooks in the same
-transaction as the resource change. Hired agents and new projects emit `create`.
-Pending hires emit creation only when `activatePendingApproval` succeeds.
-Rejected hires emit termination without creation. Agents created as terminated
+transaction as the resource change. Active agents and new projects emit `create`.
+Pending agents emit creation only when `activatePendingApproval` succeeds.
+Rejected agent requests emit termination without creation. Agents created as terminated
 emit no creation event. Capture is generic and works on self-hosted and managed
 instances; recording an event does not authorize a provider operation.
 
@@ -1855,7 +1855,7 @@ record. An edit combined with archive emits `update` followed by `archive` in
 the same transaction. Archiving preserves workspace records and authorizes no
 provider cleanup.
 Termination commits API-key revocation in that same transaction.
-Hire approval and rejection commit with agent activation or termination, so a
+Agent approval and rejection commit with agent activation or termination, so a
 failed event write leaves the decision pending and retryable.
 
 Creation is delivered first for each resource, including a backfilled creation
@@ -1871,8 +1871,8 @@ current authorized repository data. A termination hook does not authorize
 provider cleanup without the plugin's own authorization and retention policy.
 
 Migration `0309_loving_the_hood.sql` seeds a one-time current-state baseline before
-plugin delivery is available. It records creation for existing hired agents and
-all projects, including archived projects. Pending hires stay behind approval.
+plugin delivery is available. It records creation for existing active agents and
+all projects, including archived projects. Pending agents stay behind approval.
 Paused and terminated agents receive missing final status intents. A partial
 journal ending at pause receives resume when the current agent is running.
 Archived projects receive missing archive intents. A partial journal ending at

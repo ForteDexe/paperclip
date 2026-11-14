@@ -63,7 +63,7 @@ import { attentionIssueCondition, executionIssueCondition } from "./issue-visibi
 import { parseIssueExecutionState } from "./issue-execution-policy.js";
 import { isProspectiveBlockedTransition } from "./routable-blocked.js";
 import { issueReadSqlCondition, type AuthorizationActor } from "./authorization.js";
-import { evaluateAgentInvokability, type AgentOrgRow } from "./agent-invokability.js";
+import { evaluateAgentInvokability, type AgentCoordinationRow } from "./agent-invokability.js";
 import { canonicalizeStoredResolverPolicy } from "./issue-thread-interaction-resolution.js";
 import { decisionQueueService } from "./decision-queues.js";
 import {
@@ -1201,13 +1201,13 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
         row.addresseeAgentId !== null
         || canonicalizeStoredResolverPolicy(row.effectiveResolverPolicy, row.resolverPolicyProvenance) === "not_creator"
       );
-      const spaceAgentRows: AgentOrgRow[] = needsSpaceAgents
+      const spaceAgentRows: AgentCoordinationRow[] = needsSpaceAgents
         ? await db
           .select({
             id: agents.id,
             spaceId: agents.spaceId,
             name: agents.name,
-            reportsTo: agents.reportsTo,
+            leadAgentId: agents.leadAgentId,
             status: agents.status,
           })
           .from(agents)

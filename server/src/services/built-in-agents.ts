@@ -49,7 +49,7 @@ export interface BuiltInAgentDefinition {
   defaultIcon?: string | null;
   defaultPermissions?: Record<string, unknown>;
   defaultStatus?: "idle" | "paused";
-  defaultManager?: "single_root_agent" | null;
+  defaultLead?: "single_root_agent" | null;
   allowedAdapterTypes?: string[];
   defaultAdapterType?: string;
   defaultAdapterConfig?: Record<string, unknown>;
@@ -352,7 +352,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
       },
     },
     defaultStatus: "paused",
-    defaultManager: "single_root_agent",
+    defaultLead: "single_root_agent",
     allowedAdapterTypes: ["claude_local", "codex_local", "gemini_local", "opencode_local", "process"],
     defaultBudgetMonthlyCents: 0,
     bundle: {
@@ -420,7 +420,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
       canCreateSkills: false,
     },
     defaultStatus: "paused",
-    defaultManager: "single_root_agent",
+    defaultLead: "single_root_agent",
     allowedAdapterTypes: ["claude_local", "codex_local", "gemini_local", "opencode_local", "process"],
     defaultAdapterType: "claude_local",
     defaultAdapterConfig: {
@@ -816,12 +816,12 @@ export function builtInAgentService(db: Db) {
   const skillSvc = spaceSkillService(db);
   const routineSvc = routineService(db);
 
-  async function findSingleRootManager(spaceId: string) {
+  async function findSingleRootLead(spaceId: string) {
     const roots = await db
       .select()
       .from(agents)
       .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
-    const nonBuiltInRoots = roots.filter((agent) => !readBuiltInAgentMarker(agent.metadata) && !agent.reportsTo);
+    const nonBuiltInRoots = roots.filter((agent) => !readBuiltInAgentMarker(agent.metadata) && !agent.leadAgentId);
     return nonBuiltInRoots.length === 1 ? nonBuiltInRoots[0]!.id : null;
   }
 
@@ -1776,11 +1776,11 @@ export function builtInAgentService(db: Db) {
       }
       if (
         !existingPendingApproval
-        && definition.defaultManager === "single_root_agent"
-        && !existing.reportsTo
+        && definition.defaultLead === "single_root_agent"
+        && !existing.leadAgentId
       ) {
-        const reportsTo = await findSingleRootManager(spaceId);
-        if (reportsTo) patch.reportsTo = reportsTo;
+        const leadAgentId = await findSingleRootLead(spaceId);
+        if (leadAgentId) patch.leadAgentId = leadAgentId;
       }
       const updated = await agentSvc.update(existing.id, patch, {
         allowBuiltInAgentMetadata: true,
@@ -1795,8 +1795,8 @@ export function builtInAgentService(db: Db) {
       return state(definition, await agentSvc.getById(existing.id) as Agent, resources);
     }
 
-    const reportsTo = definition.defaultManager === "single_root_agent"
-      ? await findSingleRootManager(spaceId)
+    const leadAgentId = definition.defaultLead === "single_root_agent"
+      ? await findSingleRootLead(spaceId)
       : null;
     let created: Agent;
     try {
@@ -1807,7 +1807,7 @@ export function builtInAgentService(db: Db) {
           ? `Built-in ${definition.displayName} is disabled until explicitly configured.`
           : null,
         pausedAt: definition.defaultStatus === "paused" ? new Date() : null,
-        reportsTo,
+        leadAgentId,
         metadata: {
           ...builtInMetadata(definition),
           outpostBuiltInSetupRequired: !hasCompleteAdapterConfig(
@@ -1907,15 +1907,15 @@ export function builtInAgentService(db: Db) {
       return { state: await state(definition, existing), approval: null };
     }
 
-    const reportsTo = definition.defaultManager === "single_root_agent"
-      ? await findSingleRootManager(spaceId)
+    const leadAgentId = definition.defaultLead === "single_root_agent"
+      ? await findSingleRootLead(spaceId)
       : null;
     let pending: Agent;
     try {
       pending = await agentSvcLifecycle().requestCreation(spaceId, {
         ...definitionPatch(definition, input),
         status: "pending_approval",
-        reportsTo,
+        leadAgentId,
         metadata: {
           ...builtInMetadata(definition),
           outpostBuiltInSetupRequired: !hasCompleteAdapterConfig(
@@ -1955,7 +1955,7 @@ export function builtInAgentService(db: Db) {
         role: pending.role,
         title: pending.title,
         icon: pending.icon,
-        reportsTo: pending.reportsTo,
+        leadAgentId: pending.leadAgentId,
         capabilities: pending.capabilities,
         adapterType: pending.adapterType,
         adapterConfig: pending.adapterConfig,

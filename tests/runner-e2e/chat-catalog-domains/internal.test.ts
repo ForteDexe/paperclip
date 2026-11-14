@@ -86,12 +86,12 @@ function valid(scenario: string): InternalObservation {
     }
     case "inbox-search.show-decisions": {
       const pending = { id: "question", spaceId: o.spaceId, issueId: o.tasks[0]!.id, status: "pending", addresseeUserId: "riley", effectiveResolverPolicy: "human_only" }; const completed = { id: "complete", status: "answered", resolvedByUserId: "owner", result: { answers: ["received"] } };
-      const history = { id: "history", title: "Completed launch information", status: "backlog" }; const hiring = { id: "hire", spaceId: o.spaceId, status: "pending" };
+      const history = { id: "history", title: "Completed launch information", status: "backlog" }; const creation = { id: "create", spaceId: o.spaceId, status: "pending" };
       o.tasks[0]!.title = "Riley launch question"; o.state.task = structuredClone(o.tasks[0]); o.tasks.push(history);
-      Object.assign(o.state, { ownerId: "owner", rileyId: "riley", historyTask: structuredClone(history), hiring: structuredClone(hiring), pendingQuestion: structuredClone(pending), completedQuestion: structuredClone(completed) });
-      Object.assign(o, { hiring, pendingQuestion: pending, completedQuestion: completed, visibleAttention: { spaceId: o.spaceId, items: [{ subject: { id: "hire" } }] }, resolverUserId: "riley",
+      Object.assign(o.state, { ownerId: "owner", rileyId: "riley", historyTask: structuredClone(history), creation: structuredClone(creation), pendingQuestion: structuredClone(pending), completedQuestion: structuredClone(completed) });
+      Object.assign(o, { creation, pendingQuestion: pending, completedQuestion: completed, visibleAttention: { spaceId: o.spaceId, items: [{ subject: { id: "create" } }] }, resolverUserId: "riley",
         resolverAttention: { spaceId: o.spaceId, items: [{ subject: { id: "question" }, relatedIssue: { id: o.tasks[0]!.id }, resolverAudience: { addresseeUserId: "riley", effectiveResolverPolicy: "human_only" } }] }, permissionStatus: 403 });
-      o.links.push("/ACORN/issues/history", "/ACORN/approvals/hire");
+      o.links.push("/ACORN/issues/history", "/ACORN/approvals/create");
       o.reply = "Launch designer: pending approval for you as human operator.\nRiley launch question: waiting for Riley to answer.\nCompleted launch information: answered history, no action remains."; break;
     }
     case "inbox-search.find-design": {

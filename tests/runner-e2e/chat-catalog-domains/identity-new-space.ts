@@ -19,7 +19,7 @@ export function gradeNewSpace(value: unknown) {
     && wizard.helloCount === 1 && wizard.hireCount === 1 && wizard.exactPublicGrantAndAgentInstall
     && wizard.hello.checks.some(check => check.code === "opencode_hello_probe_passed") && wizard.account.ownership === "personal"
     && wizard.account.ownerUserId === o.state.humanId && wizard.account.responsibleUserId === o.state.humanId && o.state.humanRoleConfigurationStatus === 200,
-    "The human creates a real space and reuses its saved first-CEO setup through the public OpenCode1017 local native test and hire; account/grant, space and agent remain independently bound.");
+    "The human creates a real space and reuses its saved first-CEO setup through the public OpenCode1017 local native test and create; account/grant, space and agent remain independently bound.");
   c.add("distinct-human-and-agent-authority", !!wizard && wizard.spaceId !== wizard.firstAgentId && wizard.firstAgentId !== o.leadId
     && o.state.newSpaceOwnedByHuman === true && o.state.oldAgentForeignReadStatus === 403 && o.state.newAgentVisible === true && o.state.oldAgentStillSourceSpace === true,
     "The same real human owns the new space, its CEO is a separate actual agent, and the original agent retains only its source-space access.");

@@ -69,7 +69,7 @@ The fork keeps Outpost's internal package names, API fields, database schema, en
   </tr>
 </table>
 
-<em>If it can receive a heartbeat, it's hired.</em>
+<em>If it can receive a heartbeat, it can join the Space.</em>
 
 </div>
 
@@ -102,7 +102,7 @@ Four things have to work for a crew of AI agents to produce: tasks, ownership, t
 | --- | --- | --- |
 | **Agentic Task Manager** — Declare intent. Agents work. You verify the output. | Everyone, daily | Tasks, approvals & review gates · proactive agent coworkers · auditable routines & workflows · verify from diffs, screenshots & tests |
 | **Crew Map for Agents** — Roles, permissions & boundaries for humans and agents. | Leads | Mixed human + agent crew map · responsibilities, delegation, specialization · governance: who can do what · scoped secrets & outpost boundaries · connection permissions & responsible-user identities |
-| **Agent Employee Training** — Design, train & evaluate your AI employees. | Enablers | Skill Studio & shared org-wide skills · evals & saved test runs · active learning loops & quality metrics · performance reviews for agents · saved test inputs · skill version history & restore · reusable team templates |
+| **Agent Training** — Design, train & evaluate your agents. | Enablers | Skill Studio & shared Space skills · evals & saved test runs · active learning loops & quality metrics · agent quality reviews · saved test inputs · skill version history & restore · reusable agent-group templates |
 | **Agentic OS** — The infrastructure that makes the work run. | IT & platform | Cross-provider runtime: any model, any agent · sandboxing, integrations & MCP servers · SSO, GRC & RBAC · data privacy · personal & shared app connections · local run history |
 
 <br/>
@@ -141,7 +141,7 @@ Keep conversations, plans, blockers, files, and run history attached to the work
 <tr>
 <td align="center">
 <h3>🛡️ Governance</h3>
-Configure <a href="https://docs.outpost.ing/guides/day-to-day/approvals/">review and approval stages</a>, approve hires, and pause, reassign, or stop work when needed.
+Configure <a href="https://docs.outpost.ing/guides/day-to-day/approvals/">review and approval stages</a>, approve agent additions, and pause, reassign, or stop work when needed.
 </td>
 <td align="center">
 <h3>📊 Crew Map</h3>
@@ -489,7 +489,7 @@ See [doc/DEVELOPING.md](doc/DEVELOPING.md) for the full development guide.
 ## Roadmap
 
 - ✅ Plugin system (e.g. add a knowledge base, custom tracing, queues, etc)
-- ✅ Get OpenClaw / claw-style agent employees
+- ✅ Add OpenClaw / claw-style agents
 - ✅ Outpost import and export (`space` remains the compatibility command)
 - ✅ Easy AGENTS.md configurations
 - ✅ Skills Manager, Skill Studio & Skills Store

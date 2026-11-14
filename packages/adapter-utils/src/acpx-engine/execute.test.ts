@@ -808,7 +808,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const fresh = await runExecutor(config, { context });
     expect(fresh.turnInputs).toHaveLength(1);
     const prompt = String(fresh.turnInputs[0]?.text ?? "");
-    expect(prompt).toContain("You are agent agent-1");
+    expect(prompt).toContain("You are agent-1");
     expect(prompt).toContain("Connection tools:");
     expect(prompt).not.toContain("Execution contract:");
     expect(prompt).toContain(context.outpostTaskMarkdownAssignment);
@@ -832,7 +832,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const reset = await runExecutor(config, { context });
     expect(reset.sessionInputs[0]?.resumeSessionId).toBeUndefined();
     const resetPrompt = String(reset.turnInputs[0]?.text ?? "");
-    expect(resetPrompt).toContain("You are agent agent-1");
+    expect(resetPrompt).toContain("You are agent-1");
     expect(resetPrompt).toContain("Connection tools:");
     expect(resetPrompt).toContain(context.outpostTaskMarkdownAssignment);
     expect(resetPrompt).not.toContain("Execution contract:");
@@ -969,8 +969,8 @@ describe("shared ACPX engine runtime behavior", () => {
       expect(prompt).not.toContain("Create child issues");
       expect(prompt).not.toContain("Use child issues");
     }
-    expect(String(fresh.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent agent-1");
-    expect(String(reset.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent agent-1");
+    expect(String(fresh.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent-1");
+    expect(String(reset.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent-1");
     const ordinary = await runExecutor({ ...config, promptTemplate: "" }, { context: { ...context, conversationMode: false } });
     expect(String(ordinary.meta[0]?.prompt)).not.toContain("Execution contract:");
     expect(String(ordinary.meta[0]?.prompt)).toContain("Implement the accepted plan on this issue.");

@@ -51,7 +51,7 @@ function ReviewGuide() {
   </main>;
 }
 export default { id: "default-agent-00-review-guide",
-  title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/00 Review guide", parameters: { layout: "fullscreen",
+  title: "Agents and reusable capabilities/Creation, configuration, and organization/Primary Agent/00 Review guide", parameters: { layout: "fullscreen",
     outpost: {
       "capabilities": [
         "agents/default-agent",

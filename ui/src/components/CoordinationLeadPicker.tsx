@@ -10,14 +10,14 @@ import { FlyoutAppearanceProvider, FlyoutHeader, FlyoutOptions } from "./ui/flyo
 import { Check, User } from "lucide-react";
 import { cn } from "../lib/utils";
 
-export function ReportsToPicker({
+export function CoordinationLeadPicker({
   agents,
   value,
   onChange,
   disabled = false,
   excludeAgentIds = [],
-  disabledEmptyLabel = "Reports to: N/A (Default agent)",
-  chooseLabel = "Reports to...",
+  disabledEmptyLabel = "Coordination lead: N/A (Default agent)",
+  chooseLabel = "Coordination lead...",
   trigger,
   disabledAgentIds = [],
 }: {
@@ -37,8 +37,8 @@ export function ReportsToPicker({
     (a) => a.status !== "terminated" && !exclude.has(a.id),
   );
   const current = value ? agents.find((a) => a.id === value) : null;
-  const terminatedManager = current?.status === "terminated";
-  const unknownManager = Boolean(value && !current);
+  const terminatedLead = current?.status === "terminated";
+  const unknownLead = Boolean(value && !current);
 
   return (
     <FlyoutAppearanceProvider><Popover open={open} onOpenChange={setOpen}>
@@ -47,15 +47,15 @@ export function ReportsToPicker({
           type="button"
           className={cn(
             "inline-flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors",
-            terminatedManager && "border-amber-600/45 bg-amber-500/5",
+            terminatedLead && "border-amber-600/45 bg-amber-500/5",
             disabled && "opacity-60 cursor-not-allowed",
           )}
           disabled={disabled}
         >
-          {unknownManager ? (
+          {unknownLead ? (
             <>
               <User className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 truncate text-muted-foreground">Unknown manager (stale ID)</span>
+              <span className="min-w-0 truncate text-muted-foreground">Unknown coordination lead (stale ID)</span>
             </>
           ) : current ? (
             <>
@@ -63,10 +63,10 @@ export function ReportsToPicker({
               <span
                 className={cn(
                   "min-w-0 truncate",
-                  terminatedManager && "text-amber-900 dark:text-amber-200",
+                  terminatedLead && "text-amber-900 dark:text-amber-200",
                 )}
               >
-                {`Reports to ${current.name}${terminatedManager ? " (terminated)" : ""}`}
+                {`Coordination lead ${current.name}${terminatedLead ? " (terminated)" : ""}`}
               </span>
             </>
           ) : (
@@ -79,8 +79,8 @@ export function ReportsToPicker({
           )}
         </button>}
       </PopoverTrigger>
-      <PopoverContent className="w-64" align="start" aria-label="Choose manager">
-        <FlyoutHeader>Reports to</FlyoutHeader>
+      <PopoverContent className="w-64" align="start" aria-label="Choose coordination lead">
+        <FlyoutHeader>Coordination lead</FlyoutHeader>
         <FlyoutOptions className="max-h-80 overflow-y-auto">
         <button
           type="button"
@@ -95,10 +95,10 @@ export function ReportsToPicker({
           }}
         >
           <User className="size-5 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1 text-left">No manager</span>
+          <span className="min-w-0 flex-1 text-left">No coordination lead</span>
           {value === null && <Check className="size-4 shrink-0" aria-hidden />}
         </button>
-        {terminatedManager && (
+        {terminatedLead && (
           <div className="flex min-w-0 items-center gap-2 overflow-hidden px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-0.5">
             <AgentAvatar agent={current} size={16} className="shrink-0 h-3 w-3"/>
             <span className="min-w-0 truncate">
@@ -106,9 +106,9 @@ export function ReportsToPicker({
             </span>
           </div>
         )}
-        {unknownManager && (
+        {unknownLead && (
           <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-0.5">
-            Saved manager is missing from this outpost. Choose a new manager or clear.
+            The saved coordination lead is missing from this outpost. Choose a new lead or clear the link.
           </div>
         )}
         {rows.map((a) => (
@@ -117,7 +117,7 @@ export function ReportsToPicker({
             key={a.id}
             aria-pressed={a.id === value}
             disabled={disabledAgentIds.includes(a.id)}
-            title={disabledAgentIds.includes(a.id) ? "Would create a reporting loop" : undefined}
+            title={disabledAgentIds.includes(a.id) ? "Would create a coordination loop" : undefined}
             className={cn(
               "flex items-center gap-2 w-full min-w-0 px-2 py-1.5 text-xs rounded hover:bg-accent/50 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed",
               a.id === value && "bg-accent",

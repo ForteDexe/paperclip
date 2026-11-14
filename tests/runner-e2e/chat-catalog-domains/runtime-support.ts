@@ -5,7 +5,7 @@ import { codexSubscriptionAgentConfig } from "../codex-subscription-fixture.js";
 import { observeInternal, type Entity, type InternalObservation } from "./internal-support.js";
 
 export interface RuntimeAgent extends Entity {
-  reportsTo?: string | null; adapterType?: string; adapterConfig?: Record<string, unknown>;
+  leadAgentId?: string | null; adapterType?: string; adapterConfig?: Record<string, unknown>;
   runtimeConfig?: Record<string, unknown>; permissions?: Record<string, unknown>;
   defaultEnvironmentId?: string | null; lifecycleState?: string; lifecycleHolds?: string[]; pauseReason?: string | null;
 }
@@ -23,7 +23,7 @@ export async function runtimeWorker(ctx: ChatCatalogContext, name = "Morgan", ex
   const { api, execution, fixtures, workspacePath, nonce } = ctx.input;
   const base = execution.profile.buildAgent({ environmentId: fixtures.environment.id, environmentFixtureId: execution.environment.id,
     workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
-  const payload = { ...base, name, role: "engineer", title: "Frontend engineer", reportsTo: fixtures.agent.id,
+  const payload = { ...base, name, role: "engineer", title: "Frontend engineer", leadAgentId: fixtures.agent.id,
     runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1 } }, ...extra };
   const agent = await api.post<RuntimeAgent>(`/api/spaces/${fixtures.space.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
     ? codexSubscriptionAgentConfig(payload, process.env, fixtures.space.id) : payload);
@@ -105,6 +105,6 @@ export function runtimeDefinition(scenarioId: string, setup: ChatCatalogCase["se
     sourceFiles: ["chat-catalog-domains/runtime-support.ts", `chat-catalog-domains/runtime-${scenarioId.split(".")[0]}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`], ...extra };
 }
 export function unchangedAgent(before: RuntimeAgent, after: RuntimeAgent, except: readonly string[] = []) {
-  return ["id", "spaceId", "name", "role", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "reportsTo"]
+  return ["id", "spaceId", "name", "role", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "leadAgentId"]
     .filter(key => !except.includes(key)).every(key => JSON.stringify(before[key as keyof RuntimeAgent]) === JSON.stringify(after[key as keyof RuntimeAgent]));
 }

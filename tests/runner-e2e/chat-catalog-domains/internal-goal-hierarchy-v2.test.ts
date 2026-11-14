@@ -71,7 +71,7 @@ it("accepts a truthful zero-progress note on newly created goals", () => {
 it.each([
   ["Reach 100 signups", "Launch the website"],
   ["Reach 10,000 signups", "Launch the website"],
-  ["Reach 1,000 signups", "Hire a designer"],
+  ["Reach 1,000 signups", "Create a designer"],
   ["Grow revenue to 1,000 dollars", "Launch the website"],
 ])("rejects goals whose saved subject is not the requested one: %s / %s", (root, child) => {
   expect(grade_goals(retitled(root, child)).passed).toBe(false);

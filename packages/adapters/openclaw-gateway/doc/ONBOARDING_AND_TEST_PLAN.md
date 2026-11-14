@@ -12,7 +12,7 @@ This plan is now **gateway-only**. Outpost supports OpenClaw through `openclaw_g
 3. Device auth stays enabled by default; pairing is persisted via `adapterConfig.devicePrivateKeyPem`.
 4. Invite/access flow must be secure:
 - invite prompt endpoint is board-permission protected
-- Default agent agent is allowed to invoke the invite prompt endpoint for their own space
+- Default agent is allowed to invoke the invite prompt endpoint for their own space
 5. E2E pass criteria must include the 3 functional task cases.
 
 ## Current Product Flow

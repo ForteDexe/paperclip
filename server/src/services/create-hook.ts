@@ -6,8 +6,8 @@ import { findActiveServerAdapter } from "../adapters/registry.js";
 import { logger } from "../middleware/logger.js";
 import { logActivity } from "./activity-log.js";
 
-const HIRE_APPROVED_MESSAGE =
-  "Tell your user that your create was approved, now they should assign you a task in Outpost or ask you to create issues.";
+const AGENT_CREATED_MESSAGE =
+  "Tell the user that your agent setup was approved. They can now assign you a task in Outpost or ask you to create tasks.";
 
 export interface NotifyCreateApprovedInput {
   spaceId: string;
@@ -54,7 +54,7 @@ export async function notifyCreateApproved(
     source,
     sourceId,
     approvedAt: approvedAt.toISOString(),
-    message: HIRE_APPROVED_MESSAGE,
+    message: AGENT_CREATED_MESSAGE,
   };
 
   const adapterConfig =

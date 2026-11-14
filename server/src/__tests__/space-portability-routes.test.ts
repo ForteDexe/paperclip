@@ -329,7 +329,7 @@ describe("space portability routes", () => {
       id,
       spaceId,
       role: "general",
-      reportsTo: id === rootAgentId ? null : rootAgentId,
+      leadAgentId: id === rootAgentId ? null : rootAgentId,
     }));
     mockAgentService.list.mockResolvedValue([]);
     mockAccessService.decide.mockResolvedValue({

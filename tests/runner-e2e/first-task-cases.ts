@@ -37,7 +37,7 @@ export const FIRST_TASK_CASES = [
   ["revise-accept", "Revise scope before accepting", "task", 4],
   ["reject-no-execution", "Decline proposed work", "task", 2],
 ] as const;
-const approvalHistoryCase = [APPROVAL_HISTORY_CASE, "Interview, plan scope, hiring, and execution approval", "interview", 7] as const;
+const approvalHistoryCase = [APPROVAL_HISTORY_CASE, "Interview, plan scope, creation, and execution approval", "interview", 7] as const;
 export type FirstTaskCaseId = (typeof FIRST_TASK_CASES)[number][0] | typeof APPROVAL_HISTORY_CASE;
 export type FirstTaskOpening = (typeof FIRST_TASK_CASES)[number][2];
 export const firstTaskMarker = (nonce: string) =>
@@ -62,14 +62,14 @@ export function firstTaskScenario(id: string, nonce: string) {
         ? "Help me get my organization going."
         : entry[2] === "plan"
           ? `Write a short plan for welcoming new members to our garden club. ${facts} ${id === "plan-only-accept"
-            ? "For this task, deliver only a plan. Do not implement it, hire agents, or create execution tasks even after I approve the plan."
+            ? "For this task, deliver only a plan. Do not implement it, create agents, or create execution tasks even after I approve the plan."
             : "Let me review the plan before any work starts."}`
           : entry[2] === "ordinary"
             ? `Write the welcome note now on this task; no interview or subtask is needed. ${task}`
             : task,
     revision: `Change the note: invite people to our Sunday meetup instead, and replace ${originalMarker} with ${marker}. Please revise your proposal; I have not accepted it yet.`,
     acceptance: id === "plan-only-accept"
-      ? "I approve the plan only. Do not start implementation, hire agents, or create execution tasks."
+      ? "I approve the plan only. Do not start implementation, create agents, or create execution tasks."
       : "Yes, I accept that proposal. Please do it.",
     rejection:
       "No, do not proceed. I do not want this work done. Please acknowledge that and stop.",

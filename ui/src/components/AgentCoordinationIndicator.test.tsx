@@ -21,14 +21,14 @@ describe("AgentCoordinationIndicator", () => {
     container.remove();
   });
 
-  it("hides the crown when an agent has no direct reports", () => {
+  it("hides the crown when an agent has no coordinated agents", () => {
     act(() => root.render(
       <TooltipProvider><AgentCoordinationIndicator directReportCount={0} /></TooltipProvider>,
     ));
     expect(container.querySelector('[role="img"]')).toBeNull();
   });
 
-  it("shows the crown with the number of direct reports", () => {
+  it("shows the crown with the number of coordinated agents", () => {
     act(() => root.render(
       <TooltipProvider><AgentCoordinationIndicator directReportCount={2} /></TooltipProvider>,
     ));

@@ -13,7 +13,7 @@ function makeAgent(): Agent {
     title: "Engineer",
     icon: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "claude_local",
     adapterConfig: {

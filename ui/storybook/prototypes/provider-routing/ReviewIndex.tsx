@@ -19,7 +19,7 @@ const existing = [
   [
     "Onboarding / New agent",
     "onboarding-new-agent--interactive-flow",
-    "Hire, connect, configure, and test",
+    "Create, connect, configure, and test",
   ],
   [
     "Agents / Configuration refresh",

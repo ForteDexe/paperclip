@@ -140,7 +140,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
 
   async function seedBaseline() {
     const spaceId = randomUUID();
-    const managerId = randomUUID();
+    const leadAgentId = randomUUID();
     const coderId = randomUUID();
     const otherId = randomUUID();
 
@@ -152,7 +152,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     });
 
     await db.insert(agents).values(
-      [managerId, coderId, otherId].map((id, index) => ({
+      [leadAgentId, coderId, otherId].map((id, index) => ({
         id,
         spaceId,
         name: `agent-${index}`,
@@ -185,7 +185,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       })),
     ]);
 
-    return { spaceId, managerId, coderId, otherId };
+    return { spaceId, leadAgentId, coderId, otherId };
   }
 
   async function seedRecoveryAction(input: {
@@ -233,7 +233,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
   }
 
   it("fires the threshold alert on synthetic data crossing 2% of runs", async () => {
-    const { spaceId, managerId, coderId } = await seedBaseline();
+    const { spaceId, leadAgentId, coderId } = await seedBaseline();
 
     // Regression week: 3 recovery actions against 100 runs => 3% > 2%.
     for (let i = 0; i < 3; i += 1) {
@@ -245,9 +245,9 @@ describeEmbeddedPostgres("recovery observability report", () => {
         errorCode: "process_lost",
         status: "resolved",
         outcome: "restored",
-        ownerAgentId: managerId,
+        ownerAgentId: leadAgentId,
         returnOwnerAgentId: coderId,
-        finalAssigneeAgentId: managerId,
+        finalAssigneeAgentId: leadAgentId,
         finalIssueStatus: "done",
       });
     }
@@ -282,7 +282,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
   });
 
   it("computes the handed_back vs owner_completed ratio and per-cause routing", async () => {
-    const { spaceId, managerId, coderId, otherId } = await seedBaseline();
+    const { spaceId, leadAgentId, coderId, otherId } = await seedBaseline();
 
     // Two manager takeovers where the manager kept and completed the work.
     for (let i = 0; i < 2; i += 1) {
@@ -294,9 +294,9 @@ describeEmbeddedPostgres("recovery observability report", () => {
         errorCode: "adapter_failed",
         status: "resolved",
         outcome: "restored",
-        ownerAgentId: managerId,
+        ownerAgentId: leadAgentId,
         returnOwnerAgentId: coderId,
-        finalAssigneeAgentId: managerId,
+        finalAssigneeAgentId: leadAgentId,
         finalIssueStatus: "done",
       });
     }
@@ -309,7 +309,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       errorCode: "adapter_failed",
       status: "resolved",
       outcome: "restored",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       returnOwnerAgentId: coderId,
       finalAssigneeAgentId: coderId,
       finalIssueStatus: "in_progress",
@@ -323,7 +323,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       errorCode: "adapter_failed",
       status: "resolved",
       outcome: "restored",
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       returnOwnerAgentId: coderId,
       finalAssigneeAgentId: otherId,
       finalIssueStatus: "in_progress",
@@ -351,9 +351,9 @@ describeEmbeddedPostgres("recovery observability report", () => {
       errorCode: "manual_escalation",
       status: "escalated",
       outcome: null,
-      ownerAgentId: managerId,
+      ownerAgentId: leadAgentId,
       returnOwnerAgentId: coderId,
-      finalAssigneeAgentId: managerId,
+      finalAssigneeAgentId: leadAgentId,
       finalIssueStatus: "in_progress",
     });
 

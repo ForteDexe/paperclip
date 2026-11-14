@@ -117,8 +117,8 @@ export interface InstanceExperimentalSettings {
    */
   enableSimplifiedEnglishInteractions: boolean;
   /**
-   * When the user's first onboarding request is a single task, the chief of
-   * staff proposes with a short plan document and a checkbox card instead of a
+   * When the user's first onboarding request is a single task, the default
+   * agent proposes a short plan document and a checkbox card instead of a
    * one-card confirmation. Read once, when the onboarding first task is created;
    * flipping it later does not change an existing first task.
    */

@@ -543,7 +543,7 @@ describe("deferred receipt durable dispatch", () => {
     for (const gate of ["budget", "agent"] as const) {
       deps.budgets.getInvocationBlock.mockResolvedValue(gate === "budget"
         ? { scopeType: "agent", scopeId: f.agent.id, scopeName: f.agent.name, reason: "Budget blocked" } : null);
-      deps.getAgentInvokability.mockResolvedValue({ invokable: false, message: "Paused", reason: "paused", details: {}, invalidOrgChain: false });
+      deps.getAgentInvokability.mockResolvedValue({ invokable: false, message: "Paused", reason: "paused", details: {}, invalidCoordinationChain: false });
       const error = await queue.enqueueWakeup(f.agent.id, { source: "on_demand", reason: "task_retry",
         requestedByActorType: "user", requestedByActorId: f.actorId, payload: { issueId: f.issue.id },
         contextSnapshot: { issueId: f.issue.id, responsibleUserId: f.actorId } }, requestId).catch(cause => cause);

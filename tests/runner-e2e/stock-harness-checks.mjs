@@ -19,7 +19,7 @@ export const stockHarnessGates = [
     "preserves stock Codex instructions on prepared recovery", "preserves stock Codex instructions on direct recovery",
     "captures exact provider frames and correlates", "exposes native completion consistently on fresh and resumed sessions",
     "passes caller-supplied native system instructions"] },
-  { id: "SH-2", name: "Production-default hire bundle", cwd: ".", files: [
+  { id: "SH-2", name: "Production-default create bundle", cwd: ".", files: [
     "server/src/__tests__/agent-skills-routes.test.ts",
     "server/src/services/onboarding-first-task-assets.test.ts",
   ], required: ["materializes minimal default instructions for non-CEO agents with no prompt template"] },

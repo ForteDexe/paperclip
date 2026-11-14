@@ -4,7 +4,7 @@ import { onboardingConnect, validateOnboardingConnectEvidence, type OnboardingCo
 
 const origin = "https://tenant.example.test", spaceId = "space-1";
 const validation = `/api/spaces/${spaceId}/adapters/outpost_runner/test-environment`;
-const hire = `/api/spaces/${spaceId}/agent-hires`;
+const create = `/api/spaces/${spaceId}/agent-hires`;
 const secret = "PRIVATE_SENTINEL_do_not_retain";
 function fixture(options: { ready?: boolean; durationMs?: number; click?: () => Promise<void> | void; wait?: () => Promise<void> } = {}) {
   const events = new EventEmitter();
@@ -64,7 +64,7 @@ describe("one onboarding Connect diagnostic boundary", () => {
   it.each(["details", "top-level"])("retains a known %s server rejection without its free text", async location => {
     const f = fixture({ click: () => { f.respond({ error: secret, ...(location === "details" ? { details: { code: "agent_runner_config_incompatible", fields: [secret] } } : { code: "agent_runner_unavailable" }) }, 422); } });
     await expect(f.run()).rejects.toMatchObject({ code: "onboarding_native_validation_failed" });
-    expect(f.receipt()).toMatchObject({ checkpoint: "validation", validation: { state: "json", httpStatus: 422, serverCode: location === "details" ? "agent_runner_config_incompatible" : "agent_runner_unavailable" }, hire: { state: "missing" } });
+    expect(f.receipt()).toMatchObject({ checkpoint: "validation", validation: { state: "json", httpStatus: 422, serverCode: location === "details" ? "agent_runner_config_incompatible" : "agent_runner_unavailable" }, create: { state: "missing" } });
     expect(JSON.stringify(f.receipt())).not.toContain(secret);
     validateOnboardingConnectEvidence(f.receipt());
     expect(f.events.listenerCount("response")).toBe(0);
@@ -76,10 +76,10 @@ describe("one onboarding Connect diagnostic boundary", () => {
     expect(f.receipt().validation.httpStatus).toBe(200);
   });
 
-  it("retains the hire boundary rejection and does not wait for Get started", async () => {
-    const f = fixture({ click: () => { f.respond({ details: { code: "agent_runner_platform_probe_failed" }, error: secret }, 503, hire); } });
+  it("retains the create boundary rejection and does not wait for Get started", async () => {
+    const f = fixture({ click: () => { f.respond({ details: { code: "agent_runner_platform_probe_failed" }, error: secret }, 503, create); } });
     await expect(f.run()).rejects.toMatchObject({ code: "onboarding_agent_hire_failed" });
-    expect(f.receipt()).toMatchObject({ checkpoint: "hire", hire: { httpStatus: 503, serverCode: "agent_runner_platform_probe_failed" } });
+    expect(f.receipt()).toMatchObject({ checkpoint: "create", create: { httpStatus: 503, serverCode: "agent_runner_platform_probe_failed" } });
   });
 
   it("projects only enums from malicious nested fields, including unknown codes and bounded checks", async () => {
@@ -105,7 +105,7 @@ describe("one onboarding Connect diagnostic boundary", () => {
     } });
     const result = expect(f.run()).rejects.toMatchObject({ code: "onboarding_get_started_timeout" });
     await vi.advanceTimersByTimeAsync(101); await result;
-    expect(f.receipt()).toMatchObject({ checkpoint: "connect", validation: { state: "missing" }, hire: { state: "missing" } });
+    expect(f.receipt()).toMatchObject({ checkpoint: "connect", validation: { state: "missing" }, create: { state: "missing" } });
     expect(f.events.eventNames()).toEqual([]);
   });
 
@@ -173,9 +173,9 @@ describe("one onboarding Connect diagnostic boundary", () => {
   it("observes both successful responses and requires the visible review step", async () => {
     const f = fixture({ ready: true, click: () => {
       f.respond({ adapterType: "outpost_runner", status: "pass", checks: [{ code: "codex_hello_probe_passed", level: "info", message: secret }] }, 200, validation.replace("outpost_runner", "codex_local"));
-      f.respond({ agent: { id: secret }, approval: null }, 201, hire);
+      f.respond({ agent: { id: secret }, approval: null }, 201, create);
     } });
-    expect(await f.run()).toMatchObject({ checkpoint: "review", validation: { requestedAdapter: "codex_local", adapter: "outpost_runner", outcome: "pass", checks: [{ code: "codex_hello_probe_passed", level: "info" }] }, hire: { state: "json", httpStatus: 201 } });
+    expect(await f.run()).toMatchObject({ checkpoint: "review", validation: { requestedAdapter: "codex_local", adapter: "outpost_runner", outcome: "pass", checks: [{ code: "codex_hello_probe_passed", level: "info" }] }, create: { state: "json", httpStatus: 201 } });
     expect(JSON.stringify(f.receipt())).not.toContain(secret);
     expect(f.events.eventNames()).toEqual([]);
   });

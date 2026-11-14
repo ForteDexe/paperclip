@@ -721,7 +721,7 @@ export const queryKeys = {
     ["heartbeat-run", runId, "workspace-operations"] as const,
   liveRuns: (spaceId: string) => ["live-runs", spaceId] as const,
   runIssues: (runId: string) => ["run-issues", runId] as const,
-  org: (spaceId: string) => ["org", spaceId] as const,
+  agentHierarchy: (spaceId: string) => ["agent-hierarchy", spaceId] as const,
   skills: {
     available: ["skills", "available"] as const,
   },

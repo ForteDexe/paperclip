@@ -530,7 +530,7 @@ export interface ServerAdapterModule {
   refreshModels?: () => Promise<AdapterModel[]>;
   agentConfigurationDoc?: string;
   /**
-   * Optional lifecycle hook when an agent creation is approved (join-request or create_agent approval).
+   * Optional lifecycle hook when an creation is approved (join-request or create_agent approval).
    * adapterConfig is the agent's adapter config so the adapter can e.g. send a callback to a configured URL.
    */
   onCreateApproved?: (

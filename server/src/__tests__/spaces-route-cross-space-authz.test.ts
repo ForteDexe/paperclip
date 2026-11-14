@@ -163,7 +163,7 @@ function resetMockDefaults() {
   }));
   mockSpaceService.remove.mockImplementation(async (id: string) => createSpace(id));
   mockAgentService.getById.mockImplementation(async (id: string) => {
-    if (id === rootAgentId) return { id, spaceId: spaceAId, role: "general", reportsTo: null };
+    if (id === rootAgentId) return { id, spaceId: spaceAId, role: "general", leadAgentId: null };
     return null;
   });
   mockAgentService.list.mockResolvedValue([]);
@@ -333,7 +333,7 @@ describe("space route cross-space authorization", () => {
       label: "POST /api/spaces/:spaceId/imports/apply",
       request: (app: express.Express) => request(app).post(`/api/spaces/${spaceBId}/imports/apply`).send(importRequest()),
     },
-  ])("rejects a space A agent attempting space B operation: $label", async ({ request: buildRequest }) => {
+  ])("rejects a space An agent attempting space B operation: $label", async ({ request: buildRequest }) => {
     const app = await createApp(spaceARootAgent());
 
     const res = await buildRequest(app);

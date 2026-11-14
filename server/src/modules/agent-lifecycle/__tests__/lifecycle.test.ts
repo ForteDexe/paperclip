@@ -544,7 +544,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("does not cancel a reporting agent when its manager pauses", async () => {
     const parent = await create();
-    const [child] = await db.insert(agents).values({ spaceId, name: "Report", reportsTo: parent.id,
+    const [child] = await db.insert(agents).values({ spaceId, name: "Report", leadAgentId: parent.id,
       status: "idle", lifecycleState: "ready" }).returning();
     const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: child.id,
       status: "queued", invocationSource: "on_demand" }).returning();

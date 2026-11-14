@@ -39,11 +39,11 @@ describe("agent persona presentation", () => {
     expect(host.querySelector("img")?.getAttribute("width")).toBe("24");
   });
   it("keeps reserved image dimensions and falls back to initials after an image error", async () => {
-    await act(async () => root.render(<AgentAvatar appearance={appearance} name="Chief of Staff" size={48} label="Chief of Staff" />));
+    await act(async () => root.render(<AgentAvatar appearance={appearance} name="Default agent" size={48} label="Default agent" />));
     expect(host.querySelector("img")?.height).toBe(48);
     await act(async () => { host.querySelector("img")!.dispatchEvent(new Event("error")); });
     expect(host.textContent).toBe("CS");
-    expect(host.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Chief of Staff");
+    expect(host.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Default agent");
   });
   it("allows only one live character, releases it offscreen and disposes on unmount", async () => {
     await act(async () => root.render(<><AgentCharacter appearance={appearance} /><AgentCharacter appearance={appearance} /></>));

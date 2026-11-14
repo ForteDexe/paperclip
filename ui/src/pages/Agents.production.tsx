@@ -5,7 +5,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { agentsApi, type OrgNode } from "../api/agents";
+import { agentsApi, type AgentHierarchyNode } from "../api/agents";
 import { builtInAgentsApi, type BuiltInAgentState } from "../api/builtInAgents";
 import { environmentsApi } from "../api/environments";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -152,21 +152,21 @@ function resolveAgentEnvironment(
     : describeMissingEnvironment(environmentId);
 }
 
-function filterOrgTree(nodes: OrgNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): OrgNode[] {
+function filterAgentHierarchy(nodes: AgentHierarchyNode[], tab: FilterTab, builtInAgentIds: Set<string>, matchingIds?: Set<string>): AgentHierarchyNode[] {
   return nodes
-    .reduce<OrgNode[]>((acc, node) => {
-      const filteredReports = filterOrgTree(node.reports, tab, builtInAgentIds, matchingIds);
+    .reduce<AgentHierarchyNode[]>((acc, node) => {
+      const filteredChildren = filterAgentHierarchy(node.children, tab, builtInAgentIds, matchingIds);
       // Hidden agents (terminated / pending_approval) never render as a row, but
       // any visible reports are promoted so the tree doesn't lose live agents.
       if (HIDDEN_AGENT_STATUSES.has(node.status)) {
-        acc.push(...filteredReports);
+        acc.push(...filteredChildren);
         return acc;
       }
       const nodeMatches = tab === "builtin"
         ? builtInAgentIds.has(node.id)
         : matchesFilter(node.status, tab);
-      if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredReports.length > 0) {
-        acc.push({ ...node, reports: filteredReports });
+      if ((nodeMatches && (!matchingIds || matchingIds.has(node.id))) || filteredChildren.length > 0) {
+        acc.push({ ...node, children: filteredChildren });
       }
       return acc;
     }, [])
@@ -182,9 +182,9 @@ export function Agents() {
   const { isMobile } = useSidebar();
   const pathSegment = location.pathname.split("/").pop() ?? "all";
   const requestedTab: FilterTab = isFilterTab(pathSegment) ? pathSegment : "all";
-  const [view, setView] = useState<"list" | "org">("org");
+  const [view, setView] = useState<"list" | "agent-hierarchy">("agent-hierarchy");
   const forceListView = isMobile;
-  const effectiveView: "list" | "org" = forceListView ? "list" : view;
+  const effectiveView: "list" | "agent-hierarchy" = forceListView ? "list" : view;
 
   const { data: instanceSettings } = useQuery({
     queryKey: queryKeys.instance.settings,
@@ -218,10 +218,10 @@ export function Agents() {
   const rosterFilters = useAgentRosterFilters(selectedSpaceId, agents);
   const agentsView = useQueryView(agentsQuery);
 
-  const { data: orgTree } = useQuery({
-    queryKey: queryKeys.org(selectedSpaceId!),
-    queryFn: () => agentsApi.org(selectedSpaceId!),
-    enabled: !!selectedSpaceId && effectiveView === "org",
+  const { data: agentHierarchy } = useQuery({
+    queryKey: queryKeys.agentHierarchy(selectedSpaceId!),
+    queryFn: () => agentsApi.hierarchy(selectedSpaceId!),
+    enabled: !!selectedSpaceId && effectiveView === "agent-hierarchy",
   });
 
   const environmentsEnabled = instanceSettings?.experimental.enableEnvironments === true;
@@ -330,7 +330,7 @@ export function Agents() {
   }
 
   const filtered = filterAgents(agents ?? [], tab, builtInAgentIds).filter(rosterFilters.matches);
-  const filteredOrg = filterOrgTree(orgTree ?? [], tab, builtInAgentIds, rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
+  const filteredHierarchy = filterAgentHierarchy(agentHierarchy ?? [], tab, builtInAgentIds, rosterFilters.activeCount ? new Set(filtered.map(agent => agent.id)) : undefined);
   const environmentDataLoading = environmentsEnabled && environments === undefined;
   const showEnvironmentColumn = environmentsEnabled && (environments === undefined || environments.length > 1);
   const resolveRenderedEnvironment = (agentId: string) => (
@@ -341,9 +341,9 @@ export function Agents() {
 
   const renderAgentRow = (agent: Agent) => {
     const directReportCount = (agents ?? []).filter(
-      (candidate) => candidate.reportsTo === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
+      (candidate) => candidate.leadAgentId === agent.id && !HIDDEN_AGENT_STATUSES.has(candidate.status),
     ).length;
-    const hasInvalidOrgChain = agent.orgChainHealth?.status === "invalid_org_chain";
+    const hasInvalidCoordination = agent.coordinationHealth?.status === "invalid_coordination_chain";
     const builtInState = builtInByAgentId.get(agent.id);
     const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
     // Lifecycle chip + inline `Set up`. Rendered inline in
@@ -387,8 +387,8 @@ export function Agents() {
         subtitle={agent.title || "Scope owner"}
         to={agentUrl(agent)}
         className="agent-roster-identity group py-3"
-        leading={hasInvalidOrgChain ? (
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid reporting chain" />
+        leading={hasInvalidCoordination ? (
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Invalid coordination chain" />
         ) : (
           <AgentAvatar agent={agent} size={32} />
         )}
@@ -441,12 +441,12 @@ export function Agents() {
               <button
                 className={cn(
                   "p-1.5 transition-colors",
-                  effectiveView === "org" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+                  effectiveView === "agent-hierarchy" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
                 )}
-                onClick={() => setView("org")}
-                title="Crew map view"
-                aria-label="Crew map view"
-                aria-pressed={effectiveView === "org"}
+                onClick={() => setView("agent-hierarchy")}
+                title="Agent hierarchy view"
+                aria-label="Agent hierarchy view"
+                aria-pressed={effectiveView === "agent-hierarchy"}
               >
                 <GitBranch className="h-3.5 w-3.5" />
               </button>
@@ -479,11 +479,11 @@ export function Agents() {
 
 
 
-      {/* Org chart view */}
-      {effectiveView === "org" && filteredOrg.length > 0 && (
+      {/* Agent hierarchy view */}
+      {effectiveView === "agent-hierarchy" && filteredHierarchy.length > 0 && (
         <div className="py-1">
-          {filteredOrg.map((node) => (
-            <OrgTreeNode
+          {filteredHierarchy.map((node) => (
+            <HierarchyNode
               key={node.id}
               node={node}
               depth={0}
@@ -499,15 +499,15 @@ export function Agents() {
         </div>
       )}
 
-      {effectiveView === "org" && orgTree && orgTree.length > 0 && filteredOrg.length === 0 && (
+      {effectiveView === "agent-hierarchy" && agentHierarchy && agentHierarchy.length > 0 && filteredHierarchy.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No agents match the selected filters.
         </p>
       )}
 
-      {effectiveView === "org" && orgTree && orgTree.length === 0 && (
+      {effectiveView === "agent-hierarchy" && agentHierarchy && agentHierarchy.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
-          No organizational hierarchy defined.
+          No agent hierarchy defined.
         </p>
       )}
       {configureState && selectedSpaceId && (
@@ -526,7 +526,7 @@ export function Agents() {
   );
 }
 
-function OrgTreeNode({
+function HierarchyNode({
   node,
   depth,
   agentMap,
@@ -537,7 +537,7 @@ function OrgTreeNode({
   builtInByAgentId,
   onConfigureBuiltIn,
 }: {
-  node: OrgNode;
+  node: AgentHierarchyNode;
   depth: number;
   agentMap: Map<string, Agent>;
   liveRunByAgent: Map<string, { runId: string; liveCount: number }>;
@@ -550,7 +550,7 @@ function OrgTreeNode({
   const agent = agentMap.get(node.id);
   const builtInState = builtInByAgentId.get(node.id);
   const showBuiltInLifecycle = builtInState?.status === "needs_setup" || builtInState?.status === "pending_approval";
-  const hasInvalidOrgChain = Boolean(agent && agent.orgChainHealth?.status === "invalid_org_chain");
+  const hasInvalidCoordination = Boolean(agent && agent.coordinationHealth?.status === "invalid_coordination_chain");
 
   return (
     <div style={{ paddingLeft: depth * 24 }}>
@@ -558,8 +558,8 @@ function OrgTreeNode({
         to={agent ? agentUrl(agent) : `/agents/${node.id}`}
         className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors w-full text-left no-underline text-inherit"
       >
-        {hasInvalidOrgChain ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid reporting chain" />
+        {hasInvalidCoordination ? (
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Invalid coordination chain" />
         ) : (
           <AgentAvatar agent={agent ?? node} size={24} />
         )}
@@ -628,10 +628,10 @@ function OrgTreeNode({
           </div>
         </div>
       </Link>
-      {node.reports && node.reports.length > 0 && (
+      {node.children && node.children.length > 0 && (
         <div className="border-l border-border ml-4">
-          {node.reports.map((child) => (
-            <OrgTreeNode
+          {node.children.map((child) => (
+            <HierarchyNode
               key={child.id}
               node={child}
               depth={depth + 1}

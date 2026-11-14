@@ -15,7 +15,7 @@ import type {
   TrustAuthorizationPolicy,
   TrustPreset,
 } from "../trust-policy.js";
-import type { AgentOrgChainHealth } from "../agent-eligibility.js";
+import type { AgentCoordinationHealth } from "../agent-eligibility.js";
 import type { AgentApiKeyScope } from "../validators/agent.js";
 import type { AgentInteractionPermissions } from "../agent-interaction-permissions.js";
 
@@ -104,7 +104,7 @@ export interface Agent {
   lifecycleState?: AgentLifecycleState;
   lifecycleVersion?: number;
   lifecycleError?: string | null;
-  reportsTo: string | null;
+  leadAgentId: string | null;
   capabilities: string | null;
   adapterType: AgentAdapterType;
   adapterConfig: Record<string, unknown>;
@@ -120,7 +120,7 @@ export interface Agent {
   permissions: AgentPermissions;
   lastHeartbeatAt: Date | null;
   metadata: Record<string, unknown> | null;
-  orgChainHealth?: AgentOrgChainHealth;
+  coordinationHealth?: AgentCoordinationHealth;
   createdByUserId?: string | null;
   createdAt: Date;
   updatedAt: Date;

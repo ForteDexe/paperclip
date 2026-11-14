@@ -82,7 +82,7 @@
       "reason": "Actual local OpenCode native authentication/hello probe, absent from frozen production baseline."
     },
     {
-      "scenarioId": "questions-and-approvals.formal-hire-revision",
+      "scenarioId": "questions-and-approvals.formal-create-revision",
       "corePullRequest": 18105,
       "reason": "Permission-qualified, truthful responseText pre-dispatch recovery guidance, absent from frozen production baseline."
     },

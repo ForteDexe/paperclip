@@ -75,7 +75,7 @@ function makeState(overrides: Partial<BuiltInAgentState> = {}): BuiltInAgentStat
 function makeSavedAgent(adapterType: "codex_local" | "outpost_runner", adapterConfig: Record<string, unknown>): NonNullable<BuiltInAgentState["agent"]> {
   return {
     id: "a1", spaceId: "c1", name: "Briefs Agent", urlKey: "briefs-agent", role: "general", title: null, icon: null,
-    status: "idle", reportsTo: null, capabilities: null, adapterType, adapterConfig, runtimeConfig: {}, defaultEnvironmentId: null,
+    status: "idle", leadAgentId: null, capabilities: null, adapterType, adapterConfig, runtimeConfig: {}, defaultEnvironmentId: null,
     budgetMonthlyCents: 0, spentMonthlyCents: 0, pauseReason: null, pausedAt: null, permissions: { canCreateAgents: false },
     lastHeartbeatAt: null, metadata: null, createdAt: new Date(0), updatedAt: new Date(0),
   };

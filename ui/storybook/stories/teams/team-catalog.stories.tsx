@@ -11,7 +11,7 @@ import {
   StepPreview,
   StepSkillPlan,
   StepSourcePolicy,
-  StepTargetManager,
+  StepTargetLead,
   TeamCard,
   TeamDetailPane,
   TeamRow,
@@ -49,7 +49,7 @@ function makeAgent(id: string, name: string, role: string): Agent {
     title: null,
     icon: null,
     status: "active",
-    reportsTo: null,
+    leadAgentId: null,
     capabilities: null,
     adapterType: "claude_local" as Agent["adapterType"],
     adapterConfig: {},
@@ -127,7 +127,7 @@ export function makePreview(errors: string[] = []): CatalogTeamImportPreviewResu
 function manifestAgent(slug: string, name: string): any {
   return {
     slug, name, path: `agents/${slug}/AGENTS.md`, skills: [], role: slug, title: null, icon: null,
-    capabilities: null, reportsToSlug: slug === "ceo" ? null : "ceo", adapterType: "claude_local",
+    capabilities: null, leadAgentSlug: slug === "ceo" ? null : "ceo", adapterType: "claude_local",
     adapterConfig: {}, runtimeConfig: {}, permissions: {}, budgetMonthlyCents: 0, metadata: null,
   };
 }
@@ -210,20 +210,20 @@ export const InstalledStates: Story = {
   ),
 };
 
-export const InstallTargetManager: Story = {
+export const InstallTargetLead: Story = {
   render: function Render() {
     const [managerId, setManagerId] = useState<string | null>(null);
     const [fullSpace, setFullSpace] = useState(false);
     return (
       <Frame>
-        <StepTargetManager
+        <StepTargetLead
           team={baseTeam}
           agents={spaceAgents}
-          targetManagerAgentId={managerId}
-          onPickManager={setManagerId}
+          targetLeadAgentId={managerId}
+          onPickLead={setManagerId}
           fullSpace={fullSpace}
           onToggleFullSpace={setFullSpace}
-          canBypassManager
+          canBypassLead
         />
       </Frame>
     );

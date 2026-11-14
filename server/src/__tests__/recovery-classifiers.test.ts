@@ -16,7 +16,7 @@ import {
 
 const spaceId = "space-1";
 const agentId = "agent-1";
-const managerId = "manager-1";
+const leadAgentId = "manager-1";
 const issueId = "issue-1";
 const blockerId = "blocker-1";
 const runId = "run-1";
@@ -58,15 +58,15 @@ describe("recovery classifier boundary", () => {
           name: "Coder",
           role: "engineer",
           status: "idle",
-          reportsTo: managerId,
+          leadAgentId: leadAgentId,
         },
         {
-          id: managerId,
+          id: leadAgentId,
           spaceId,
           name: "Engineering Lead",
           role: "engineering_lead",
           status: "idle",
-          reportsTo: null,
+          leadAgentId: null,
         },
       ],
     };
@@ -100,7 +100,7 @@ describe("recovery classifier boundary", () => {
           name: "Coder",
           role: "engineer",
           status: "idle",
-          reportsTo: managerId,
+          leadAgentId: leadAgentId,
         },
       ],
     });
@@ -127,7 +127,7 @@ describe("recovery classifier boundary", () => {
         name: "Coder",
         role: "engineer",
         status: "idle",
-        reportsTo: managerId,
+        leadAgentId: leadAgentId,
       },
     ];
 

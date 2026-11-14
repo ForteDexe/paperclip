@@ -235,7 +235,7 @@ describe("teams catalog routes", () => {
     const res = await request(app)
       .post(`/api/spaces/${spaceId}/teams/catalog/ref/preview?ref=outpost%2Fbundled%2Fsoftware-development%2Fproduct-engineering`)
       .send({
-        targetManagerSlug: "engineering-lead",
+        targetLeadSlug: "engineering-lead",
         sourcePolicy: { allowExternalSources: true },
       });
 
@@ -244,7 +244,7 @@ describe("teams catalog routes", () => {
       spaceId,
       "outpost/bundled/software-development/product-engineering",
       expect.objectContaining({
-        targetManagerSlug: "engineering-lead",
+        targetLeadSlug: "engineering-lead",
         sourcePolicy: { allowExternalSources: true },
         actor: expect.objectContaining({
           actorType: "user",

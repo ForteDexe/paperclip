@@ -267,7 +267,7 @@ describe("manual everyday workflow catalog", () => {
       /fixture|mark .*done|finish_task|api\/issues/i,
     );
   });
-  it("does not claim unsupported remote crash/hiring coverage", () => {
+  it("does not claim unsupported remote crash/creation coverage", () => {
     // The explicit reliability group is covered by everyday-reliability.test.ts.
     const remote = runnerMatrix.filter(
       (e) =>
@@ -639,10 +639,10 @@ describe("reply completion boundary", () => {
             },
           ],
         },
-        ["lead", "hired-worker"],
+        ["lead", "created-worker"],
       ),
     ).toBe(true);
-    expect(storyHasPendingAgentWake(child, ["hired-worker", "lead"])).toBe(
+    expect(storyHasPendingAgentWake(child, ["created-worker", "lead"])).toBe(
       true,
     );
     expect(

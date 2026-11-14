@@ -13,7 +13,7 @@ describe("Cloud space isolation evidence", () => {
     for (const href of [null, portal + "/stacks/one/enter", portal + "/v1/stacks/qa-two/entry-redirect", portal + "/v1/stacks/qa-two/entry-redirect?by=id&extra=1", "https://other.example.test/stacks/two/enter", portal + "/stacks/two/enter#fragment"])
       expect(isolationEntryMatches(href, portal, secondary)).toBe(false);
   });
-  it("requires a unique new canonical task with real agent creation attribution", () => {
+  it("requires a unique new canonical task with real creation attribution", () => {
     const expected = { spaceId: primary.spaceId, title: "Owned create", description: "Fresh body", agentId: "agent-one" };
     const created = { ...expected, id: "new-task", identifier: "ONE-2", createdByAgentId: expected.agentId, createdByUserId: null,
       status: "backlog", assigneeAgentId: null, assigneeUserId: null };

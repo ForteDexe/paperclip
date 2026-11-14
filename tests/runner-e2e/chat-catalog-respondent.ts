@@ -16,7 +16,7 @@ export async function prepareChatCatalogRespondent(input: ChatFlowInput, descrip
   const original = input.fixtures.agent;
   const base = input.execution.profile.buildAgent({ environmentId: input.fixtures.environment.id, environmentFixtureId: input.execution.environment.id,
     workspacePath: input.workspacePath, secretRefs: input.fixtures.secretRefs, executionId: `${input.nonce}-case-owner` });
-  const payload = { ...base, name: policy.name, role: policy.role, title: "Case investigator", reportsTo: original.id,
+  const payload = { ...base, name: policy.name, role: policy.role, title: "Case investigator", leadAgentId: original.id,
     capabilities: "Investigates customer cases and preserves findings when handing the same task to a reviewer.", permissions: { canCreateAgents: false },
     runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1, maxDailyRuns: 3, maxDailyCostCents: 500 } } };
   const created = await input.api.post<Respondent>(`/api/spaces/${input.fixtures.space.id}/agents`, input.execution.profile.credential === "CODEX_AUTH_JSON"

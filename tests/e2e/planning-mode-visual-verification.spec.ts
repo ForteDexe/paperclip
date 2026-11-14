@@ -80,7 +80,7 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
   // Naming the space creates it and goes straight to the agent step.
 
   // The agent step asks for a name and nothing else; the name is what gates
-  // "Next", and the hire is filed under the neutral `general` role.
+  // "Next", and the create is filed under the neutral `general` role.
   await page.waitForSelector("#onboarding-agent-name", { timeout: 30_000 });
   await page.locator("#onboarding-agent-name").fill(AGENT_NAME);
 

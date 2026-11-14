@@ -192,7 +192,7 @@ describe("agent-created creations use managed AI connections", () => {
   it.each(["agent-creations", "agents"])("%s installs authorized pool members atomically with the new agent", async (endpoint) => {
     const f = await fixture("openai");
     const p = await poolFixture(f);
-    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/${endpoint}`).send({ name: "Pool teammate", role: "engineer", adapterType: f.adapterType, reportsTo: f.agentId, runtimeConfig: { aiConnection: p.binding } }));
+    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/${endpoint}`).send({ name: "Pool teammate", role: "engineer", adapterType: f.adapterType, leadAgentId: f.agentId, runtimeConfig: { aiConnection: p.binding } }));
     expect(agent.runtimeConfig.aiConnection).toEqual(p.binding);
     const installs = await db.select().from(toolConnectionInstalls).where(and(eq(toolConnectionInstalls.spaceId, f.spaceId), eq(toolConnectionInstalls.targetType, "agent"), eq(toolConnectionInstalls.targetId, agent.id)));
     expect(installs.map(i => i.connectionId).sort()).toEqual([p.pool.id, f.account.connectionId].sort());
@@ -414,7 +414,7 @@ describe("agent-created creations use managed AI connections", () => {
       ["openai", "api_key"], ["openai", "subscription"],
     ] as const)(`${endpoint}: %s creations its own provider using the same %s binding`, async (provider, method) => {
       const f = await fixture(provider, method);
-      const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/${endpoint}`).send({ name: "Teammate", role: "engineer", adapterType: f.adapterType, reportsTo: f.agentId }));
+      const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/${endpoint}`).send({ name: "Teammate", role: "engineer", adapterType: f.adapterType, leadAgentId: f.agentId }));
       expect(agent.runtimeConfig.aiConnection).toEqual(f.binding);
       const runtime = await prepareManagedAiRuntime(db, { spaceId: f.spaceId, agentId: agent.id, responsibleUserId: f.userId, adapterType: agent.adapterType, binding: agent.runtimeConfig.aiConnection, config: agent.adapterConfig });
       try {
@@ -590,7 +590,7 @@ describe("created agents sharing a subscription", () => {
   }
   it("starts a created agent without acquiring an AI connection execution lock", async () => {
     const f = await fixture("openai", "subscription");
-    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/agent-creations`).send({ name: "Concurrent teammate", role: "engineer", adapterType: f.adapterType, runner: "legacy", reportsTo: f.agentId, adapterConfig: { engine: "cli" }, runtimeConfig: { heartbeat: { enabled: false } } }));
+    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/agent-creations`).send({ name: "Concurrent teammate", role: "engineer", adapterType: f.adapterType, runner: "legacy", leadAgentId: f.agentId, adapterConfig: { engine: "cli" }, runtimeConfig: { heartbeat: { enabled: false } } }));
     // Only an operator may set host execution paths after the agent is created.
     await db.update(agents).set({ adapterConfig: { ...agent.adapterConfig, cwd: home } }).where(eq(agents.id, agent.id));
     await finishSetup(agent.id);
@@ -627,7 +627,7 @@ describe("created agents sharing a subscription", () => {
 
   it.each(["openai", "anthropic"] as const)("runs the %s child alongside a live parent and inherits its connection", async (provider) => {
     const f = await fixture(provider, "subscription");
-    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/agent-creations`).send({ name: "Concurrent teammate", role: "engineer", adapterType: f.adapterType, runner: "legacy", reportsTo: f.agentId, adapterConfig: { engine: "cli" }, runtimeConfig: { heartbeat: { enabled: false } } }));
+    const agent = created(await request(f.app).post(`/api/spaces/${f.spaceId}/agent-creations`).send({ name: "Concurrent teammate", role: "engineer", adapterType: f.adapterType, runner: "legacy", leadAgentId: f.agentId, adapterConfig: { engine: "cli" }, runtimeConfig: { heartbeat: { enabled: false } } }));
     // Host working directories are configured by an operator, not an agent key.
     await db.update(agents).set({ adapterConfig: { ...agent.adapterConfig, cwd: home } }).where(eq(agents.id, agent.id));
     await finishSetup(agent.id);

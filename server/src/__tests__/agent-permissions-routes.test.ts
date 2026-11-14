@@ -24,7 +24,7 @@ const baseAgent = {
   title: "Builder",
   icon: null,
   status: "idle",
-  reportsTo: null,
+  leadAgentId: null,
   capabilities: null,
   adapterType: "process",
   adapterConfig: {},
@@ -52,7 +52,7 @@ const mockAgentService = vi.hoisted(() => ({
   updateAndTransition: vi.fn(),
   rollbackConfigRevision: vi.fn(),
   updatePermissions: vi.fn(),
-  getChainOfCommand: vi.fn(),
+  getCoordinationChain: vi.fn(),
   resolveByReference: vi.fn(),
 }));
 
@@ -320,7 +320,7 @@ describe("agent permission routes", () => {
     mockAgentService.update.mockReset();
     mockAgentService.rollbackConfigRevision.mockReset();
     mockAgentService.updatePermissions.mockReset();
-    mockAgentService.getChainOfCommand.mockReset();
+    mockAgentService.getCoordinationChain.mockReset();
     mockAgentService.resolveByReference.mockReset();
     mockBuiltInAgentService.ensureSpaceDefaultAgentGrants.mockReset();
     mockAccessService.canUser.mockReset();
@@ -365,7 +365,7 @@ describe("agent permission routes", () => {
     mockAgentService.getConfigRevision.mockResolvedValue(null);
     mockAgentService.listConfigRevisions.mockResolvedValue([]);
     mockAgentService.list.mockResolvedValue([baseAgent]);
-    mockAgentService.getChainOfCommand.mockResolvedValue([]);
+    mockAgentService.getCoordinationChain.mockResolvedValue([]);
     mockAgentService.resolveByReference.mockResolvedValue({ ambiguous: false, agent: baseAgent });
     mockAgentService.create.mockResolvedValue(baseAgent);
     mockAgentService.activatePendingApproval.mockResolvedValue({
@@ -1252,7 +1252,7 @@ describe("agent permission routes", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("blocks direct agent creation for authenticated space members without agent create permission", async () => {
+  it("blocks direct creation for authenticated space members without agent create permission", async () => {
     mockAccessService.canUser.mockResolvedValue(false);
 
     const app = await createApp({
@@ -1344,7 +1344,7 @@ describe("agent permission routes", () => {
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
 
-  it("allows direct agent creation for authenticated operator users with agent create permission when approval is not required", async () => {
+  it("allows direct creation for authenticated operator users with agent create permission when approval is not required", async () => {
     mockAccessService.canUser.mockResolvedValue(true);
 
     const app = await createApp({
@@ -1383,7 +1383,7 @@ describe("agent permission routes", () => {
     expect(mockBuiltInAgentService.ensureSpaceDefaultAgentGrants).toHaveBeenCalledWith(spaceId);
   });
 
-  it("rejects direct agent creation when new agents require operator approval", async () => {
+  it("rejects direct creation when new agents require operator approval", async () => {
     const app = await createApp(
       {
         type: "operator",
@@ -1465,7 +1465,7 @@ describe("agent permission routes", () => {
     expect(mockAgentService.list).not.toHaveBeenCalled();
   });
 
-  it("normalizes direct agent creation to disable timer heartbeats by default", async () => {
+  it("normalizes direct creation to disable timer heartbeats by default", async () => {
     const app = await createApp({
       type: "operator",
       userId: "operator-user",
@@ -1889,11 +1889,11 @@ describe("agent permission routes", () => {
     expect(mockAgentService.updateAndTransition).toHaveBeenCalledWith(agentId, "resume", expect.anything(), expect.anything());
   });
 
-  it("keeps the invalid-org-chain resume guard on PATCH status idle", async () => {
+  it("keeps the invalid-coordination-chain resume guard on PATCH status idle", async () => {
     mockAgentService.getById.mockResolvedValue({
       ...baseAgent,
       status: "paused",
-      orgChainHealth: { status: "invalid_org_chain", reason: "missing_manager", repairGuidance: "Repair the reporting chain first." },
+      coordinationHealth: { status: "invalid_coordination_chain", reason: "missing_lead_agent", repairGuidance: "Repair the coordination chain first." },
     });
     const app = await createApp({
       type: "operator",
@@ -1908,7 +1908,7 @@ describe("agent permission routes", () => {
       .send({ status: "idle" }));
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("Repair the reporting chain first.");
+    expect(res.body.error).toBe("Repair the coordination chain first.");
     expect(mockAgentService.updateAndTransition).not.toHaveBeenCalled();
   });
 
@@ -2252,7 +2252,7 @@ describe("agent permission routes", () => {
     expect(res.body.access.taskAssignSource).toBe("simple_default");
   }, 15_000);
 
-  it("keeps task assignment independent from agent creation authority", async () => {
+  it("keeps task assignment independent from creation authority", async () => {
     mockAgentService.updatePermissions.mockResolvedValue({
       ...baseAgent,
       permissions: { canCreateAgents: true },
@@ -2339,7 +2339,7 @@ describe("agent permission routes", () => {
     expect(mockAccessService.setPrincipalPermission).not.toHaveBeenCalled();
   });
 
-  it("writes agent creation changes as explicit grants without Default agent metadata", async () => {
+  it("writes creation changes as explicit grants without Default agent metadata", async () => {
     const lead = { ...baseAgent, role: "lead", permissions: { canCreateAgents: true, canCreateSkills: true } };
     mockAgentService.getById.mockResolvedValue(lead);
     mockAgentService.updatePermissions.mockResolvedValue({ ...lead, permissions: { canCreateAgents: false, canCreateSkills: true } });

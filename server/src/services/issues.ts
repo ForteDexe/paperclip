@@ -4745,7 +4745,7 @@ async function listIssueReviewAttentionMap(
         role: agents.role,
         title: agents.title,
         status: agents.status,
-        reportsTo: agents.reportsTo,
+        leadAgentId: agents.leadAgentId,
       })
       .from(agents)
       .where(eq(agents.spaceId, spaceId)),
@@ -5865,7 +5865,7 @@ async function listIssueBlockedInboxAttentionMap(
           role: agents.role,
           title: agents.title,
           status: agents.status,
-          reportsTo: agents.reportsTo,
+          leadAgentId: agents.leadAgentId,
         })
         .from(agents)
         .where(eq(agents.spaceId, spaceId)),
@@ -5884,7 +5884,7 @@ async function listIssueBlockedInboxAttentionMap(
     role: string;
     title: string | null;
     status: string;
-    reportsTo: string | null;
+    leadAgentId: string | null;
   }>;
   const graphIssueIds = graphIssues.map((issue) => issue.id);
   const issuesById = new Map<string, IssueRow>(

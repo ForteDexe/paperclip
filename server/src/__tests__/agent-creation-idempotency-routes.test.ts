@@ -54,7 +54,7 @@ async function seedCreationFixture(db: Db) {
     .insert(agents)
     .values({
       spaceId: space!.id,
-      name: "Chief Of Staff",
+      name: "Default Agent",
       role: "general",
       adapterType: "process",
       adapterConfig: {},
@@ -211,7 +211,7 @@ describeEmbeddedPostgres("agent create idempotency within a run", () => {
       .select({ name: agents.name })
       .from(agents)
       .where(eq(agents.spaceId, space.id));
-    expect(names.map((row) => row.name).sort()).toEqual(["Casey", "Chief Of Staff", "Sam"]);
+    expect(names.map((row) => row.name).sort()).toEqual(["Casey", "Default Agent", "Sam"]);
   });
 
   it("does not deduplicate identical creations across different runs", async () => {

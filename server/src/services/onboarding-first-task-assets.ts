@@ -11,11 +11,11 @@ import {
 // without touching TypeScript. These loaders read those files at runtime the
 // same way loadDefaultAgentInstructionsBundle reads default/ and lead/ (the build
 // copies src/onboarding-assets/. into dist/onboarding-assets/), and fill the
-// {{agentName}} / {{organizationName}} / {{proposalMode}} placeholders.
+// {{agentName}} / {{spaceName}} / {{proposalMode}} placeholders.
 
 export interface OnboardingFirstTaskPlaceholders {
   agentName?: string | null;
-  organizationName?: string | null;
+  spaceName?: string | null;
 }
 
 // The opening card seeded on the first task right after the greeting: one
@@ -70,7 +70,7 @@ async function loadFirstTaskAsset(relativePath: string): Promise<string> {
 // historical buildOnboardingGreeting behaviour.
 export function fillFirstTaskPlaceholders(
   text: string,
-  { agentName, organizationName }: OnboardingFirstTaskPlaceholders,
+  { agentName, spaceName }: OnboardingFirstTaskPlaceholders,
 ): string {
   let out = text;
   const name = agentName?.trim();
@@ -82,8 +82,8 @@ export function fillFirstTaskPlaceholders(
       .split("{{agentName}} ").join("")
       .split("{{agentName}}").join("");
   }
-  const org = organizationName?.trim();
-  out = out.split("{{organizationName}}").join(org && org.length > 0 ? org : "your organization");
+  const org = spaceName?.trim();
+  out = out.split("{{spaceName}}").join(org && org.length > 0 ? org : "your organization");
   return out;
 }
 
@@ -129,21 +129,21 @@ export async function buildOnboardingFirstTaskBrief(options: {
   return brief.replace("{{proposalMode}}", options.usePlanProposal ? "plan" : "confirmation").trim();
 }
 
-// Layer B — the chief-of-staff persona seeded over the first agent's entry
+// Layer B — the default-agent persona seeded over the first agent's entry
 // instruction file at create time.
-export async function renderChiefOfStaffPersona(
+export async function renderDefaultAgentPersona(
   placeholders: OnboardingFirstTaskPlaceholders,
 ): Promise<string> {
-  const template = await loadFirstTaskAsset("chief-of-staff/AGENTS.md");
+  const template = await loadFirstTaskAsset("default-agent/AGENTS.md");
   return fillFirstTaskPlaceholders(template, placeholders);
 }
 
-// The instruction bundle for the onboarding first agent: the chief-of-staff
+// The instruction bundle for the onboarding first agent: the default-agent
 // persona as the entry AGENTS.md. Runtime coordination is supplied separately
 // by the harness.
 export async function buildOnboardingFirstAgentInstructionsBundle(
   placeholders: OnboardingFirstTaskPlaceholders,
 ): Promise<{ files: Record<string, string>; entryFile: string }> {
-  const persona = await renderChiefOfStaffPersona(placeholders);
+  const persona = await renderDefaultAgentPersona(placeholders);
   return { files: { "AGENTS.md": persona }, entryFile: "AGENTS.md" };
 }

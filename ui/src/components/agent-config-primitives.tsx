@@ -23,7 +23,7 @@ export const help: Record<string, string> = {
   name: "Display name for this agent.",
   title: "Job title shown in the crew map.",
   role: "Crew role. Determines position and capabilities.",
-  reportsTo: "The agent this one reports to in the crew map.",
+  leadAgentId: "The optional lead that coordinates this agent in the agent hierarchy.",
   capabilities: "Describes what this agent can do. Shown in the crew map and used for task routing.",
   adapterType: "How this agent runs: local CLI (Claude/Codex/OpenCode), OpenClaw Gateway, spawned process, or generic HTTP webhook.",
   cwd: "Deprecated legacy working directory fallback for local adapters. Existing agents may still carry this value, but new configurations should use project workspaces instead.",

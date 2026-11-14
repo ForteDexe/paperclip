@@ -17,7 +17,7 @@ const taskChanges = updateIssueSchema.pick({ title: true, description: true, ass
   title: z.string().trim().min(1).max(240).optional(), description: z.string().max(524288).nullable().optional(),
   assigneeAgentId: z.uuid().nullable().optional(), blockedByIssueIds: z.array(z.uuid()).max(100).optional(),
 }).strict();
-const agentChanges = updateAgentSchema.pick({ name: true, role: true, title: true, icon: true, reportsTo: true, capabilities: true, desiredSkills: true, budgetMonthlyCents: true }).extend({
+const agentChanges = updateAgentSchema.pick({ name: true, role: true, title: true, icon: true, leadAgentId: true, capabilities: true, desiredSkills: true, budgetMonthlyCents: true }).extend({
   adapterConfig: z.object({ model: z.string().trim().min(1).max(256).optional(), reasoningEffort: z.enum(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]).optional() }).strict().optional(),
   runtimeConfig: z.object({ aiConnection: aiRuntimeConnectionBindingSchema }).strict().optional(),
 }).strict();
@@ -26,7 +26,7 @@ const skillMetadata = spaceSkillUpdateSchema.unwrap().pick({ description: true, 
 const deliverableFields = { type: true, provider: true, externalId: true, title: true, url: true, status: true, isPrimary: true, summary: true } as const;
 // Approval decisions are not exposed by changing a work product's review state/status.
 const deliverableStatus = z.enum(["active", "ready_for_review", "closed", "failed", "archived", "draft"]);
-const agentFields = ["id", "spaceId", "name", "role", "title", "icon", "status", "reportsTo", "capabilities", "desiredSkills", "budgetMonthlyCents", "adapterType"];
+const agentFields = ["id", "spaceId", "name", "role", "title", "icon", "status", "leadAgentId", "capabilities", "desiredSkills", "budgetMonthlyCents", "adapterType"];
 const projectOutputFields = ["id", "spaceId", "name", "description", "status", "leadAgentId", "goalIds", "targetDate", "color", "icon", "repositories"];
 const workFields = ["id", "issueId", "type", "provider", "externalId", "title", "url", "status", "isPrimary", "summary", "metadata", "updatedAt"];
 const skillFields = ["id", "spaceId", "name", "slug", "key", "description", "markdown", "versionId", "currentVersionId", "latestVersionId", "categories", "tagline", "iconUrl", "color", "authorName", "homepageUrl", "sharingScope", "updatedAt"];
@@ -106,7 +106,7 @@ export const expandedMcpCapabilities: Capability[] = [
   },
   {
     name: "outpost_update_agent", configure: true, destructive: true,
-    description: "Update an existing agent's identity, reporting line, selected skills, model, budget, or binding to an existing AI connection. Requires configuration consent. Does not change credentials, execution commands or permission policies. New settings affect future execution.",
+    description: "Update an existing agent's identity, coordination lead, selected skills, model, budget, or binding to an existing AI connection. Requires configuration consent. Does not change credentials, execution commands or permission policies. New settings affect future execution.",
     schema: z.object({ ...agent, requestId, changes: nonempty(agentChanges) }).strict(), run: async (p, a, api) => ({ agent: agentOutput(await api(p, "PATCH", `/agents/${pathId(a.agentId)}`, a.changes)) }),
   },
   {
