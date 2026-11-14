@@ -469,6 +469,5 @@ These are intentional gaps as of the MCP Access Governance v1 launch. Track or w
 | Audit | `GET /api/tool-gateway/audit?spaceId=…&limit=…`, `GET /api/spaces/:spaceId/tools/runs/:runId/decisions` | Call event log. |
 | Stdio templates | `GET /api/spaces/:spaceId/tools/stdio-templates` | Approved local stdio template IDs only. |
 | Bulk import preview | `POST /api/spaces/:spaceId/tools/mcp/import-json` | Inspect a discovery JSON without persisting anything. |
-| Demo script | [MCP-DEMO-SCRIPT.md](./MCP-DEMO-SCRIPT.md) | Walks read / approval-gated write / denied flows end-to-end. |
 | Runtime runbook | [MCP-RUNTIME-OPERATIONS.md](./MCP-RUNTIME-OPERATIONS.md) | Alerts, stuck slots, recovery. |
 | Deployment modes | [DEPLOYMENT-MODES.md](./DEPLOYMENT-MODES.md) | Auth, exposure, bind. |

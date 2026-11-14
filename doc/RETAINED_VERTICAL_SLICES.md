@@ -47,3 +47,18 @@ inside a Space and may be connected through the agent hierarchy. This removes
 the catalog package, browse/install API, CLI command, unused UI, and their
 focused tests. It does not remove agent creation, hierarchy, task delegation, or
 runtime skill injection.
+
+### Unsupported Agent Adapters
+
+Outpost supports Codex and Claude as user-facing agent harnesses. The retired
+Cursor, Gemini, Grok, Hermes, Kimi, OpenClaw, OpenCode, and Pi adapter packages,
+configuration surfaces, container images, release wiring, stories, and focused
+tests are removed. Shared ACP/session runtime code remains until its Codex and
+Claude dependencies can be separated from historical provider compatibility.
+
+### KV Demo MCP Package
+
+The standalone key/value MCP server was a development demonstration rather than
+a retained product feature. Its only meaningful consumer was the tool-gateway
+integration suite, which now owns a small private Streamable HTTP fixture. The
+demo is no longer shipped as a workspace or release package.

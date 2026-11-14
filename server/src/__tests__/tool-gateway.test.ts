@@ -60,7 +60,7 @@ import { createToolGatewayService, ToolGatewayHttpError } from "../services/tool
 import { resolveConnectionGrantSecret } from "../services/connection-credentials.js";
 import { secretService } from "../services/secrets.js";
 import * as cogneeBridge from "../services/cognee-connection.js";
-import { createKvDemoHttpServer, type KvDemoHttpServer } from "../../../packages/kv-demo-mcp-server/src/http.js";
+import { createKvDemoHttpServer, type KvDemoHttpServer } from "./helpers/kv-demo-mcp-server.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

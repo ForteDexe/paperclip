@@ -60,11 +60,6 @@
     "publishFromCi": false
   },
   {
-    "dir": "packages/kv-demo-mcp-server",
-    "name": "@outpost/kv-demo-mcp-server",
-    "publishFromCi": false
-  },
-  {
     "dir": "packages/plugins/create-outpost-plugin",
     "name": "@outpost/create-outpost-plugin",
     "publishFromCi": true

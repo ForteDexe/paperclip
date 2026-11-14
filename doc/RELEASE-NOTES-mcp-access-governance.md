@@ -92,7 +92,6 @@ Expected: `runtime-health.status` is `"ok"` (no firing alerts on a clean install
 
 - Operator guide: [doc/MCP-ACCESS-GOVERNANCE.md](./MCP-ACCESS-GOVERNANCE.md)
 - Runtime runbook: [doc/MCP-RUNTIME-OPERATIONS.md](./MCP-RUNTIME-OPERATIONS.md)
-- Demo script: [doc/MCP-DEMO-SCRIPT.md](./MCP-DEMO-SCRIPT.md)
 - Deployment modes (auth/exposure/bind): [doc/DEPLOYMENT-MODES.md](./DEPLOYMENT-MODES.md)
 
 ## Acknowledgements
